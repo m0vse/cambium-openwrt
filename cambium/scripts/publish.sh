@@ -1,0 +1,105 @@
+#!/bin/sh
+# Publish one snapshot: a GitHub release with the images and ImageBuilders,
+# and the matching apk feeds on the gh-pages branch (served by GitHub Pages).
+#
+# Usage: cambium/scripts/publish.sh ARTIFACT_DIR
+# ARTIFACT_DIR holds cambium-<family>/ directories written by build.sh.
+# Environment: GH_TOKEN BUILD_ID SHA UPSTREAM FAMILIES FEED_URL GITHUB_REPOSITORY
+#   KEEP_RELEASES (default 14)  KEEP_FEEDS (default 2)
+
+set -eu
+
+in=$(cd "${1:?usage: $0 artifact-dir}" && pwd)
+repo=${GITHUB_REPOSITORY:?}
+tag=snapshot-$BUILD_ID
+keep_releases=${KEEP_RELEASES:-14}
+keep_feeds=${KEEP_FEEDS:-2}
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT HUP INT TERM
+
+built= failed=
+for family in $FAMILIES; do
+	dir=$in/cambium-$family
+	if [ -f "$dir/BUILD_ID" ] && [ "$(cat "$dir/BUILD_ID")" = "$BUILD_ID" ]; then
+		built="$built $family"
+	else
+		failed="$failed $family"
+	fi
+done
+[ -n "$built" ] || { echo "No family built successfully; nothing to publish." >&2; exit 1; }
+
+# Release assets must have unique names across families.
+mkdir -p "$stage/assets"
+for family in $built; do
+	for file in "$in/cambium-$family/images/"*; do
+		base=${file##*/}
+		case "$base" in
+		*cambiumnetworks_*|*imagebuilder*) cp "$file" "$stage/assets/$base" ;;
+		SHA256SUMS) ;;
+		*) cp "$file" "$stage/assets/$family-$base" ;;
+		esac
+	done
+done
+(cd "$stage/assets" && sha256sum -- * > SHA256SUMS)
+
+{
+	echo "Automated OpenWrt snapshot for Cambium access points, build \`$BUILD_ID\`."
+	echo
+	echo "- Source: [\`$(printf %.12s "$SHA")\`](https://github.com/$repo/commit/$SHA)"
+	echo "- Upstream OpenWrt: [\`$(printf %.12s "$UPSTREAM")\`](https://github.com/openwrt/openwrt/commit/$UPSTREAM)"
+	echo "- Built:$(echo "$built" | sed 's/ /, /g; s/^,//')"
+	[ -z "$failed" ] || echo "- **Failed (not included):**$(echo "$failed" | sed 's/ /, /g; s/^,//')"
+	echo "- Package feeds: $FEED_URL/$BUILD_ID/"
+	echo
+	cat "$(dirname "$0")/../release-notes.md"
+} > "$stage/notes.md"
+
+echo "Creating $tag at $SHA"
+gh api "repos/$repo/git/refs" -f ref="refs/tags/$tag" -f sha="$SHA" >/dev/null
+gh release create "$tag" --repo "$repo" --prerelease \
+	--title "Cambium OpenWrt snapshot $BUILD_ID" --notes-file "$stage/notes.md" \
+	"$stage/assets/"*
+
+echo "Updating package feeds"
+site=$stage/site
+if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+	git clone --quiet --depth 1 --branch gh-pages \
+		"https://x-access-token:$GH_TOKEN@github.com/$repo.git" "$site"
+	rm -rf "$site/.git"
+else
+	mkdir -p "$site"
+fi
+for family in $built; do
+	mkdir -p "$site/$BUILD_ID/$family"
+	cp -R "$in/cambium-$family/feed/." "$site/$BUILD_ID/$family/"
+done
+# Feeds only serve the newest snapshots; older images keep working but can
+# no longer install extra kernel modules.
+ls -1 "$site" | grep -E '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+$' | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n |
+	head -n "-$keep_feeds" | while read -r old; do rm -rf "${site:?}/$old"; done
+touch "$site/.nojekyll"
+{
+	echo '<!doctype html><meta charset="utf-8"><title>Cambium OpenWrt feeds</title>'
+	echo '<h1>Cambium OpenWrt package feeds</h1><ul>'
+	for dir in $(ls -1 "$site" | grep -E '^[0-9]{4}\.' | sort -r); do
+		for family in $(ls -1 "$site/$dir"); do
+			echo "<li>$dir: <a href=\"$dir/$family/\">$family</a></li>"
+		done
+	done
+	echo "</ul><p>Images: <a href=\"https://github.com/$repo/releases\">GitHub releases</a></p>"
+} > "$site/index.html"
+(
+	cd "$site"
+	git init --quiet --initial-branch gh-pages
+	git add -A
+	git commit --quiet -m "Package feeds for snapshot $BUILD_ID"
+	git push --quiet --force "https://x-access-token:$GH_TOKEN@github.com/$repo.git" gh-pages
+)
+
+echo "Pruning old snapshot releases"
+gh release list --repo "$repo" --limit 200 --json tagName --jq '.[].tagName' |
+	grep '^snapshot-' | sort -t. -k1,1 -k2,2n -k3,3n -k4,4n -r |
+	tail -n "+$((keep_releases + 1))" |
+	while read -r old; do gh release delete "$old" --repo "$repo" --yes --cleanup-tag; done
+
+echo "Published $tag"
