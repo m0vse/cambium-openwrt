@@ -1548,7 +1548,16 @@ define Device/cambiumnetworks_sage-recovery
 	DEVICE_DTS := qcom-ipq4019-sage-e410-recovery qcom-ipq4019-sage-e600-recovery qcom-ipq4019-sage-e430w-recovery qcom-ipq4019-sage-e700-recovery qcom-ipq4019-sage-e430h-recovery qcom-ipq4019-sage-e510-recovery qcom-ipq4019-sage-e410b-recovery
 	DEVICE_DTS_CONFIG := config@5
 	DEVICE_FIT_COMPATIBLE := cambiumnetworks,e410
-	KERNEL_INITRAMFS = kernel-bin | fit none $$(KDIR)/image-qcom-ipq4019-sage-e410-recovery.dtb
+	# KERNEL, not just KERNEL_INITRAMFS: the ImageBuilder build also makes
+	# the plain kernel, which cannot use FitzImage's single-DTS FIT here.
+	KERNEL = kernel-bin | cambium-family-fit none
+	CAMBIUM_FIT_BOARDS := 5:e410:qcom-ipq4019-sage-e410-recovery \
+		10:e600:qcom-ipq4019-sage-e600-recovery \
+		13:e430w:qcom-ipq4019-sage-e430w-recovery \
+		14:e700:qcom-ipq4019-sage-e700-recovery \
+		15:e430h:qcom-ipq4019-sage-e430h-recovery \
+		16:e510:qcom-ipq4019-sage-e510-recovery \
+		17:e410b:qcom-ipq4019-sage-e410b-recovery
 	SOC := qcom-ipq4019
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
@@ -1564,7 +1573,15 @@ define Device/cambiumnetworks_sage-persistent
 	DEVICE_DTS := qcom-ipq4019-sage-e410-persistent qcom-ipq4019-sage-e600-persistent qcom-ipq4019-sage-e430w-persistent qcom-ipq4019-sage-e700-persistent qcom-ipq4019-sage-e430h-persistent qcom-ipq4019-sage-e510-persistent qcom-ipq4019-sage-e410b-persistent
 	DEVICE_DTS_CONFIG := config@5
 	DEVICE_FIT_COMPATIBLE := cambium,e410
-	KERNEL = kernel-bin | fit none $$(KDIR)/image-qcom-ipq4019-sage-e410-persistent.dtb
+	KERNEL = kernel-bin | cambium-family-fit none
+	CAMBIUM_FIT_BOARDS := 5:e410:qcom-ipq4019-sage-e410-persistent \
+		10:e600:qcom-ipq4019-sage-e600-persistent \
+		13:e430w:qcom-ipq4019-sage-e430w-persistent \
+		14:e700:qcom-ipq4019-sage-e700-persistent \
+		15:e430h:qcom-ipq4019-sage-e430h-persistent \
+		16:e510:qcom-ipq4019-sage-e510-persistent \
+		17:e410b:qcom-ipq4019-sage-e410b-persistent \
+		ap.dk01.1-c2:e410:qcom-ipq4019-sage-e410-persistent
 	SOC := qcom-ipq4019
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
