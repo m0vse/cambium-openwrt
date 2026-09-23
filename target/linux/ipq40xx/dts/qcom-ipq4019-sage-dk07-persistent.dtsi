@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+#include "qcom-ipq4019-sage-dk07.dtsi"
+
+/* Persistent images need the OEM NAND/root filesystem path available. */
+&nand {
+	status = "okay";
+};
