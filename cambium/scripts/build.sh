@@ -161,18 +161,21 @@ sage)
 	;;
 thor)
 	THOR_FLAVOR=recovery sh "$verify" "$(image '*cambiumnetworks_thor-recovery-initramfs-uImage.itb')"
-	sysupgrade=$(image '*cambiumnetworks_xv3-8-squashfs-sysupgrade.bin')
+	sysupgrade=$(image '*cambiumnetworks_thor-persistent-squashfs-sysupgrade.bin')
 	tar -xOf "$sysupgrade" sysupgrade-cambiumnetworks_xv3-8/kernel > "$work/kernel.itb"
 	THOR_FLAVOR=persistent sh "$verify" "$work/kernel.itb"
-	[ "$(wc -c < "$(image '*cambiumnetworks_xv3-8-squashfs-factory.ubi')")" -le 100663296 ] ||
+	[ "$(wc -c < "$(image '*cambiumnetworks_thor-persistent-squashfs-factory.ubi')")" -le 100663296 ] ||
 		fail "XV3-8 factory image exceeds the 96 MiB rootfs partition"
 	;;
 cheetah)
-	sh "$verify" "$(image '*cambiumnetworks_cheetah-recovery-initramfs-uImage.itb')"
-	[ "$(wc -c < "$(image '*cambiumnetworks_xv2-21x-squashfs-factory.ubi')")" -lt 100663296 ] ||
-		fail "XV2-21X factory image exceeds the 96 MiB rootfs partition"
-	! find "$bin_dir" -maxdepth 1 -name '*cambiumnetworks_xv2-21x-*sysupgrade.bin' | grep -q . ||
-		fail "XV2-21X must not publish a generic sysupgrade image yet"
+	CHEETAH_FLAVOR=recovery sh "$verify" "$(image '*cambiumnetworks_cheetah-recovery-initramfs-uImage.itb')"
+	kernel=$(find build_dir -type f -name 'cambiumnetworks_cheetah-persistent-uImage.itb' | head -n 1)
+	[ -s "$kernel" ] || fail "missing Cheetah persistent kernel FIT"
+	CHEETAH_FLAVOR=persistent sh "$verify" "$kernel"
+	[ "$(wc -c < "$(image '*cambiumnetworks_cheetah-persistent-squashfs-factory.ubi')")" -lt 100663296 ] ||
+		fail "Cheetah factory image exceeds the 96 MiB rootfs partition"
+	! find "$bin_dir" -maxdepth 1 -name '*cambiumnetworks_cheetah-persistent-*sysupgrade.bin' | grep -q . ||
+		fail "Cheetah must not publish a generic sysupgrade image yet"
 	;;
 jaguar)
 	JAGUAR_FLAVOR=recovery sh "$verify" "$(image '*cambiumnetworks_jaguar-recovery-initramfs-uImage.itb')"
