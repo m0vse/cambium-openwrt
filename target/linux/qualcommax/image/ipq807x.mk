@@ -678,6 +678,7 @@ define Device/cambiumnetworks_xv3-8-recovery
 	SUPPORTED_DEVICES := cambiumnetworks,xv3-8
 	SOC := ipq8074
 	IMAGES :=
+	DEVICE_PACKAGES := cambium-board-data
 endef
 TARGET_DEVICES += cambiumnetworks_xv3-8-recovery
 
@@ -694,7 +695,7 @@ define Device/cambiumnetworks_xv3-8
 	DEVICE_DTS_CONFIG := config@hk02
 	SUPPORTED_DEVICES := cambiumnetworks,xv3-8
 	SOC := ipq8074
-	DEVICE_PACKAGES := uboot-envtools
+	DEVICE_PACKAGES := uboot-envtools cambium-board-data cambium-thor-support
 endef
 TARGET_DEVICES += cambiumnetworks_xv3-8
 
@@ -711,6 +712,7 @@ define Device/cambiumnetworks_xv3-8-installer
 	SUPPORTED_DEVICES := cambiumnetworks,xv3-8
 	SOC := ipq8074
 	IMAGES :=
+	DEVICE_PACKAGES := cambium-board-data
 endef
 TARGET_DEVICES += cambiumnetworks_xv3-8-installer
 
@@ -723,5 +725,6 @@ define Device/cambiumnetworks_thor-recovery
 	KERNEL = kernel-bin | fit none $$(KDIR)/image-ipq8074-xv3-8.dtb
 	SOC := ipq8074
 	IMAGES :=
+	DEVICE_PACKAGES := cambium-board-data
 endef
 TARGET_DEVICES += cambiumnetworks_thor-recovery
