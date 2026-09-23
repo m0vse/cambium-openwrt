@@ -34,6 +34,9 @@ linksys,mx6200|\
 linksys,spnmx56)
 	ubootenv_add_mtd "u_env" "0x0" "0x40000" "0x20000"
 	;;
+cambiumnetworks,xv2-21x|\
+cambiumnetworks,xv2-22h|\
+cambiumnetworks,xv2-23t|\
 wallys,dr5018s|\
 yuncore,ax830|\
 yuncore,ax850)

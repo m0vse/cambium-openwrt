@@ -14,6 +14,12 @@ board=$(board_name)
 case "$board" in
 alfa-network,ap120c-ac|\
 cambium,e410|\
+cambiumnetworks,e410b|\
+cambiumnetworks,e430h|\
+cambiumnetworks,e430w|\
+cambiumnetworks,e510|\
+cambiumnetworks,e600|\
+cambiumnetworks,e700|\
 devolo,magic-2-wifi-next|\
 edgecore,ecw5211|\
 glinet,gl-a1300 |\
