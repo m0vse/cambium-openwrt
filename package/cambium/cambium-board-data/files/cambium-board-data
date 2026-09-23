@@ -1,0 +1,173 @@
+#!/bin/sh
+# Install the Wi-Fi board data files (BDFs) that this Cambium access point's
+# own stock firmware uses. The files are read from the retained, read-only
+# OEM firmware slot; nothing on the OEM slot or the ART partition is modified.
+# Per-device calibration continues to come from 0:ART via firmware hotplug.
+
+. /lib/functions.sh
+. /lib/functions/system.sh
+
+TAG=cambium-board-data
+FW_DIR=${CAMBIUM_BDF_FW_DIR:-/lib/firmware}
+MNT=/tmp/$TAG.mnt
+STATUS=/tmp/$TAG.status
+
+log() {
+	logger -t "$TAG" "$*" 2>/dev/null
+	echo "$TAG: $*" >&2
+}
+
+# One line per file: OEM path, expected size, destination(s) under $FW_DIR.
+# Sources mirror the OEM setup_bdf_wifi6 selection for each board SKU.
+board_files() {
+	case "$(board_name)" in
+	cambiumnetworks,xv3-8)
+		echo "lib/firmware/IPQ8074/WIFI_FW/bdwlan.b215.accton 131072 ath11k/IPQ8074/hw2.0/board.bin IPQ8074/board.bin"
+		;;
+	cambiumnetworks,xv2-21x)
+		echo "lib/firmware/IPQ5018/WIFI_FW/bdwlan.b24-ocelot 131072 ath11k/IPQ5018/hw1.0/board.bin"
+		echo "lib/firmware/IPQ5018/WIFI_FW/qcn6122/bdwlan.b60-ocelot 131072 ath11k/QCN6122/hw1.0/board.bin"
+		;;
+	cambiumnetworks,xv2-22h)
+		echo "lib/firmware/IPQ5018/WIFI_FW/bdwlan.b24-cheetah 131072 ath11k/IPQ5018/hw1.0/board.bin"
+		echo "lib/firmware/IPQ5018/WIFI_FW/qcn6122/bdwlan.b50-cheetah 131072 ath11k/QCN6122/hw1.0/board.bin"
+		;;
+	cambiumnetworks,xv2-23t)
+		echo "lib/firmware/IPQ5018/WIFI_FW/bdwlan.b24-lynx 131072 ath11k/IPQ5018/hw1.0/board.bin"
+		echo "lib/firmware/IPQ5018/WIFI_FW/qcn6122/bdwlan.b60.stock 131072 ath11k/QCN6122/hw1.0/board.bin"
+		;;
+	cambiumnetworks,xv2-2|\
+	cambiumnetworks,xv2-2t0|\
+	cambiumnetworks,xv2-2t1)
+		echo "lib/firmware/IPQ6018/WIFI_FW/bdwlan.b13.stock 65536 ath11k/IPQ6018/hw1.0/board.bin"
+		;;
+	esac
+}
+
+missing_files() {
+	local src size dst
+	board_files | while read -r src size dst; do
+		for dst in $dst; do
+			[ -s "$FW_DIR/$dst" ] || { echo "$src"; break; }
+		done
+	done
+}
+
+ubi_dev_for_mtd() {
+	local dev
+	for dev in /sys/class/ubi/ubi[0-9]*; do
+		[ -f "$dev/mtd_num" ] || continue
+		[ "$(cat "$dev/mtd_num")" = "$1" ] && { echo "${dev##*/}"; return 0; }
+	done
+	return 1
+}
+
+mtd_writeable() {
+	# MTD_WRITEABLE is 0x400 in the MTD flags word.
+	[ $(( $(cat "/sys/class/mtd/mtd$1/flags") & 0x400 )) -ne 0 ]
+}
+
+# Candidate OEM slots: the rootfs partition which is not running OpenWrt.
+oem_mtds() {
+	local running name idx
+	running=$(sed -n 's/.*ubi\.mtd=\([^ ]*\).*/\1/p' /proc/cmdline)
+	for name in rootfs_1 rootfs; do
+		[ "$name" = "$running" ] && continue
+		idx=$(find_mtd_index "$name")
+		[ -n "$idx" ] && echo "$idx"
+	done
+}
+
+cleanup() {
+	grep -q " $MNT " /proc/mounts && umount "$MNT"
+	[ -n "$BLOCK" ] && ubiblock --remove "/dev/$BLOCK_VOL" >/dev/null 2>&1
+	[ -n "$ATTACHED" ] && ubidetach -m "$ATTACHED" >/dev/null 2>&1
+	rmdir "$MNT" 2>/dev/null
+	BLOCK=; BLOCK_VOL=; ATTACHED=
+}
+
+install_from_root() {
+	local root="$1" src size dst tmp actual hash
+	board_files | while read -r src size dst; do
+		[ -f "$root/$src" ] || { log "OEM firmware lacks $src"; continue; }
+		actual=$(wc -c < "$root/$src")
+		[ "$actual" -eq "$size" ] || {
+			log "unexpected size $actual for $src (expected $size)"
+			continue
+		}
+		hash=$(sha256sum "$root/$src" | cut -d' ' -f1)
+		for dst in $dst; do
+			mkdir -p "$(dirname "$FW_DIR/$dst")"
+			tmp="$FW_DIR/$dst.tmp.$$"
+			cp "$root/$src" "$tmp" && mv "$tmp" "$FW_DIR/$dst" || {
+				rm -f "$tmp"
+				log "failed to install $dst"
+				continue
+			}
+			log "installed $dst from OEM $src (sha256 $hash)"
+		done
+	done
+}
+
+import_from_mtd() {
+	local mtd="$1" ubi vol name
+
+	if mtd_writeable "$mtd"; then
+		log "mtd$mtd is writable; refusing to attach it"
+		return 1
+	fi
+
+	ubi=$(ubi_dev_for_mtd "$mtd")
+	if [ -z "$ubi" ]; then
+		ubiattach -m "$mtd" >/dev/null 2>&1 || {
+			log "cannot attach mtd$mtd read-only"
+			return 1
+		}
+		ATTACHED=$mtd
+		ubi=$(ubi_dev_for_mtd "$mtd") || return 1
+	fi
+
+	for vol in /sys/class/ubi/"$ubi"_*; do
+		[ "$(cat "$vol/name" 2>/dev/null)" = ubi_rootfs ] || continue
+		BLOCK_VOL=${vol##*/}
+	done
+	[ -n "$BLOCK_VOL" ] || { log "no OEM ubi_rootfs volume on mtd$mtd"; return 1; }
+
+	if [ ! -b "/dev/ubiblock${BLOCK_VOL#ubi}" ]; then
+		ubiblock --create "/dev/$BLOCK_VOL" >/dev/null 2>&1 || {
+			log "cannot create a block device for $BLOCK_VOL"
+			return 1
+		}
+		BLOCK=1
+	fi
+
+	mkdir -p "$MNT"
+	mount -t squashfs -o ro "/dev/ubiblock${BLOCK_VOL#ubi}" "$MNT" || {
+		log "cannot mount the OEM root filesystem on mtd$mtd"
+		return 1
+	}
+	install_from_root "$MNT"
+}
+
+main() {
+	local mtd
+
+	[ -n "$(board_files)" ] || exit 0
+	[ -z "$(missing_files)" ] && { echo present > "$STATUS"; exit 0; }
+
+	for mtd in $(oem_mtds); do
+		BLOCK=; BLOCK_VOL=; ATTACHED=
+		import_from_mtd "$mtd"
+		cleanup
+		[ -z "$(missing_files)" ] && break
+	done
+
+	if [ -n "$(missing_files)" ]; then
+		echo missing > "$STATUS"
+		log "board data unavailable; affected radios will stay down"
+		exit 1
+	fi
+	echo imported > "$STATUS"
+}
+
+main "$@"
