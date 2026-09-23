@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: (GPL-2.0+)
+
+/*
+ * OEM 7.2-r1 XV2-2T1 running NOR/NAND layout. Sibling running layouts are
+ * still provisional: OEM FIT DTBs omit the bootloader-added partition map.
+ * No initial recovery write targets.
+ */
+&blsp1_spi1 {
+	flash@0 {
+		partitions {
+			partition@510000 {
+				label = "oldappsblenv";
+				read-only;
+				/delete-node/ nvmem-layout;
+			};
+
+			partition@6e0000 {
+				label = "0:DEVCFG_1";
+				reg = <0x6e0000 0x10000>;
+				read-only;
+			};
+
+			partition@6f0000 {
+				label = "0:APPSBLENV";
+				reg = <0x6f0000 0x10000>;
+				read-only;
+				nvmem-layout {
+					compatible = "u-boot,env";
+					ethaddr: ethaddr { #nvmem-cell-cells = <0>; };
+					eth1addr: eth1addr { #nvmem-cell-cells = <0>; };
+					eth2addr: eth2addr { #nvmem-cell-cells = <0>; };
+					eth5addr: eth5addr { #nvmem-cell-cells = <0>; };
+				};
+			};
+
+			partition@700000 {
+				label = "config";
+				reg = <0x700000 0x10000>;
+				read-only;
+			};
+		};
+	};
+};
+
+&qpic_nand {
+	/* RAM diagnostic: OEM 7.2 reports ECC strength 8 in MTD sysfs. */
+	compatible = "qcom,ipq6018-nand";
+	nand@0 {
+		nand-ecc-strength = <8>;
+		partitions {
+			partition@0 { read-only; };
+			partition@6000000 { read-only; };
+			partition@c000000 { read-only; };
+			partition@f000000 { read-only; };
+		};
+	};
+};
