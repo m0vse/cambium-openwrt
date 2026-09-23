@@ -65,7 +65,7 @@ ipq807x_setup_interfaces()
 		ucidef_set_interface_lan "lan" "dhcp"
 		;;
 	cambiumnetworks,xv3-8)
-		ucidef_set_interface_lan "lan lan-multigig" "dhcp"
+		ucidef_set_interface_lan "lan-multigig" "dhcp"
 		;;
 	netgear,rbs750|\
 	netgear,wax630)
