@@ -1,0 +1,18 @@
+#!/bin/sh
+
+. /lib/functions/system.sh
+
+[ "$(board_name)" = "cambiumnetworks,xv3-8" ] || exit 0
+
+# This is an access point, not a router. The bridged LAN is a DHCP client and
+# must never offer addresses to the existing network.
+uci -q set dhcp.lan.ignore='1'
+uci -q set dhcp.lan.dhcpv4='disabled'
+uci -q set dhcp.lan.dhcpv6='disabled'
+uci -q set dhcp.lan.ra='disabled'
+uci -q commit dhcp
+
+uci -q set system.@system[0].hostname='xv3-8-recovery'
+uci -q commit system
+
+exit 0
