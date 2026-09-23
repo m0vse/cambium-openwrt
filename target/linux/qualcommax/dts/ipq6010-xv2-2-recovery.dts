@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: (GPL-2.0+)
+
+/* OEM 7.2-r1 XV2-2 lacks the second Ethernet path of the two T models. */
+#include "ipq6010-xv2-2t1-recovery.dts"
+
+/ {
+	model = "Cambium Networks XV2-2";
+	compatible = "cambiumnetworks,xv2-2", "qcom,ipq6018-ap-cp01-c1",
+		     "qcom,ipq6018-ap-cp01", "qcom,ipq6018";
+
+	aliases {
+		/delete-property/ ethernet1;
+	};
+
+	cambium-platform {
+		board-sku = <20>;
+	};
+};
+
+&swport4 {
+	status = "disabled";
+};
+
+/* Best-effort radio enablement; this model's board data is unqualified. */
+&wifi {
+	status = "okay";
+	qcom,ath11k-calibration-variant = "Cambium-XV2-2";
+};
