@@ -10,11 +10,13 @@ by patch. This directory holds only the downstream build and release tooling.
 | Family | Target | Devices built | Support package |
 | --- | --- | --- | --- |
 | Sage | `ipq40xx/generic` | `cambiumnetworks_sage-persistent`, `cambiumnetworks_sage-recovery` | `cambium-sage-support` |
-| Thor | `qualcommax/ipq807x` | `cambiumnetworks_xv3-8`, `cambiumnetworks_thor-recovery` | `cambium-thor-support` |
-| Cheetah | `qualcommax/ipq50xx` | `cambiumnetworks_xv2-21x`, `cambiumnetworks_cheetah-recovery` | `cambium-cheetah-support` |
+| Thor | `qualcommax/ipq807x` | `cambiumnetworks_thor-persistent`, `cambiumnetworks_thor-recovery` | `cambium-thor-support` |
+| Cheetah | `qualcommax/ipq50xx` | `cambiumnetworks_cheetah-persistent`, `cambiumnetworks_cheetah-recovery` | `cambium-cheetah-support` |
 | Jaguar | `qualcommax/ipq60xx` | `cambiumnetworks_jaguar-persistent`, `cambiumnetworks_jaguar-recovery` | `cambium-jaguar-support` |
 
-Family images are one kernel plus every model's device tree in a single FIT,
+Each family publishes one recovery and one persistent image. Thor's
+persistent image covers the XV3-8 only until the XE5-8 flash layout has been
+captured. Family images are one kernel plus every model's device tree in a single FIT,
 built by the `cambium-family-fit` image command. The OEM U-Boot boots a
 named configuration (`config@5`, `config@hk02`, ...), so each configuration
 keeps the name used by Cambium's own family image. `verify/<family>/`
