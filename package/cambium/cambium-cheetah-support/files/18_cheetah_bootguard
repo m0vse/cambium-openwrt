@@ -1,0 +1,5 @@
+#!/bin/sh
+
+[ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = 'cambiumnetworks,xv2-21x' ] || exit 0
+/etc/init.d/cheetah-bootguard enable
+exit 0
