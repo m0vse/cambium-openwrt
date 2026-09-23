@@ -198,7 +198,7 @@
 				read-only;
 			};
 
-			partition@6a0000 {
+			appsblenv: partition@6a0000 {
 				label = "0:APPSBLENV";
 				reg = <0x6a0000 0x010000>;
 				read-only;
