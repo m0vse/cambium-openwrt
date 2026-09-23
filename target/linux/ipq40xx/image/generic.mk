@@ -375,9 +375,10 @@ define Device/cambium_e410
 	PAGESIZE := 2048
 	KERNEL_INSTALL := 1
 	KERNEL_SIZE := 4216k
-	IMAGES := $(if $(CONFIG_TARGET_ROOTFS_INITRAMFS),,kernel.itb rootfs.ubifs)
+	IMAGES := $(if $(CONFIG_TARGET_ROOTFS_INITRAMFS),,kernel.itb rootfs.ubifs sysupgrade.bin)
 	IMAGE/kernel.itb := append-kernel | check-size 4216k
 	IMAGE/rootfs.ubifs := e410-rootfs-ubifs | check-size 46128k
+	IMAGE/sysupgrade.bin := e410-rootfs-ubifs | check-size 46128k | sysupgrade-tar rootfs=$$$$@ | append-metadata
 endef
 TARGET_DEVICES += cambium_e410
 
