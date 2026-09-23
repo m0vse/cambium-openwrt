@@ -1,0 +1,135 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/dts-v1/;
+
+#include "ipq8074.dtsi"
+#include "ipq8074-hk-cpu.dtsi"
+#include "ipq8074-ess.dtsi"
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "Cambium Networks XE5-8";
+	compatible = "cambiumnetworks,xe5-8", "qcom,ipq8074-ap-hk01-c6",
+		     "qcom,ipq8074-hk01", "qcom,ipq8074";
+
+	aliases {
+		serial0 = &blsp1_uart5;
+		ethernet0 = &swport6;
+		label-mac-device = &swport6;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	cambium-platform {
+		board-sku = <30>;
+	};
+
+	keys {
+		compatible = "gpio-keys";
+
+		reset {
+			label = "reset";
+			/* OEM HK01-C6 tree uses active-low GPIO26. */
+			gpios = <&tlmm 26 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+			debounce-interval = <60>;
+		};
+	};
+};
+
+&blsp1_uart5 {
+	status = "okay";
+};
+
+/* RAM recovery must not expose unverified XE5-8 flash geometry for writes. */
+&blsp1_spi1 {
+	status = "disabled";
+};
+
+&qpic_bam {
+	status = "disabled";
+};
+
+&qpic_nand {
+	status = "disabled";
+};
+
+&edma {
+	status = "okay";
+};
+
+&uniphy0 {
+	status = "disabled";
+};
+
+&uniphy2 {
+	status = "okay";
+};
+
+&switch {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			ethernet = <&edma>;
+			phy-mode = "internal";
+
+			fixed-link {
+				speed = <1000>;
+				full-duplex;
+			};
+		};
+
+		/* OEM dp6 is NSS port 6 with the clause-45 PHY at MDIO 8. */
+		swport6: port@6 {
+			reg = <6>;
+			label = "lan";
+			phy-handle = <&aqr_phy>;
+			phy-mode = "usxgmii";
+			managed = "in-band-status";
+			pcs-handle = <&uniphy2 0>;
+		};
+	};
+};
+
+&tlmm {
+	mdio_pins: mdio-pins {
+		mdc {
+			pins = "gpio68";
+			function = "mdc";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		mdio {
+			pins = "gpio69";
+			function = "mdio";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
+};
+
+&mdio {
+	status = "okay";
+	pinctrl-0 = <&mdio_pins>;
+	pinctrl-names = "default";
+	reset-gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
+
+	aqr_phy: ethernet-phy@8 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <8>;
+	};
+};
+
+/* Radios require model-specific board data and remain off for first recovery. */
+&wifi {
+	status = "disabled";
+};

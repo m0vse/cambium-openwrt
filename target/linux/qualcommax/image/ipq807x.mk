@@ -713,3 +713,15 @@ define Device/cambiumnetworks_xv3-8-installer
 	IMAGES :=
 endef
 TARGET_DEVICES += cambiumnetworks_xv3-8-installer
+
+define Device/cambiumnetworks_thor-recovery
+	$(call Device/FitImage)
+	DEVICE_VENDOR := Cambium Networks
+	DEVICE_MODEL := Thor family RAM recovery
+	DEVICE_DTS := ipq8074-xv3-8 ipq8074-xe5-8-recovery
+	DEVICE_DTS_CONFIG := config@hk02
+	KERNEL = kernel-bin | fit none $$(KDIR)/image-ipq8074-xv3-8.dtb
+	SOC := ipq8074
+	IMAGES :=
+endef
+TARGET_DEVICES += cambiumnetworks_thor-recovery
