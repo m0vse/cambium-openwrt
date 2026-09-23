@@ -14,12 +14,12 @@ procedure, and lists the current snapshots and their package feeds.
 
 | Family | Target | Devices built | Support package |
 | --- | --- | --- | --- |
-| Sage | `ipq40xx/generic` | `cambiumnetworks_sage-persistent`, `cambiumnetworks_sage-recovery` | `cambium-sage-support` |
-| Thor | `qualcommax/ipq807x` | `cambiumnetworks_thor-persistent`, `cambiumnetworks_thor-recovery` | `cambium-thor-support` |
-| Cheetah | `qualcommax/ipq50xx` | `cambiumnetworks_cheetah-persistent`, `cambiumnetworks_cheetah-recovery` | `cambium-cheetah-support` |
-| Jaguar | `qualcommax/ipq60xx` | `cambiumnetworks_jaguar-persistent`, `cambiumnetworks_jaguar-recovery` | `cambium-jaguar-support` |
 | Gambit (E400, E500, E501S, E502S) | `ath79` (MIPS) | no build yet | — |
+| Sage | `ipq40xx/generic` | `cambiumnetworks_sage-persistent`, `cambiumnetworks_sage-recovery` | `cambium-sage-support` |
 | Lila (E425W, E505) | `ath79` (MIPS) | no build yet | — |
+| Thor | `qualcommax/ipq807x` | `cambiumnetworks_thor-persistent`, `cambiumnetworks_thor-recovery` | `cambium-thor-support` |
+| Jaguar | `qualcommax/ipq60xx` | `cambiumnetworks_jaguar-persistent`, `cambiumnetworks_jaguar-recovery` | `cambium-jaguar-support` |
+| Cheetah | `qualcommax/ipq50xx` | `cambiumnetworks_cheetah-persistent`, `cambiumnetworks_cheetah-recovery` | `cambium-cheetah-support` |
 | Miami (X7-35X, X7-53X, X7-55X, X7-56X) | new IPQ5332 subtarget | no build yet | — |
 
 Each family publishes one recovery and one persistent image. Thor's
