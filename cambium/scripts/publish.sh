@@ -93,22 +93,12 @@ done
 # no longer install extra kernel modules.
 ls -1 "$site" | grep -E '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+$' | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n |
 	head -n "-$keep_feeds" | while read -r old; do rm -rf "${site:?}/$old"; done
-touch "$site/.nojekyll"
-{
-	echo '<!doctype html><meta charset="utf-8"><title>Cambium OpenWrt feeds</title>'
-	echo '<h1>Cambium OpenWrt package feeds</h1><ul>'
-	for dir in $(ls -1 "$site" | grep -E '^[0-9]{4}\.' | sort -r); do
-		for family in $(ls -1 "$site/$dir"); do
-			echo "<li>$dir: <a href=\"$dir/$family/\">$family</a></li>"
-		done
-	done
-	echo "</ul><p>Images: <a href=\"https://github.com/$repo/releases\">GitHub releases</a></p>"
-} > "$site/index.html"
+"$(dirname "$0")/update-site.sh" "$site"
 (
 	cd "$site"
 	git init --quiet --initial-branch gh-pages
 	git add -A
-	git commit --quiet -m "Package feeds for snapshot $BUILD_ID"
+	git commit --quiet -m "Site and package feeds for snapshot $BUILD_ID"
 	git push --quiet --force "https://x-access-token:$GH_TOKEN@github.com/$repo.git" gh-pages
 )
 
