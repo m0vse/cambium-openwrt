@@ -107,31 +107,33 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
   <p>Access points are grouped by Cambium's hardware families. Each family
   image contains the device tree of every model in it and boots the one that
   matches the access point's board SKU, so there is exactly one recovery and
-  one persistent image per family. Families are listed oldest first.</p>
+  one persistent image per family. Families are listed oldest first. The
+  stock firmware column is the latest published Cambium version, which
+  should be running before an install.</p>
   <div class="table-scroll">
   <table>
-    <thead><tr><th>Family</th><th>Model</th><th>SKU</th><th>Recovery (RAM)</th><th>Persistent</th></tr></thead>
+    <thead><tr><th>Family</th><th>Stock firmware</th><th>Model</th><th>SKU</th><th>Recovery (RAM)</th><th>Persistent</th></tr></thead>
     <tbody>
-      <tr><td class="fam">Gambit<br><small>MIPS, Wi-Fi 5</small></td><td>E400, E500, E501S, E502S</td><td>6, 7, 9, 12</td><td colspan="2"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
-      <tr><td class="fam" rowspan="7">Sage<br><small>IPQ4019, Wi-Fi 5</small></td><td>E410</td><td>10</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
+      <tr><td class="fam">Gambit<br><small>MIPS, Wi-Fi 5</small></td><td>4.2.3.3-r10</td><td>E400, E500, E501S, E502S</td><td>6, 7, 9, 12</td><td colspan="2"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
+      <tr><td class="fam" rowspan="7">Sage<br><small>IPQ4019, Wi-Fi 5</small></td><td rowspan="7">4.2.3.3-r10</td><td>E410</td><td>10</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
       <tr><td>E410B</td><td>21</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
       <tr><td>E430H</td><td>15</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
       <tr><td>E430W</td><td>13</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
       <tr><td>E510</td><td>16</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
       <tr><td>E600</td><td>11</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
       <tr><td>E700</td><td>14</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
-      <tr><td class="fam">Lila<br><small>MIPS, Wi-Fi 5</small></td><td>E425W, E505</td><td>17, 18</td><td colspan="2"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
-      <tr><td class="fam" rowspan="2">Thor<br><small>IPQ8074, Wi-Fi 6</small></td><td>XV3-8</td><td>19</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
+      <tr><td class="fam">Lila<br><small>MIPS, Wi-Fi 5</small></td><td>4.2.3.3-r10</td><td>E425W, E505</td><td>17, 18</td><td colspan="2"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
+      <tr><td class="fam" rowspan="2">Thor<br><small>IPQ8074, Wi-Fi 6</small></td><td rowspan="2">7.2-r1</td><td>XV3-8</td><td>19</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
       <tr><td>XE5-8</td><td>30</td><td><span class="pill untested">untested</span></td><td><span class="pill none">not built</span> flash layout not yet captured</td></tr>
-      <tr><td class="fam" rowspan="5">Jaguar<br><small>IPQ6018, Wi-Fi 6/6E</small></td><td>XV2-2T1</td><td>31</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
+      <tr><td class="fam" rowspan="5">Jaguar<br><small>IPQ6018, Wi-Fi 6/6E</small></td><td rowspan="5">7.2-r1</td><td>XV2-2T1</td><td>31</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
       <tr><td>XV2-2</td><td>20</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
       <tr><td>XV2-2T0</td><td>22</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
       <tr><td>XE3-4</td><td>32</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
       <tr><td>XE3-4TN</td><td>33</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
-      <tr><td class="fam" rowspan="3">Cheetah<br><small>IPQ5018, Wi-Fi 6</small></td><td>XV2-21X</td><td>35</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
+      <tr><td class="fam" rowspan="3">Cheetah<br><small>IPQ5018, Wi-Fi 6</small></td><td rowspan="3">7.2-r1</td><td>XV2-21X</td><td>35</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
       <tr><td>XV2-22H</td><td>34</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
       <tr><td>XV2-23T</td><td>36</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
-      <tr><td class="fam">Miami<br><small>IPQ5332, Wi-Fi 7</small></td><td>X7-35X, X7-53X, X7-55X, X7-56X</td><td>44, 49, 42, 43</td><td colspan="2"><span class="pill none">no build yet</span> needs hardware and a new OpenWrt target</td></tr>
+      <tr><td class="fam">Miami<br><small>IPQ5332, Wi-Fi 7</small></td><td>7.2-r1</td><td>X7-35X, X7-53X, X7-55X, X7-56X</td><td>44, 49, 42, 43</td><td colspan="2"><span class="pill none">no build yet</span> needs hardware and a new OpenWrt target</td></tr>
     </tbody>
   </table>
   </div>
@@ -215,6 +217,16 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
   <code>SHA256SUMS</code>:</p>
 <pre>tftp -b 8192 -g -l /tmp/IMAGE -r IMAGE SERVER_IP
 sha256sum /tmp/IMAGE</pre>
+  <h3>Before you start: latest stock firmware, ideally in both slots</h3>
+  <p>Update the access point to the latest published Cambium firmware for
+  its family (the <em>Stock firmware</em> column in the
+  <a href="#hardware">hardware table</a>; these are the versions the
+  procedures were validated on). Ideally install it <strong>twice</strong>:
+  each Cambium upgrade writes the slot that is not running and then switches
+  to it, so a second upgrade leaves the same current version in both slots.
+  The slot OpenWrt does not use keeps a current stock firmware for rollback,
+  and it is where OpenWrt reads the Wi-Fi board file from.</p>
+
   <h3>First: which slot is the stock firmware running from?</h3>
   <p>Every access point has two firmware slots. OpenWrt is only ever staged
   and installed in the slot the stock firmware is <strong>not</strong>
@@ -238,10 +250,11 @@ cat /sys/class/ubi/ubi0/mtd_num           # the MTD of the running slot</pre>
   <p>Thor, Jaguar and Cheetah images always run OpenWrt from
   <code>rootfs</code> and keep <code>rootfs_1</code> read-only for the stock
   firmware. If the stock firmware is running from <code>rootfs</code> on one
-  of these, <strong>stop</strong> and
-  <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>:
-  installing would overwrite the only copy of the stock firmware. If the
-  partition numbers or names differ from the table, stop as well.</p>
+  of these, do not install: that would overwrite the running copy of the
+  stock firmware. Upgrade the stock firmware once more instead, which
+  switches it to <code>rootfs_1</code>, and check again. If the partition
+  numbers or names differ from the table, stop and
+  <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>.</p>
   <p>The commands below name the <em>validated</em> model's FIT
   configuration. For another model in the same family, use its
   configuration from the <a href="#bootconfigs">table below</a>.</p>
@@ -302,9 +315,8 @@ sage-migration-mark-good --confirm</pre>
   <code>rootfs</code> (<code>mtd1</code>) and keep <code>rootfs_1</code>
   (<code>mtd2</code>) read-only for the stock firmware, so the stock firmware
   must be running from <code>rootfs_1</code>: UBI device 0 on
-  <code>mtd2</code>. If it is running from <code>rootfs</code>, stop and
-  <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>;
-  installing would overwrite the only copy of the stock firmware.</p>
+  <code>mtd2</code>. If it is running from <code>rootfs</code>, upgrade the
+  stock firmware once more first (see above).</p>
   <p>Thor U-Boot has no working network, so RAM images are staged in flash
   first, in a separate <code>openwrt</code> volume in the inactive slot. It
   also rejects a non-default <code>bootcmd</code> unless
