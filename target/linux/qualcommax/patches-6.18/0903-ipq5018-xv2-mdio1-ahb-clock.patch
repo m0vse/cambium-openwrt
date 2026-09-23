@@ -1,0 +1,20 @@
+--- a/drivers/net/mdio/mdio-ipq4019.c
++++ b/drivers/net/mdio/mdio-ipq4019.c
+@@ -387,6 +387,17 @@ static int ipq4019_mdio_probe(struct platform_device *pdev)
+ 			return -ENOMEM;
+ 	}
+ 
++	/* Test the XV2-21X sibling gate without global clk_ignore_unused. */
++	if (of_machine_is_compatible("cambiumnetworks,xv2-21x")) {
++		struct clk *mdio1_ahb_clk;
++
++		mdio1_ahb_clk = devm_clk_get_enabled(&pdev->dev,
++						   "xv2-mdio1-ahb");
++		if (IS_ERR(mdio1_ahb_clk))
++			return dev_err_probe(&pdev->dev, PTR_ERR(mdio1_ahb_clk),
++					     "failed to enable XV2 MDIO1 AHB clock\n");
++	}
++
+ 	priv->mdio_clk = devm_clk_get_optional(&pdev->dev, "gcc_mdio_ahb_clk");
+ 	if (IS_ERR(priv->mdio_clk))
+ 		return PTR_ERR(priv->mdio_clk);
