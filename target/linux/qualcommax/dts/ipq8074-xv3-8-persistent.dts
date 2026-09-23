@@ -3,7 +3,7 @@
 #include "ipq8074-xv3-8.dts"
 
 / {
-	model = "Cambium Networks XV3-8 (OpenWrt persistent)";
+	model = "Cambium Networks XV3-8";
 
 	chosen {
 		bootargs-append = " ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait";
