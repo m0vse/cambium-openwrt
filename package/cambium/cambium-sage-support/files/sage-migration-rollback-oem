@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+IPKG_INSTROOT=${IPKG_INSTROOT:-}
+export IPKG_INSTROOT
+. /lib/functions/system.sh
+
+die() {
+	echo "sage-migration-rollback-oem: $*" >&2
+	exit 1
+}
+
+[ "$(id -u)" = 0 ] || die 'root is required'
+[ "$(board_name)" = 'cambium,e410' ] || die 'this command is restricted to the Cambium E410'
+[ "${1:-}" = '--confirm-oem' ] || die 'use --confirm-oem to select the preserved OEM slot'
+
+fallback=$(fw_printenv -n owrt_fallback_slot 2>/dev/null) || die 'no OEM fallback slot is recorded'
+case "$fallback" in 0|1) ;; *) die 'invalid OEM fallback slot' ;; esac
+
+fw_setenv bootcmd bootipq
+fw_setenv image "$fallback"
+fw_setenv bootcount 0
+fw_setenv owrt_migration_state rollback-selected
+sync
+echo "OEM slot $fallback is selected for the next boot. Reboot separately when ready."
