@@ -12,7 +12,7 @@ die() {
 
 [ "$(id -u)" = 0 ] || die 'root is required'
 [ "$(board_name)" = 'cambium,e410' ] || die 'this command is restricted to the Cambium E410'
-[ "${1:-}" = '--confirm' ] || die 'use --confirm only after checking networking, radios and OpenWISP'
+[ "${1:-}" = '--confirm' ] || die 'use --confirm only after checking networking, radios and (if used) OpenWISP'
 
 trial=$(fw_printenv -n owrt_trial_slot 2>/dev/null) || die 'no migration trial is recorded'
 fallback=$(fw_printenv -n owrt_fallback_slot 2>/dev/null) || die 'no OEM fallback slot is recorded'
@@ -23,9 +23,13 @@ current=$(sed -n 's/.*root=ubi0:rootfs\([01]\).*/\1/p' /proc/cmdline)
 root_hash=$(awk -F: '$1 == "root" { print $2 }' /etc/shadow)
 case "$root_hash" in ''|'!'|'*') die 'root password is blank or locked' ;; esac
 
-[ -f /tmp/sage-openwisp-managed ] || die 'authenticated OpenWISP connectivity is not current'
-/etc/init.d/openwisp-config running >/dev/null 2>&1 || die 'openwisp-config is not running'
-/etc/init.d/openwisp-monitoring running >/dev/null 2>&1 || die 'openwisp-monitoring is not running'
+# Managed deployments must be reachable by their controller before the slot is
+# committed; standalone APs (no controller URL configured) skip this check.
+if [ -n "$(uci -q get openwisp.http.url)" ]; then
+	[ -f /tmp/sage-openwisp-managed ] || die 'authenticated OpenWISP connectivity is not current'
+	/etc/init.d/openwisp-config running >/dev/null 2>&1 || die 'openwisp-config is not running'
+	/etc/init.d/openwisp-monitoring running >/dev/null 2>&1 || die 'openwisp-monitoring is not running'
+fi
 [ -d /sys/class/ieee80211/phy0 ] && [ -d /sys/class/ieee80211/phy1 ] || die 'both Wi-Fi radios are not present'
 ubus call network.interface.lan status | jsonfilter -e '@.up' | grep -qx true || die 'LAN is not up'
 
