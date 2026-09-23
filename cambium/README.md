@@ -5,6 +5,11 @@ Cambium Networks access points. Hardware support lives where upstream expects
 it (`target/linux`, `package/`), so the stack can be submitted upstream patch
 by patch. This directory holds only the downstream build and release tooling.
 
+The project site, https://m0vse.github.io/cambium-openwrt/, is built from
+`site/` by `scripts/update-site.sh` on every publish: it describes the
+project, the per-model hardware status and the install, upgrade and rollback
+procedure, and lists the current snapshots and their package feeds.
+
 ## Families
 
 | Family | Target | Devices built | Support package |
