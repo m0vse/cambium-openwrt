@@ -325,6 +325,7 @@ define Device/cambiumnetworks_xv2-21x-recovery
 	PAGESIZE := 2048
 	NAND_SIZE := 256m
 	IMAGES :=
+	DEVICE_PACKAGES := cambium-board-data
 endef
 TARGET_DEVICES += cambiumnetworks_xv2-21x-recovery
 
@@ -367,6 +368,6 @@ define Device/cambiumnetworks_xv2-21x
 	# Do not emit a generic nand_do_upgrade archive. Cheetah requires a
 	# family-specific inactive-slot writer and compatibility preflight first.
 	IMAGES := factory.ubi
-	DEVICE_PACKAGES := uboot-envtools
+	DEVICE_PACKAGES := uboot-envtools cambium-board-data cambium-cheetah-support
 endef
 TARGET_DEVICES += cambiumnetworks_xv2-21x
