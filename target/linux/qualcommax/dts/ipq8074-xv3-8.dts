@@ -175,10 +175,21 @@
 				};
 			};
 
-			partition@610000 {
+			ethphyfw: partition@610000 {
 				label = "0:ETHPHYFW";
 				reg = <0x610000 0x080000>;
 				read-only;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					/* Skip the 40-byte Qualcomm MBN header. */
+					aqr_fw: firmware@28 {
+						reg = <0x28 0x4c002>;
+					};
+				};
 			};
 
 			partition@690000 {
@@ -324,7 +335,6 @@
 	status = "okay";
 	pinctrl-0 = <&mdio_pins>;
 	pinctrl-names = "default";
-	reset-gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
 
 	ethernet-phy-package@0 {
 		#address-cells = <1>;
@@ -342,6 +352,8 @@
 	aqr_phy: ethernet-phy@8 {
 		compatible = "ethernet-phy-ieee802.3-c45";
 		reg = <8>;
+		nvmem-cells = <&aqr_fw>;
+		nvmem-cell-names = "firmware";
 	};
 
 };
