@@ -680,3 +680,20 @@ define Device/cambiumnetworks_xv3-8-recovery
 	IMAGES :=
 endef
 TARGET_DEVICES += cambiumnetworks_xv3-8-recovery
+
+define Device/cambiumnetworks_xv3-8
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	# Thor U-Boot 2016.01 on this unit loads an uncompressed FIT reliably.
+	KERNEL = kernel-bin | fit none $$(KDIR)/image-$$(DEVICE_DTS).dtb
+	DEVICE_VENDOR := Cambium Networks
+	DEVICE_MODEL := XV3-8
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	DEVICE_DTS := ipq8074-xv3-8-persistent
+	DEVICE_DTS_CONFIG := config@hk02
+	SUPPORTED_DEVICES := cambiumnetworks,xv3-8
+	SOC := ipq8074
+	DEVICE_PACKAGES := uboot-envtools
+endef
+TARGET_DEVICES += cambiumnetworks_xv3-8
