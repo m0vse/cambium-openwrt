@@ -1,0 +1,87 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/* Common Cambium Sage AP-DK07.1-C1 hardware baseline. */
+#include "qcom-ipq4019-habanero-dvk.dts"
+
+/ {
+	/delete-node/ keys;
+	/delete-node/ leds;
+
+	aliases {
+		label-mac-device = &swport4;
+		led-boot = &sage_led_amber;
+		led-failsafe = &sage_led_red;
+		led-running = &sage_led_green;
+		led-upgrade = &sage_led_amber;
+	};
+
+	chosen {
+		bootargs-append = " clk_ignore_unused";
+		stdout-path = &blsp1_uart1;
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <0x80000000 0x20000000>;
+	};
+
+	keys {
+		compatible = "gpio-keys";
+
+		wps {
+			label = "wps";
+			gpios = <&tlmm 18 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_WPS_BUTTON>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		sage_led_amber: status-amber {
+			function = LED_FUNCTION_STATUS;
+			color = <LED_COLOR_ID_AMBER>;
+			gpios = <&tlmm 24 GPIO_ACTIVE_LOW>;
+		};
+
+		sage_led_green: status-green {
+			function = LED_FUNCTION_STATUS;
+			color = <LED_COLOR_ID_GREEN>;
+			gpios = <&tlmm 25 GPIO_ACTIVE_LOW>;
+		};
+
+		sage_led_red: status-red {
+			function = LED_FUNCTION_STATUS;
+			color = <LED_COLOR_ID_RED>;
+			gpios = <&tlmm 26 GPIO_ACTIVE_LOW>;
+		};
+
+		sage_led_blue: status-blue {
+			function = LED_FUNCTION_STATUS;
+			color = <LED_COLOR_ID_BLUE>;
+			gpios = <&tlmm 27 GPIO_ACTIVE_LOW>;
+		};
+	};
+};
+
+&pcie0 {
+	status = "disabled";
+};
+
+/* Remove the Habanero-specific firmware lookup while retaining ART data. */
+&wifi0 {
+	/delete-property/ qcom,ath10k-calibration-variant;
+};
+
+&wifi1 {
+	/delete-property/ qcom,ath10k-calibration-variant;
+};
+
+&tlmm {
+	phy_reset: phy-reset {
+		gpio-hog;
+		line-name = "phy-reset";
+		gpios = <41 GPIO_ACTIVE_HIGH>;
+		output-high;
+	};
+};
