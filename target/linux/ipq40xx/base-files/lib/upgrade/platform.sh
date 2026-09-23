@@ -1,11 +1,68 @@
 PART_NAME=firmware
 REQUIRE_IMAGE_METADATA=1
 
-RAMFS_COPY_BIN='fw_printenv fw_setenv'
+RAMFS_COPY_BIN='fw_printenv fw_setenv head sha256sum'
 RAMFS_COPY_DATA='/etc/fw_env.config /var/lock/fw_printenv.lock'
+
+cambium_e410_active_slot() {
+	sed -n 's/.*root=ubi0:rootfs\([01]\).*/\1/p' /proc/cmdline
+}
+
+cambium_e410_image_info() {
+	local image="$1"
+	local board_dir
+
+	board_dir=$(tar tf "$image" | grep -m 1 '^sysupgrade-cambium_e410/$')
+	board_dir=${board_dir%/}
+	[ -n "$board_dir" ] || return 1
+
+	E410_BOARD_DIR="$board_dir"
+	E410_KERNEL_SIZE=$(tar xOf "$image" "$board_dir/kernel" | wc -c)
+	E410_ROOTFS_SIZE=$(tar xOf "$image" "$board_dir/root" | wc -c)
+	[ "$E410_KERNEL_SIZE" -gt 0 ] 2>/dev/null || return 1
+	[ "$E410_ROOTFS_SIZE" -gt 0 ] 2>/dev/null || return 1
+	[ "$E410_KERNEL_SIZE" -le 4317184 ] || return 1
+	[ "$E410_ROOTFS_SIZE" -le 47235072 ] || return 1
+
+	[ "$(tar xOf "$image" "$board_dir/kernel" | head -c 4 | hexdump -v -e '1/1 "%02x"')" = d00dfeed ] || return 1
+	[ "$(tar xOf "$image" "$board_dir/root" | head -c 4 | hexdump -v -e '1/1 "%02x"')" = 31181006 ] || return 1
+}
+
+cambium_e410_check_image() {
+	local image="$1"
+	local active target kernel_vol rootfs_vol
+
+	nand_do_platform_check "$(board_name)" "$image" || return 1
+	cambium_e410_image_info "$image" || {
+		echo "Invalid Cambium E410 A/B sysupgrade image"
+		return 1
+	}
+
+	active=$(cambium_e410_active_slot)
+	case "$active" in
+		0) target=1 ;;
+		1) target=0 ;;
+		*) echo "Cannot determine the active E410 slot"; return 1 ;;
+	esac
+
+	kernel_vol=$(nand_find_volume ubi0 "linux$target")
+	rootfs_vol=$(nand_find_volume ubi0 "rootfs$target")
+	[ -n "$kernel_vol" ] && [ -n "$rootfs_vol" ] || {
+		echo "The inactive E410 UBI volume pair is missing"
+		return 1
+	}
+	[ "$E410_KERNEL_SIZE" -le "$(cat "/sys/class/ubi/$kernel_vol/data_bytes")" ] || return 1
+	[ "$E410_ROOTFS_SIZE" -le "$(cat "/sys/class/ubi/$rootfs_vol/data_bytes")" ] || return 1
+
+	return 0
+}
 
 platform_check_image() {
 	case "$(board_name)" in
+	cambium,e410)
+		cambium_e410_check_image "$1"
+		return $?
+		;;
 	asus,map-ac1300|\
 	asus,rt-ac42u|\
 	asus,rt-ac58u)
@@ -85,6 +142,75 @@ zyxel_do_upgrade() {
 	fi
 }
 
+cambium_e410_do_upgrade() {
+	local image="$1"
+	local active target board_dir kernel_vol rootfs_vol
+	local kernel_tmp=/tmp/e410-sysupgrade-kernel.itb
+	local rootfs_tmp=/tmp/e410-sysupgrade-rootfs.ubifs
+	local new_root=/tmp/e410-sysupgrade-root
+	local kernel_hash rootfs_hash written_hash
+	local boot0 boot1 stable trial
+
+	cambium_e410_image_info "$image" || return 1
+	board_dir="$E410_BOARD_DIR"
+	active=$(cambium_e410_active_slot)
+	case "$active" in
+		0) target=1 ;;
+		1) target=0 ;;
+		*) return 1 ;;
+	esac
+	kernel_vol=$(nand_find_volume ubi0 "linux$target") || return 1
+	rootfs_vol=$(nand_find_volume ubi0 "rootfs$target") || return 1
+
+	boot0='setenv image 0; setenv bootargs "mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs0 rootfstype=ubifs rootwait"; nand device 1 && setenv mtdids nand1=nand1 && setenv mtdparts "mtdparts=nand1:0x8000000@0x0(fs)" && ubi part fs && ubi read 0x84000000 linux0 && bootm 0x84000000#config@ap.dk01.1-c2'
+	boot1='setenv image 1; setenv bootargs "mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs1 rootfstype=ubifs rootwait"; nand device 1 && setenv mtdids nand1=nand1 && setenv mtdparts "mtdparts=nand1:0x8000000@0x0(fs)" && ubi part fs && ubi read 0x84000000 linux1 && bootm 0x84000000#config@ap.dk01.1-c2'
+	stable="run owrt_boot$active; run owrt_boot$target"
+	trial="setenv bootcmd '$stable'; setenv image $active; setenv e410_upgrade_state fallback-restored; saveenv; run owrt_boot$target; run owrt_boot$active"
+
+	# Make the currently running slot persistent before modifying its peer.  The
+	# final bootcmd update below is deliberately the last persistent operation.
+	fw_setenv owrt_boot0 "$boot0" || return 1
+	fw_setenv owrt_boot1 "$boot1" || return 1
+	fw_setenv bootcmd "$stable" || return 1
+	fw_setenv image "$active" || return 1
+	fw_setenv e410_upgrade_target "$target" || return 1
+	fw_setenv e410_upgrade_fallback "$active" || return 1
+	fw_setenv e410_upgrade_state writing || return 1
+	sync
+
+	tar xOf "$image" "$board_dir/kernel" >"$kernel_tmp" || return 1
+	tar xOf "$image" "$board_dir/root" >"$rootfs_tmp" || return 1
+	kernel_hash=$(sha256sum "$kernel_tmp" | awk '{print $1}')
+	rootfs_hash=$(sha256sum "$rootfs_tmp" | awk '{print $1}')
+
+	ubiupdatevol "/dev/$kernel_vol" "$kernel_tmp" || return 1
+	ubiupdatevol "/dev/$rootfs_vol" "$rootfs_tmp" || return 1
+	sync
+	written_hash=$(head -c "$E410_KERNEL_SIZE" "/dev/$kernel_vol" | sha256sum | awk '{print $1}')
+	[ "$written_hash" = "$kernel_hash" ] || return 1
+	written_hash=$(head -c "$E410_ROOTFS_SIZE" "/dev/$rootfs_vol" | sha256sum | awk '{print $1}')
+	[ "$written_hash" = "$rootfs_hash" ] || return 1
+	rm -f "$kernel_tmp" "$rootfs_tmp"
+
+	if [ -n "$UPGRADE_BACKUP" ]; then
+		mkdir -p "$new_root"
+		mount -t ubifs "/dev/$rootfs_vol" "$new_root" || return 1
+		mv "$UPGRADE_BACKUP" "$new_root/$BACKUP_FILE" || {
+			umount "$new_root"
+			return 1
+		}
+		sync
+		umount "$new_root" || return 1
+		rmdir "$new_root"
+		UPGRADE_BACKUP=
+	fi
+
+	fw_setenv e410_upgrade_state trial-armed || return 1
+	fw_setenv bootcmd "$trial" || return 1
+	sync
+	echo "E410 inactive slot $target written and protected trial boot armed"
+}
+
 platform_do_upgrade_mikrotik_nand() {
 	local fw_mtd=$(find_mtd_part kernel)
 	fw_mtd="${fw_mtd/block/}"
@@ -105,6 +231,9 @@ platform_do_upgrade_mikrotik_nand() {
 
 platform_do_upgrade() {
 	case "$(board_name)" in
+	cambium,e410)
+		cambium_e410_do_upgrade "$1"
+		;;
 	8dev,jalapeno|\
 	aruba,ap-303|\
 	aruba,ap-303h|\
