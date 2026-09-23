@@ -1,0 +1,13 @@
+#!/bin/sh
+
+[ -r /lib/functions/system.sh ] && . /lib/functions/system.sh
+
+[ "$(board_name)" = "cambium,e410" ] || exit 0
+
+uci -q set irqbalance.@irqbalance[0].enabled='1'
+uci -q commit irqbalance
+
+/etc/init.d/sage-openwisp-led enable
+/etc/init.d/sage-sysupgrade-mark-good enable
+
+exit 0
