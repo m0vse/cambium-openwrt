@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+#include "qcom-ipq4019-sage-dk07.dtsi"
+
+/* Do not expose unknown sibling NAND layouts to a RAM recovery image. */
+&nand {
+	status = "disabled";
+};
+
+&blsp1_spi1 {
+	flash@0 {
+		partitions {
+			partition@180000 { read-only; };
+			partition@1c0000 { read-only; };
+		};
+	};
+};

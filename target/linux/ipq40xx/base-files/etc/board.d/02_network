@@ -74,9 +74,21 @@ ipq40xx_setup_interfaces()
 	zte,mf282plus)
 		ucidef_set_interface_lan "lan"
 		;;
-	cambium,e410)
+	cambium,e410|\
+	cambiumnetworks,e410b|\
+	cambiumnetworks,e510)
 		# Managed access point: obtain its management address upstream.
 		ucidef_set_interface_lan "lan" "dhcp"
+		;;
+	cambiumnetworks,e600|\
+	cambiumnetworks,e700)
+		# Two-port Sage access points bridge both ports for recovery.
+		ucidef_set_interface_lan "lan1 lan2" "dhcp"
+		;;
+	cambiumnetworks,e430w|\
+	cambiumnetworks,e430h)
+		# Four-port hospitality variants remain one managed AP bridge.
+		ucidef_set_interface_lan "lan1 lan2 lan3 lan4" "dhcp"
 		;;
 	aruba,ap-303h|\
 	buffalo,wtr-m2133hp|\
