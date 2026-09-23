@@ -47,6 +47,26 @@ if [ "${CAMBIUM_SKIP_FEEDS:-0}" != 1 ]; then
 	./scripts/feeds install -a
 fi
 
+# Building LLVM for eBPF takes hours; use upstream's prebuilt toolchain for
+# this target, as the OpenWrt buildbots do.
+if [ ! -f llvm-bpf/.llvm-version ]; then
+	log "Fetching prebuilt LLVM eBPF toolchain"
+	base=https://downloads.openwrt.org/snapshots/targets/$target/$subtarget
+	sums=$(wget -qO- "$base/sha256sums")
+	file=$(printf '%s\n' "$sums" | sed -n 's/^[0-9a-f]\{64\} \*\{0,1\}\(llvm-bpf-.*\.Linux-x86_64\.tar\.zst\)$/\1/p' | head -n 1)
+	if [ -n "$file" ] && wget -q -O "/tmp/$file" "$base/$file" &&
+		printf '%s\n' "$sums" | grep " \*\{0,1\}$file\$" | sed 's/ \*/  /' |
+			(cd /tmp && sha256sum -c --quiet -); then
+		# The archive carries llvm-bpf-<version>/ and an llvm-bpf symlink.
+		rm -rf llvm-bpf llvm-bpf-*
+		tar -I zstd -xf "/tmp/$file"
+		rm -f "/tmp/$file"
+		[ -f llvm-bpf/.llvm-version ] || log "Prebuilt LLVM archive has an unexpected layout"
+	else
+		log "Prebuilt LLVM unavailable; it will be built from source"
+	fi
+fi
+
 log "Configuring $name ($target/$subtarget), build $build_id"
 cat cambium/configs/common.config "cambium/configs/$family.config" > .config
 
