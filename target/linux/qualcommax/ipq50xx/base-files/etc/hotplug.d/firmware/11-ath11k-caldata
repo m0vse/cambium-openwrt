@@ -17,6 +17,9 @@ case "$FIRMWARE" in
 		ath11k_patch_mac $wlan_mac 0
 		ath11k_set_macflag
 		;;
+	cambiumnetworks,xv2-21x)
+		caldata_extract "0:ART" 0x1000 0x20000
+		;;
 	cmcc,mr3000d-ci)
 		caldata_extract "0:art" 0x1000 0x20000
 		wlan_mac=$(mtd_get_mac_binary 0:art 12)
@@ -113,6 +116,9 @@ case "$FIRMWARE" in
 		wlan_mac=$(cat /proc/device-tree/chosen/macwlan2)
 		ath11k_patch_mac $wlan_mac 0
 		ath11k_set_macflag
+		;;
+	cambiumnetworks,xv2-21x)
+		caldata_extract "0:ART" 0x26800 0x20000
 		;;
 	cmcc,mr3000d-ci)
 		caldata_extract "0:art" 0x26800 0x20000
