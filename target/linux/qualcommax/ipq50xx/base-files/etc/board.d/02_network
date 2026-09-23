@@ -7,6 +7,13 @@ ipq50xx_setup_interfaces()
 {
 	local board="$1"
 	case $board in
+	cambiumnetworks,xv2-21x|\
+	cambiumnetworks,xv2-23t)
+		ucidef_set_interface_lan "lan" "dhcp"
+		;;
+	cambiumnetworks,xv2-22h)
+		ucidef_set_interface_lan "lan lan1 lan2 lan3 lan4" "dhcp"
+		;;
 	elecom,wrc-x3000gs2|\
 	elecom,wrc-x3000gst2|\
 	iodata,wn-dax3000gr|\
