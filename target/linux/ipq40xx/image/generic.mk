@@ -1538,3 +1538,42 @@ define Device/zyxel_wre6606
 endef
 # Missing DSA Setup
 #TARGET_DEVICES += zyxel_wre6606
+
+define Device/cambiumnetworks_sage-recovery
+	$(call Device/FitzImage)
+	DEVICE_VENDOR := Cambium Networks
+	DEVICE_MODEL := Sage family
+	DEVICE_VARIANT := RAM recovery
+	DEVICE_DTS := qcom-ipq4019-sage-e410-recovery qcom-ipq4019-sage-e600-recovery qcom-ipq4019-sage-e430w-recovery qcom-ipq4019-sage-e700-recovery qcom-ipq4019-sage-e430h-recovery qcom-ipq4019-sage-e510-recovery qcom-ipq4019-sage-e410b-recovery
+	DEVICE_DTS_CONFIG := config@5
+	DEVICE_FIT_COMPATIBLE := cambiumnetworks,e410
+	KERNEL_INITRAMFS = kernel-bin | fit none $$(KDIR)/image-qcom-ipq4019-sage-e410-recovery.dtb
+	SOC := qcom-ipq4019
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	IMAGES :=
+endef
+TARGET_DEVICES += cambiumnetworks_sage-recovery
+
+define Device/cambiumnetworks_sage-persistent
+	$(call Device/FitzImage)
+	DEVICE_VENDOR := Cambium Networks
+	DEVICE_MODEL := Sage family
+	DEVICE_VARIANT := persistent
+	DEVICE_DTS := qcom-ipq4019-sage-e410-persistent qcom-ipq4019-sage-e600-persistent qcom-ipq4019-sage-e430w-persistent qcom-ipq4019-sage-e700-persistent qcom-ipq4019-sage-e430h-persistent qcom-ipq4019-sage-e510-persistent qcom-ipq4019-sage-e410b-persistent
+	DEVICE_DTS_CONFIG := config@5
+	DEVICE_FIT_COMPATIBLE := cambium,e410
+	KERNEL = kernel-bin | fit none $$(KDIR)/image-qcom-ipq4019-sage-e410-persistent.dtb
+	SOC := qcom-ipq4019
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	KERNEL_INSTALL := 1
+	KERNEL_SIZE := 4216k
+	BOARD_NAME := cambium_e410
+	SUPPORTED_DEVICES := cambium,e410 cambiumnetworks,e410 cambiumnetworks,e410b cambiumnetworks,e510 cambiumnetworks,e600 cambiumnetworks,e430w cambiumnetworks,e430h cambiumnetworks,e700
+	IMAGES := kernel.itb rootfs.ubifs sysupgrade.bin
+	IMAGE/kernel.itb := append-kernel | check-size 4216k
+	IMAGE/rootfs.ubifs := e410-rootfs-ubifs | check-size 46128k
+	IMAGE/sysupgrade.bin := e410-rootfs-ubifs | check-size 46128k | sysupgrade-tar rootfs=$$$$@ | append-metadata
+endef
+TARGET_DEVICES += cambiumnetworks_sage-persistent
