@@ -188,43 +188,287 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
   image. A serial console is still useful for watching boot messages. Back
   up everything before writing anything, and never erase or overwrite the
   bootloader, U-Boot environment or ART (calibration) partitions.</div>
+
+  <h3>Overview</h3>
   <ol class="steps">
-    <li><strong>Download</strong> the recovery and persistent images for the
-    access point's family from the latest snapshot, and check them against the
-    release's <code>SHA256SUMS</code>.</li>
-    <li><strong>Identify the model.</strong> On the stock firmware, the board
-    SKU (see the table above) selects the device tree. The images reject
-    unknown SKUs.</li>
     <li><strong>Get a root shell on the stock firmware.</strong> Cambium's
     firmware protects its root shell with a per-device challenge and unlock
     code. The tool that answers it is <strong>not published</strong>; please
     <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>
-    to ask about access. Every later step needs this root shell.</li>
-    <li><strong>Back up</strong> both firmware slots, the U-Boot environment
-    and the ART partition, and copy the backups off the access point.</li>
-    <li><strong>Trial the recovery image</strong> (strongly recommended for
-    untested models). From the root shell, the recovery image is written to a
-    spare volume in the <em>inactive</em> slot and started once through a
-    one-shot U-Boot boot command, using the model's configuration from the
-    table below. OpenWrt then runs entirely from RAM; the stock firmware slot
-    is not touched, and the next power cycle returns to it. Check that the
-    model name, LAN, LEDs and, where applicable, the radios come up.</li>
-    <li><strong>Install the persistent image</strong> into the
-    <em>inactive</em> slot only (never the slot the stock firmware is running
-    from), then boot it once. The safe-boot guard keeps OpenWrt only after it
-    comes up healthy.</li>
-    <li><strong>After the first boot</strong>, set a root password, check
-    <code>cat /tmp/cambium-board-data.status</code> (should be
-    <code>imported</code> or <code>present</code> on Thor, Cheetah and Jaguar)
-    and configure the network or OpenWISP as required.</li>
+    to ask about access. Every later step runs in this root shell.</li>
+    <li><strong>Check the model and slot.</strong> Confirm the board SKU and
+    that the stock firmware runs from its usual slot (below). Stop if either
+    differs.</li>
+    <li><strong>Back up</strong> the inactive firmware slot, the U-Boot
+    environment and the ART partition, and copy the backups off the access
+    point.</li>
+    <li><strong>RAM-boot the recovery image</strong> through a
+    self-restoring one-shot boot command. The stock firmware slot is not
+    touched; the next reboot or power cycle returns to it.</li>
+    <li><strong>Install the persistent image</strong> into the inactive slot,
+    boot it once, check it, then make it the default.</li>
   </ol>
-  <p>Family installer scripts that automate steps 4&ndash;6 are being
-  prepared for publication.</p>
 
-  <h3>Boot configurations</h3>
-  <p>The stock U-Boot boots a named FIT configuration. The one-shot boot
-  command for a recovery trial or first persistent boot must name the one for
-  your model:</p>
+  <h3>Common steps (stock firmware root shell)</h3>
+  <p>Copy images to the access point's <code>/tmp</code> from a TFTP server
+  on your network, then check them against the release's
+  <code>SHA256SUMS</code>:</p>
+<pre>tftp -b 8192 -g -l /tmp/IMAGE -r IMAGE SERVER_IP
+sha256sum /tmp/IMAGE</pre>
+  <h3>First: which slot is the stock firmware running from?</h3>
+  <p>Every access point has two firmware slots. OpenWrt is only ever staged
+  and installed in the slot the stock firmware is <strong>not</strong>
+  running from, so establish that before anything else:</p>
+<pre>od -An -tx1 /proc/device-tree/cambium-platform/board-sku   # hex SKU, e.g. 00000013 = 19 (XV3-8)
+fw_printenv image                         # the slot U-Boot booted
+cat /proc/cmdline                         # ubi.mtd=... or root=ubi0:rootfsN names the running slot
+cat /proc/mtd                             # partition numbers and names
+cat /sys/class/ubi/ubi0/mtd_num           # the MTD of the running slot</pre>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Family</th><th>Running slot shows as</th><th>Stock firmware must be on</th><th>OpenWrt goes into</th></tr></thead>
+    <tbody>
+      <tr><td class="fam">Sage</td><td><code>root=ubi0:rootfs0</code> or <code>rootfs1</code>; <code>image</code> matches</td><td>either slot</td><td>the other UBI volume pair (<code>linuxN</code>/<code>rootfsN</code>)</td></tr>
+      <tr><td class="fam">Thor</td><td><code>ubi.mtd=rootfs_1</code>; <code>ubi0</code> on <code>mtd2</code></td><td><code>rootfs_1</code> (<code>mtd2</code>)</td><td><code>rootfs</code> (<code>mtd1</code>)</td></tr>
+      <tr><td class="fam">Jaguar</td><td><code>ubi.mtd=rootfs_1</code>; <code>ubi0</code> on <code>mtd2</code></td><td><code>rootfs_1</code> (<code>mtd2</code>)</td><td><code>rootfs</code> (<code>mtd1</code>)</td></tr>
+      <tr><td class="fam">Cheetah</td><td><code>ubi.mtd=rootfs_1</code>; <code>ubi0</code> on <code>mtd3</code></td><td><code>rootfs_1</code> (<code>mtd3</code>)</td><td><code>rootfs</code> (<code>mtd2</code>)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Thor, Jaguar and Cheetah images always run OpenWrt from
+  <code>rootfs</code> and keep <code>rootfs_1</code> read-only for the stock
+  firmware. If the stock firmware is running from <code>rootfs</code> on one
+  of these, <strong>stop</strong> and
+  <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>:
+  installing would overwrite the only copy of the stock firmware. If the
+  partition numbers or names differ from the table, stop as well.</p>
+  <p>The commands below name the <em>validated</em> model's FIT
+  configuration. For another model in the same family, use its
+  configuration from the <a href="#bootconfigs">table below</a>.</p>
+
+  <details open>
+  <summary><strong>Sage</strong> &mdash; validated on the E410 (stock firmware 4.2.3.3)</summary>
+  <p>The stock firmware runs from slot <code>image=0</code> or
+  <code>1</code>; OpenWrt goes into the other one. The examples assume
+  <code>image=0</code>, so slot 1 (<code>/dev/ubi0_2</code> kernel,
+  <code>/dev/ubi0_3</code> root) is written. For <code>image=1</code>, use
+  <code>/dev/ubi0_0</code>/<code>/dev/ubi0_1</code> and swap 0 and 1 in the
+  commands.</p>
+  <p><strong>Back up</strong> the environment and the inactive slot:</p>
+<pre>dd if=/dev/mtd5ro of=/tmp/appsblenv.bin
+dd if=/dev/mtd7ro of=/tmp/art.bin
+dd if=/dev/ubi0_2 of=/tmp/oem-linux1.bin bs=126976
+dd if=/dev/ubi0_3 of=/tmp/oem-rootfs1.bin bs=126976
+sha256sum /tmp/*.bin    # copy all four files off the AP</pre>
+  <p><strong>RAM boot.</strong> Sage U-Boot loads the recovery image over
+  TFTP. Put <code>...sage-recovery-initramfs-zImage.itb</code> on your TFTP
+  server as <code>sage-recovery.itb</code>. The command restores the stock
+  <code>bootcmd</code> before trying anything:</p>
+<pre>fw_setenv ipaddr AP_IP
+fw_setenv serverip SERVER_IP
+fw_setenv bootcmd 'setenv bootcmd bootipq; saveenv; tftpboot 0x84000000 sage-recovery.itb &amp;&amp; bootm 0x84000000#config@5; bootipq'
+fw_printenv bootcmd
+sync; reboot</pre>
+  <p><strong>Install.</strong> Copy <code>...sage-persistent-squashfs-kernel.itb</code>
+  and <code>...sage-persistent-squashfs-rootfs.ubifs</code> to
+  <code>/tmp</code>, write them into the inactive pair and read them back:</p>
+<pre>ubiupdatevol /dev/ubi0_2 /tmp/KERNEL.itb
+ubiupdatevol /dev/ubi0_3 /tmp/ROOTFS.ubifs
+sync
+head -c "$(wc -c &lt; /tmp/KERNEL.itb)" /dev/ubi0_2 | sha256sum    # must match KERNEL.itb
+head -c "$(wc -c &lt; /tmp/ROOTFS.ubifs)" /dev/ubi0_3 | sha256sum  # must match ROOTFS.ubifs
+fw_setenv owrt_trial_slot 1
+fw_setenv owrt_fallback_slot 0</pre>
+  <p>Arm a one-shot trial of slot 1 that saves the stock slot as the
+  default first:</p>
+<pre>fw_setenv bootcmd 'setenv bootcmd bootipq; setenv image 0; setenv bootcount 0; saveenv; setenv image 1; setenv bootargs "mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs${image} rootfstype=ubifs rootwait"; nand device 1 &amp;&amp; setenv mtdids nand1=nand1 &amp;&amp; setenv mtdparts "mtdparts=nand1:0x8000000@0x0(fs)" &amp;&amp; ubi part fs &amp;&amp; ubi read 0x84000000 linux${image} &amp;&amp; bootm 0x84000000#config@ap.dk01.1-c2; setenv image 0; bootipq'
+fw_setenv image 0
+fw_setenv bootcount 0
+fw_printenv bootcmd
+sync; reboot</pre>
+  <p><strong>Commit.</strong> In OpenWrt, set a root password, check the LAN
+  and both radios, then keep OpenWrt with the stock slot as fallback:</p>
+<pre>passwd
+sage-migration-mark-good --confirm</pre>
+  <p>Until then, any reboot returns to the stock firmware. To go back later:
+  <code>sage-migration-rollback-oem --confirm-oem</code>, then reboot.
+  Later upgrades use <code>sysupgrade</code>.</p>
+  </details>
+
+  <details>
+  <summary><strong>Thor</strong> &mdash; validated on the XV3-8 (stock firmware 7.2-r1). Not for the XE5-8.</summary>
+  <p>OpenWrt is always staged and installed in the slot the stock firmware
+  is <em>not</em> running from. Thor images put OpenWrt in
+  <code>rootfs</code> (<code>mtd1</code>) and keep <code>rootfs_1</code>
+  (<code>mtd2</code>) read-only for the stock firmware, so the stock firmware
+  must be running from <code>rootfs_1</code>: UBI device 0 on
+  <code>mtd2</code>. If it is running from <code>rootfs</code>, stop and
+  <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>;
+  installing would overwrite the only copy of the stock firmware.</p>
+  <p>Thor U-Boot has no working network, so RAM images are staged in flash
+  first, in a separate <code>openwrt</code> volume in the inactive slot. It
+  also rejects a non-default <code>bootcmd</code> unless
+  <code>changing_bootcmd=1</code> is set first, and its default command is
+  <code>aq_load_fw&amp;&amp;bootipq</code>.</p>
+  <div class="note danger">Do not use these commands on the XE5-8: its
+  flash layout has not been captured.</div>
+  <p><strong>Check the slots and back up</strong> the inactive slot
+  (copy it off the AP with the APPSBLENV and ART backups):</p>
+<pre>cat /proc/mtd                           # mtd1 "rootfs", mtd2 "rootfs_1"
+cat /proc/cmdline
+test "$(cat /sys/class/ubi/ubi0/mtd_num)" = 2 &amp;&amp; echo "stock on rootfs_1: OK"
+dd if=/dev/mtd1ro of=/tmp/oem-rootfs.bin bs=131072</pre>
+  <p><strong>Stage</strong> <code>...thor-installer-initramfs-uImage.itb</code>
+  (copied to <code>/tmp/initramfs.itb</code>) in the inactive
+  <code>rootfs</code>. This stops rather than overwrite anything already
+  attached:</p>
+<pre>(
+set -eu
+IMAGE=/tmp/initramfs.itb
+EXPECTED_SHA='SHA256_FROM_SHA256SUMS'
+BYTES=$(wc -c &lt; "$IMAGE")
+test "$(sha256sum "$IMAGE" | cut -d ' ' -f 1)" = "$EXPECTED_SHA"
+test ! -e /sys/class/ubi/ubi2
+ubiattach /dev/ubi_ctrl -m 1 -d 2
+test "$(cat /sys/class/ubi/ubi2/mtd_num)" = 1
+ubinfo /dev/ubi2
+test ! -e /sys/class/ubi/ubi2_2
+ubimkvol /dev/ubi2 -n 2 -N openwrt -s "$BYTES"
+test "$(cat /sys/class/ubi/ubi2_2/name)" = openwrt
+ubiupdatevol /dev/ubi2_2 "$IMAGE"
+sync
+test "$(head -c "$BYTES" /dev/ubi2_2 | sha256sum | cut -d ' ' -f 1)" = "$EXPECTED_SHA"
+echo VERIFIED
+)</pre>
+  <p><strong>RAM boot.</strong> Only after <code>VERIFIED</code>, arm the
+  self-restoring one-shot. Check that the marker reads <code>1</code> and the
+  whole <code>bootcmd</code> reads back before rebooting. On boot it restores
+  and saves the stock command before loading OpenWrt, so any later reset
+  returns to the stock firmware:</p>
+<pre>fw_setenv changing_bootcmd 1
+fw_printenv changing_bootcmd
+fw_setenv bootcmd 'setenv changing_bootcmd; setenv bootcmd "aq_load_fw&amp;&amp;bootipq"; saveenv; aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)"; ubi part rootfs; ubi read 0x60000000 openwrt; bootm 0x60000000#config@hk02; bootipq'
+fw_printenv changing_bootcmd bootcmd
+reboot</pre>
+  <p>The same staging and command RAM-boot the <code>thor-recovery</code>
+  image instead, for a trial without installing.</p>
+  <p><strong>Install</strong> from the running installer (OpenWrt in RAM,
+  reachable over SSH as <code>root</code>). Copy
+  <code>...thor-persistent-squashfs-factory.ubi</code> to <code>/tmp</code>
+  and write it to <code>rootfs</code>, the only writable slot in the
+  installer (this also removes the staging volume):</p>
+<pre>grep '"rootfs"' /proc/mtd              # mtd0 in the installer
+ubiformat /dev/mtd0 -y -f /tmp/FACTORY.ubi
+reboot                                  # returns to the stock firmware</pre>
+  <p><strong>Trial boot</strong> the installed image once from the stock
+  firmware. <em>This command is the one-shot above reading the installed
+  <code>kernel</code> volume instead of <code>openwrt</code>; that exact
+  string has not itself been recorded on hardware.</em></p>
+<pre>fw_setenv changing_bootcmd 1
+fw_printenv changing_bootcmd
+fw_setenv bootcmd 'setenv changing_bootcmd; setenv bootcmd "aq_load_fw&amp;&amp;bootipq"; saveenv; aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)"; ubi part rootfs; ubi read 0x60000000 kernel; bootm 0x60000000#config@hk02; bootipq'
+fw_printenv changing_bootcmd bootcmd
+reboot</pre>
+  <p><strong>Make it permanent</strong> once OpenWrt, its LAN and radios are
+  healthy (run from OpenWrt; keep the marker set while this command is in
+  use):</p>
+<pre>fw_setenv changing_bootcmd 1
+fw_printenv changing_bootcmd
+fw_setenv bootcmd 'aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)"; ubi part rootfs; ubi read 0x60000000 kernel; bootm 0x60000000#config@hk02'
+fw_printenv changing_bootcmd bootcmd</pre>
+  <p>Thor has no automatic fallback after this; <code>rootfs_1</code> keeps
+  the stock firmware for a manual return.</p>
+  </details>
+
+  <details>
+  <summary><strong>Jaguar</strong> &mdash; validated on the XV2-2T1 (stock firmware 7.2-r1)</summary>
+  <p>The stock firmware runs from <code>rootfs_1</code>
+  (<code>mtd2</code>, <code>image=1</code>); OpenWrt is installed into
+  <code>rootfs</code> (<code>mtd1</code>), attached as UBI device 2:</p>
+<pre>grep -E '^mtd[12]:' /proc/mtd      # mtd1 "rootfs", mtd2 "rootfs_1", 06000000 bytes each
+ubiattach -m 1
+cat /sys/class/ubi/ubi2/mtd_num    # must be 1
+dd if=/dev/mtd1ro of=/tmp/oem-rootfs.bin bs=131072   # copy off the AP with APPSBLENV and ART backups</pre>
+  <p><strong>RAM boot.</strong> Stage
+  <code>...jaguar-recovery-initramfs-uImage.itb</code> in a new
+  <code>openwrt</code> volume in the inactive slot, then arm the one-shot:</p>
+<pre>ubimkvol /dev/ubi2 -N openwrt -s "$(wc -c &lt; /tmp/RECOVERY.itb)"
+ubiupdatevol /dev/ubi2_2 /tmp/RECOVERY.itb
+head -c "$(wc -c &lt; /tmp/RECOVERY.itb)" /dev/ubi2_2 | sha256sum
+fw_setenv changing_bootcmd 1
+fw_printenv changing_bootcmd
+fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 &amp;&amp; setenv mtdids nand0=nand0 &amp;&amp; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" &amp;&amp; ubi part rootfs &amp;&amp; ubi read 0x60000000 openwrt &amp;&amp; bootm 0x60000000#config@cp01-c1-2; reset'
+fw_printenv changing_bootcmd bootcmd
+sync; reboot</pre>
+  <p><strong>Install</strong> <code>...jaguar-persistent-squashfs-factory.ubi</code>
+  into the inactive slot (this replaces everything in <code>mtd1</code>; the
+  running <code>mtd2</code> is not touched) and check the new volumes:</p>
+<pre>ubidetach -m 1
+ubiformat /dev/mtd1 -y -f /tmp/FACTORY.ubi
+ubiattach -m 1
+cat /sys/class/ubi/ubi2_0/name /sys/class/ubi/ubi2_1/name /sys/class/ubi/ubi2_2/name   # kernel rootfs rootfs_data</pre>
+  <p><strong>First boot.</strong> Arm the guarded boot. After a healthy
+  start, OpenWrt re-arms it on every boot; an unhealthy start returns to the
+  stock firmware:</p>
+<pre>fw_setenv changing_bootcmd 1
+fw_printenv changing_bootcmd
+fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 &amp;&amp; setenv mtdids nand0=nand0 &amp;&amp; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" &amp;&amp; ubi part rootfs &amp;&amp; ubi read 0x60000000 kernel &amp;&amp; setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" &amp;&amp; bootm 0x60000000#config@cp01-c1-2; reset'
+fw_printenv changing_bootcmd bootcmd
+sync; reboot</pre>
+  </details>
+
+  <details>
+  <summary><strong>Cheetah</strong> &mdash; validated on the XV2-21X (stock firmware 7.2-r1)</summary>
+  <p>The stock firmware runs from <code>rootfs_1</code>
+  (<code>mtd3</code>, <code>image=1</code>); OpenWrt is installed into
+  <code>rootfs</code> (<code>mtd2</code>), attached as UBI device 2:</p>
+<pre>cat /sys/class/ubi/ubi0/mtd_num    # must be 3 (stock firmware on rootfs_1)
+ubiattach /dev/ubi_ctrl -m 2
+cat /sys/class/ubi/ubi2/mtd_num    # must be 2
+dd if=/dev/mtd2ro of=/tmp/oem-rootfs.bin bs=131072   # copy off the AP with APPSBLENV and ART backups</pre>
+  <p><strong>RAM boot.</strong> Stage
+  <code>...cheetah-recovery-initramfs-uImage.itb</code> and arm the
+  one-shot:</p>
+<pre>ubimkvol /dev/ubi2 -N openwrt -s "$(wc -c &lt; /tmp/RECOVERY.itb)"
+ubiupdatevol /dev/ubi2_2 /tmp/RECOVERY.itb
+head -c "$(wc -c &lt; /tmp/RECOVERY.itb)" /dev/ubi2_2 | sha256sum
+fw_setenv changing_bootcmd 1
+fw_printenv changing_bootcmd
+fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs &amp;&amp; ubi read 0x60000000 openwrt &amp;&amp; bootm 0x60000000#config@mp03.3-ocelot; reset'
+fw_printenv changing_bootcmd bootcmd image
+sync; reboot</pre>
+  <p><strong>Install</strong> <code>...cheetah-persistent-squashfs-kernel.itb</code>
+  and <code>...cheetah-persistent-squashfs-rootfs.squashfs</code> into the
+  inactive slot, replacing its volumes (the running <code>rootfs_1</code> is
+  not touched):</p>
+<pre>for id in $(ls /sys/class/ubi | sed -n 's/^ubi2_\([0-9]*\)$/\1/p' | sort -rn); do ubirmvol /dev/ubi2 -n "$id"; done
+ubimkvol /dev/ubi2 -N kernel -s "$(wc -c &lt; /tmp/KERNEL.itb)"
+ubiupdatevol /dev/ubi2_0 /tmp/KERNEL.itb
+ubimkvol /dev/ubi2 -N rootfs -s "$(wc -c &lt; /tmp/ROOTFS.squashfs)"
+ubiupdatevol /dev/ubi2_1 /tmp/ROOTFS.squashfs
+ubimkvol /dev/ubi2 -N rootfs_data -m
+sync
+head -c "$(wc -c &lt; /tmp/KERNEL.itb)" /dev/ubi2_0 | sha256sum
+head -c "$(wc -c &lt; /tmp/ROOTFS.squashfs)" /dev/ubi2_1 | sha256sum</pre>
+  <p><strong>First boot.</strong> Arm the guarded boot; OpenWrt re-arms it
+  after each healthy start:</p>
+<pre>fw_setenv changing_bootcmd 1
+fw_printenv changing_bootcmd
+fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs &amp;&amp; ubi read 0x60000000 kernel &amp;&amp; bootm 0x60000000#config@mp03.3-ocelot; bootipq'
+fw_printenv changing_bootcmd bootcmd
+sync; reboot</pre>
+  </details>
+
+  <h3>After the first boot (all families)</h3>
+  <p>Set a root password with <code>passwd</code>, then check
+  <code>cat /tmp/cambium-board-data.status</code> (should be
+  <code>imported</code> or <code>present</code> on Thor, Cheetah and Jaguar),
+  <code>cat /etc/cambium-openwrt-release</code> and the radios with
+  <code>iw dev</code>. Configure the network or OpenWISP as required.</p>
+
+  <h3 id="bootconfigs">Boot configurations</h3>
+  <p>Each one-shot command names a FIT configuration. Use the one for your
+  model:</p>
   <div class="table-scroll">
   <table>
     <thead><tr><th>Family</th><th>Model &rarr; configuration</th></tr></thead>
@@ -242,25 +486,43 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
   <h2>Upgrade &amp; rollback</h2>
   <h3>Upgrading</h3>
   <ul>
-    <li><strong>Sage and Thor</strong> use the standard OpenWrt
+    <li><strong>Sage</strong> uses the standard OpenWrt
     <code>sysupgrade</code> with the family <code>sysupgrade.bin</code>, from
-    LuCI, the command line or OpenWISP. Sage writes the other slot and keeps
-    the previous one as a fallback until the new image proves healthy.</li>
-    <li><strong>Cheetah and Jaguar</strong> have no generic
-    <code>sysupgrade</code> path yet; reinstall the persistent
-    <code>factory.ubi</code> into the inactive slot.</li>
+    LuCI, the command line or OpenWISP. It writes the slot OpenWrt is not
+    running from and keeps the running one as the fallback until the new
+    image proves healthy. <strong>The first upgrade after migration therefore
+    replaces the stock firmware</strong>; from then on the two slots
+    alternate between OpenWrt versions. Go back to the stock firmware first
+    if you might still want it.</li>
+    <li><strong>Thor</strong> uses <code>sysupgrade</code> with the family
+    <code>sysupgrade.bin</code>. It rewrites OpenWrt's own
+    <code>rootfs</code> slot in place; the stock firmware in
+    <code>rootfs_1</code> is kept.</li>
+    <li><strong>Cheetah and Jaguar</strong> have no <code>sysupgrade</code>
+    path yet. Return to the stock firmware (below), then repeat the install
+    steps with the new persistent image; they write <code>rootfs</code>
+    again, never the stock firmware's <code>rootfs_1</code>.</li>
     <li>Kernel modules must come from the same snapshot as the running image.
     The feed for each snapshot is configured in the image; feeds for the two
     most recent snapshots are kept online.</li>
   </ul>
   <h3>Going back to the stock firmware</h3>
-  <p>The stock firmware is never overwritten. Selecting its slot in the U-Boot
-  environment and rebooting returns the access point to Cambium's firmware,
-  for example (slot numbers vary by model; check <code>fw_printenv</code>
-  first):</p>
-<pre>fw_setenv bootcmd bootipq
-fw_setenv image 1
-reboot</pre>
+  <p>Until a Sage upgrade has replaced it, the stock firmware is still in
+  its slot. From OpenWrt:</p>
+<pre># Sage (after migration, before any sysupgrade)
+sage-migration-rollback-oem --confirm-oem
+
+# Thor: restore the stock boot command and remove the guard marker
+fw_setenv bootcmd 'aq_load_fw&amp;&amp;bootipq'
+fw_setenv changing_bootcmd
+
+# Cheetah and Jaguar: restore the stock boot command
+fw_setenv bootcmd bootipq
+fw_setenv changing_bootcmd</pre>
+  <p>The install never changes the U-Boot <code>image</code> variable, so
+  it still names the stock firmware's slot. Check with
+  <code>fw_printenv bootcmd changing_bootcmd image</code>, then
+  <code>reboot</code>.</p>
 </section>
 
 <section id="safety">
