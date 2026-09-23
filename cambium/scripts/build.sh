@@ -161,6 +161,7 @@ sage)
 	;;
 thor)
 	THOR_FLAVOR=recovery sh "$verify" "$(image '*cambiumnetworks_thor-recovery-initramfs-uImage.itb')"
+	THOR_FLAVOR=persistent sh "$verify" "$(image '*cambiumnetworks_thor-installer-initramfs-uImage.itb')"
 	sysupgrade=$(image '*cambiumnetworks_thor-persistent-squashfs-sysupgrade.bin')
 	tar -xOf "$sysupgrade" sysupgrade-cambiumnetworks_xv3-8/kernel > "$work/kernel.itb"
 	THOR_FLAVOR=persistent sh "$verify" "$work/kernel.itb"
@@ -169,9 +170,9 @@ thor)
 	;;
 cheetah)
 	CHEETAH_FLAVOR=recovery sh "$verify" "$(image '*cambiumnetworks_cheetah-recovery-initramfs-uImage.itb')"
-	kernel=$(find build_dir -type f -name 'cambiumnetworks_cheetah-persistent-uImage.itb' | head -n 1)
-	[ -s "$kernel" ] || fail "missing Cheetah persistent kernel FIT"
-	CHEETAH_FLAVOR=persistent sh "$verify" "$kernel"
+	CHEETAH_FLAVOR=persistent sh "$verify" "$(image '*cambiumnetworks_cheetah-persistent-squashfs-kernel.itb')"
+	[ "$(head -c 4 "$(image '*cambiumnetworks_cheetah-persistent-squashfs-rootfs.squashfs')")" = hsqs ] ||
+		fail "Cheetah root image is not SquashFS"
 	[ "$(wc -c < "$(image '*cambiumnetworks_cheetah-persistent-squashfs-factory.ubi')")" -lt 100663296 ] ||
 		fail "Cheetah factory image exceeds the 96 MiB rootfs partition"
 	! find "$bin_dir" -maxdepth 1 -name '*cambiumnetworks_cheetah-persistent-*sysupgrade.bin' | grep -q . ||
@@ -205,11 +206,12 @@ done
 log "Collecting to $output"
 rm -rf "$output"
 mkdir -p "$output/images" "$output/feed/targets/$target/$subtarget" "$output/feed/packages/$arch"
-# Only recovery devices publish RAM (initramfs) images; the initramfs builds
-# of persistent devices are a side effect of building both kinds together.
+# Only recovery and installer devices publish RAM (initramfs) images; the
+# initramfs builds of persistent devices are a side effect of building both
+# kinds together.
 find "$bin_dir" -maxdepth 1 -type f \( -name '*cambiumnetworks_*' -o -name 'profiles.json' \
 	-o -name '*.buildinfo' -o -name 'sha256sums' -o -name '*imagebuilder*' \) \
-	! \( -name '*-initramfs-*' ! -name '*-recovery-initramfs-*' \) \
+	! \( -name '*-initramfs-*' ! -name '*-recovery-initramfs-*' ! -name '*-installer-initramfs-*' \) \
 	-exec cp {} "$output/images/" \;
 cp -R "$bin_dir/packages" "$output/feed/targets/$target/$subtarget/"
 cp -R "bin/packages/$arch/base" "$output/feed/packages/$arch/"
