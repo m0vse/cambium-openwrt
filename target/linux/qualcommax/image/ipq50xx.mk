@@ -384,7 +384,11 @@ define Device/cambiumnetworks_cheetah-persistent
 	IMAGE_SIZE := 98304k
 	# Do not emit a generic nand_do_upgrade archive. Cheetah requires a
 	# family-specific inactive-slot writer and compatibility preflight first.
-	IMAGES := factory.ubi
+	# The separate kernel and root images let the OEM firmware write the
+	# inactive slot volume by volume, as validated on the XV2-21X.
+	IMAGES := factory.ubi kernel.itb rootfs.squashfs
+	IMAGE/kernel.itb := append-kernel
+	IMAGE/rootfs.squashfs := append-rootfs
 	DEVICE_PACKAGES := uboot-envtools cambium-board-data cambium-cheetah-support
 endef
 TARGET_DEVICES += cambiumnetworks_cheetah-persistent
