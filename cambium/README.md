@@ -13,8 +13,9 @@ by patch. This directory holds only the downstream build and release tooling.
 | Thor | `qualcommax/ipq807x` | `cambiumnetworks_thor-persistent`, `cambiumnetworks_thor-recovery` | `cambium-thor-support` |
 | Cheetah | `qualcommax/ipq50xx` | `cambiumnetworks_cheetah-persistent`, `cambiumnetworks_cheetah-recovery` | `cambium-cheetah-support` |
 | Jaguar | `qualcommax/ipq60xx` | `cambiumnetworks_jaguar-persistent`, `cambiumnetworks_jaguar-recovery` | `cambium-jaguar-support` |
-| Gambit (E400, E500, E501S, E502S) | — | no build yet | — |
-| Miami (X7-35X, X7-53X, X7-55X, X7-56X) | — | no build yet | — |
+| Gambit (E400, E500, E501S, E502S) | `ath79` (MIPS) | no build yet | — |
+| Lila (E425W, E505) | `ath79` (MIPS) | no build yet | — |
+| Miami (X7-35X, X7-53X, X7-55X, X7-56X) | new IPQ5332 subtarget | no build yet | — |
 
 Each family publishes one recovery and one persistent image. Thor's
 persistent image covers the XV3-8 only until the XE5-8 flash layout has been
