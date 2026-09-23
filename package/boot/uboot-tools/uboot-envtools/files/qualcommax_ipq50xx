@@ -32,6 +32,9 @@ xiaomi,redmi-ax5400)
 	ubootenv_add_mtd "0:appsblenv" "0x0" "0x10000" "0x20000"
 	ubootenv_add_sys_mtd "bdata" "0x0" "0x10000" "0x20000"
 	;;
+cambiumnetworks,xv2-21x|\
+cambiumnetworks,xv2-22h|\
+cambiumnetworks,xv2-23t|\
 yuncore,ax830|\
 yuncore,ax850)
 	ubootenv_add_mtd "0:APPSBLENV" "0x0" "0x10000" "0x10000"
