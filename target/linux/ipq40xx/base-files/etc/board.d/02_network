@@ -58,7 +58,6 @@ ipq40xx_setup_interfaces()
 		;;
 	aruba,ap-303|\
 	aruba,ap-365|\
-	cambium,e410|\
 	avm,fritzrepeater-1200|\
 	dlink,dap-2610|\
 	engenius,eap1300|\
@@ -74,6 +73,10 @@ ipq40xx_setup_interfaces()
 	netgear,ex6150v2|\
 	zte,mf282plus)
 		ucidef_set_interface_lan "lan"
+		;;
+	cambium,e410)
+		# Managed access point: obtain its management address upstream.
+		ucidef_set_interface_lan "lan" "dhcp"
 		;;
 	aruba,ap-303h|\
 	buffalo,wtr-m2133hp|\
