@@ -112,9 +112,34 @@ make download -j8 || make download -j1 V=s
 log "Building"
 # base-files caches release strings; always regenerate them.
 make package/base-files/clean >/dev/null
-if ! make -j"$jobs"; then
+# As on the OpenWrt buildbots, packages built only for the feed (=m, e.g. the
+# kernel modules of every feed pulled in by ALL_KMODS) may fail without
+# stopping the snapshot. Anything an image needs still fails image assembly.
+build_log=$top/logs/cambium-build.log
+mkdir -p "$top/logs"
+# Run make with its output teed to a log while keeping make's exit status.
+logged_make() {
+	status_file=$(mktemp)
+	{ make "$@"; echo $? > "$status_file"; } 2>&1 | tee -a "$build_log"
+	status=$(cat "$status_file")
+	rm -f "$status_file"
+	return "$status"
+}
+: > "$build_log"
+if ! logged_make -j"$jobs" IGNORE_ERRORS=m BUILD_LOG=1; then
 	log "Parallel build failed; retrying serially for a readable log"
-	make -j1 V=s BUILD_LOG=1
+	logged_make -j1 V=s IGNORE_ERRORS=m BUILD_LOG=1
+fi
+skipped=$(sed -n 's/^ *ERROR: \(package\/[^ ]*\) failed to build.*/\1/p' "$build_log" | sort -u)
+if [ -n "$skipped" ]; then
+	log "Feed-only packages that failed to build (not in any image):"
+	printf '  %s\n' $skipped
+	if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+		{
+			echo "### $name: feed-only packages that failed to build"
+			printf -- '- `%s`\n' $skipped
+		} >> "$GITHUB_STEP_SUMMARY"
+	fi
 fi
 
 log "Verifying"
