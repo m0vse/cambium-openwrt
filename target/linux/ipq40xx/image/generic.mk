@@ -338,6 +338,20 @@ define Device/cellc_rtl30vw
 endef
 TARGET_DEVICES += cellc_rtl30vw
 
+# Initial bring-up profile. Only the initramfs FIT is intended for use;
+# persistent images stay disabled until the factory A/B update path is proven.
+define Device/cambium_e410
+	$(call Device/FitImage)
+	DEVICE_VENDOR := Cambium Networks
+	DEVICE_MODEL := cnPilot E410
+	SOC := qcom-ipq4019
+	DEVICE_DTS_CONFIG := config@ap.dk01.1-c2
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	IMAGES :=
+endef
+TARGET_DEVICES += cambium_e410
+
 define Device/cilab_meshpoint-one
 	$(call Device/8dev_jalapeno-common)
 	DEVICE_VENDOR := Crisis Innovation Lab
