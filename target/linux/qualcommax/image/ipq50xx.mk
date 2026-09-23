@@ -309,3 +309,64 @@ define Device/zyxel_scr50axe
 		ipq-wifi-zyxel_scr50axe
 endef
 TARGET_DEVICES += zyxel_scr50axe
+
+define Device/cambiumnetworks_xv2-21x-recovery
+	$(call Device/FitImage)
+	# First trial: a RAM-only FIT with no factory or sysupgrade payload.
+	KERNEL = kernel-bin | fit none $$(KDIR)/image-$$(DEVICE_DTS).dtb
+	DEVICE_VENDOR := Cambium Networks
+	DEVICE_MODEL := XV2-21X
+	DEVICE_VARIANT := RAM recovery
+	DEVICE_DTS := ipq5018-xv2-21x
+	DEVICE_DTS_CONFIG := config@mp03.3-ocelot
+	SUPPORTED_DEVICES := cambiumnetworks,xv2-21x
+	SOC := ipq5018
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	NAND_SIZE := 256m
+	IMAGES :=
+endef
+TARGET_DEVICES += cambiumnetworks_xv2-21x-recovery
+
+define Device/cambiumnetworks_xv2-22h-recovery
+	$(call Device/cambiumnetworks_xv2-21x-recovery)
+	DEVICE_MODEL := XV2-22H
+	DEVICE_VARIANT := Cheetah RAM recovery candidate
+	DEVICE_DTS := ipq5018-xv2-22h-recovery
+	DEVICE_DTS_CONFIG := config@mp03.3-cheetah
+	SUPPORTED_DEVICES := cambiumnetworks,xv2-22h
+endef
+TARGET_DEVICES += cambiumnetworks_xv2-22h-recovery
+
+define Device/cambiumnetworks_xv2-23t-recovery
+	$(call Device/cambiumnetworks_xv2-21x-recovery)
+	DEVICE_MODEL := XV2-23T
+	DEVICE_VARIANT := Cheetah RAM recovery candidate
+	DEVICE_DTS := ipq5018-xv2-23t-recovery
+	DEVICE_DTS_CONFIG := config@mp03.3-lynx
+	SUPPORTED_DEVICES := cambiumnetworks,xv2-23t
+endef
+TARGET_DEVICES += cambiumnetworks_xv2-23t-recovery
+
+define Device/cambiumnetworks_xv2-21x
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	# Cheetah U-Boot 2016.01 booted the uncompressed FIT during RAM trials.
+	KERNEL = kernel-bin | fit none $$(KDIR)/image-$$(DEVICE_DTS).dtb
+	DEVICE_VENDOR := Cambium Networks
+	DEVICE_MODEL := XV2-21X
+	DEVICE_VARIANT := persistent
+	DEVICE_DTS := ipq5018-xv2-21x-persistent
+	DEVICE_DTS_CONFIG := config@mp03.3-ocelot
+	SUPPORTED_DEVICES := cambiumnetworks,xv2-21x
+	SOC := ipq5018
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	NAND_SIZE := 256m
+	IMAGE_SIZE := 98304k
+	# Do not emit a generic nand_do_upgrade archive. Cheetah requires a
+	# family-specific inactive-slot writer and compatibility preflight first.
+	IMAGES := factory.ubi
+	DEVICE_PACKAGES := uboot-envtools
+endef
+TARGET_DEVICES += cambiumnetworks_xv2-21x
