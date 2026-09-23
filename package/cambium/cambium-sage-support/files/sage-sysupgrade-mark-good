@@ -1,0 +1,56 @@
+#!/bin/sh
+set -eu
+
+IPKG_INSTROOT=${IPKG_INSTROOT:-}
+export IPKG_INSTROOT
+. /lib/functions/system.sh
+
+[ "$(board_name 2>/dev/null)" = 'cambium,e410' ] || exit 0
+[ "$(fw_printenv -n e410_upgrade_state 2>/dev/null || true)" = fallback-restored ] || exit 0
+
+target=$(fw_printenv -n e410_upgrade_target 2>/dev/null || true)
+fallback=$(fw_printenv -n e410_upgrade_fallback 2>/dev/null || true)
+case "$target:$fallback" in 0:1|1:0) ;; *) exit 1 ;; esac
+
+current=$(sed -n 's/.*root=ubi0:rootfs\([01]\).*/\1/p' /proc/cmdline)
+if [ "$current" = "$fallback" ]; then
+	fw_setenv e410_upgrade_state rolled-back
+	exit 0
+fi
+[ "$current" = "$target" ] || exit 1
+
+# Deployments managed by OpenWISP only commit after authenticated controller
+# access is healthy. Standalone APs (no controller URL configured) commit on
+# LAN and radio health alone, so a stock image does not silently roll back.
+openwisp_healthy() {
+	[ -n "$(uci -q get openwisp.http.url)" ] || return 0
+	[ -f /tmp/sage-openwisp-managed ] &&
+		/etc/init.d/openwisp-config running >/dev/null 2>&1 &&
+		/etc/init.d/openwisp-monitoring running >/dev/null 2>&1
+}
+
+attempt=0
+while [ "$attempt" -lt 180 ]; do
+	if openwisp_healthy &&
+		[ -d /sys/class/ieee80211/phy0 ] &&
+		[ -d /sys/class/ieee80211/phy1 ] &&
+		ubus call network.interface.lan status |
+			jsonfilter -e '@.up' | grep -qx true
+	then
+		bootcmd="run owrt_boot$target; run owrt_boot$fallback"
+		fw_setenv bootcmd "$bootcmd"
+		fw_setenv image "$target"
+		fw_setenv bootcount 0
+		fw_setenv e410_upgrade_state committed
+		sync
+		[ "$(fw_printenv -n bootcmd)" = "$bootcmd" ]
+		[ "$(fw_printenv -n image)" = "$target" ]
+		echo "E410 sysupgrade slot $target committed; slot $fallback remains the fallback."
+		exit 0
+	fi
+	attempt=$((attempt + 1))
+	sleep 5
+done
+
+echo 'E410 sysupgrade was not committed because health checks timed out.' >&2
+exit 1

@@ -1,0 +1,139 @@
+#!/bin/sh
+
+. /lib/functions.sh
+. /lib/functions/system.sh
+
+config_file=xv3_8_radio
+module_file=/etc/modules.d/ath11k-ahb
+
+board_supported() {
+	[ "$(board_name 2>/dev/null)" = 'cambiumnetworks,xv3-8' ]
+}
+
+valid_mode() {
+	case "$1" in
+		dual-4x4|single-8x8) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+valid_limit() {
+	case "$1" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	[ "$1" -ge 1 ] && [ "$1" -le 512 ]
+}
+
+load_settings() {
+	mode=$(uci -q get "$config_file.main.mode") || mode=dual-4x4
+	max_clients=$(uci -q get "$config_file.main.max_clients_per_radio") || max_clients=128
+	valid_mode "$mode" || {
+		echo "Invalid XV3-8 radio mode: $mode" >&2
+		return 1
+	}
+	valid_limit "$max_clients" || {
+		echo "Invalid XV3-8 client limit: $max_clients (expected 1..512)" >&2
+		return 1
+	}
+}
+
+write_module_setting() {
+	local temporary
+	temporary="${module_file}.tmp.$$"
+	umask 022
+	{
+		printf 'ath11k xv3_8_hw_mode=%s\n' "$mode"
+		printf 'ath11k_ahb\n'
+	} >"$temporary" || return 1
+	chmod 0644 "$temporary"
+	if ! cmp -s "$temporary" "$module_file" 2>/dev/null; then
+		mv "$temporary" "$module_file"
+	else
+		rm -f "$temporary"
+	fi
+}
+
+apply_device_limit() {
+	local section="$1" type path
+	config_get type "$section" type
+	config_get path "$section" path
+	[ "$type" = mac80211 ] || return 0
+	case "$path" in
+		platform/soc@0/c000000.wifi*)
+			uci -q set "wireless.$section.maxassoc=$max_clients"
+			;;
+	esac
+}
+
+sync_settings() {
+	load_settings || return 1
+	write_module_setting || return 1
+	config_load wireless
+	config_foreach apply_device_limit wifi-device
+	uci -q commit wireless
+	logger -t thor-radio-settings \
+		"staged mode=$mode max_clients_per_radio=$max_clients"
+}
+
+show_settings() {
+	local active reboot_required
+	load_settings || return 1
+	active=unavailable
+	[ ! -r /sys/module/ath11k/parameters/xv3_8_hw_mode ] || \
+		active=$(cat /sys/module/ath11k/parameters/xv3_8_hw_mode)
+	if [ "$active" = "$mode" ]; then
+		reboot_required=no
+	else
+		reboot_required=yes
+	fi
+	printf 'configured_mode=%s\n' "$mode"
+	printf 'active_mode=%s\n' "$active"
+	printf 'reboot_required=%s\n' "$reboot_required"
+	printf 'max_clients_per_radio=%s\n' "$max_clients"
+}
+
+set_mode() {
+	valid_mode "$1" || {
+		echo 'Mode must be dual-4x4 or single-8x8.' >&2
+		return 1
+	}
+	uci -q set "$config_file.main=settings"
+	uci -q set "$config_file.main.mode=$1"
+	uci -q commit "$config_file"
+	sync_settings || return 1
+	echo 'Radio topology staged; reboot required.'
+}
+
+set_limit() {
+	valid_limit "$1" || {
+		echo 'Client limit must be an integer from 1 to 512.' >&2
+		return 1
+	}
+	uci -q set "$config_file.main=settings"
+	uci -q set "$config_file.main.max_clients_per_radio=$1"
+	uci -q commit "$config_file"
+	sync_settings || return 1
+	echo 'Client limit staged; reload Wi-Fi to apply it.'
+}
+
+board_supported || {
+	echo 'This command is only supported on the Cambium XV3-8.' >&2
+	exit 1
+}
+
+case "${1:-show}" in
+	show) show_settings ;;
+	sync) sync_settings ;;
+	set-mode)
+		[ "$#" -eq 2 ] || { echo 'Usage: thor-radio-settings set-mode MODE' >&2; exit 2; }
+		set_mode "$2"
+		;;
+	set-client-limit)
+		[ "$#" -eq 2 ] || { echo 'Usage: thor-radio-settings set-client-limit NUMBER' >&2; exit 2; }
+		set_limit "$2"
+		;;
+	*)
+		echo 'Usage: thor-radio-settings {show|sync|set-mode MODE|set-client-limit NUMBER}' >&2
+		exit 2
+		;;
+esac
