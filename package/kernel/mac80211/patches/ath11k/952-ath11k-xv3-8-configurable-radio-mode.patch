@@ -1,0 +1,102 @@
+From 0000000000000000000000000000000000000952 Mon Sep 17 00:00:00 2001
+Subject: [PATCH] wifi: ath11k: allow XV3-8 radio topology selection
+
+The Cambium XV3-8 can expose its IPQ8074 radio complex as either a 4x4
+2.4 GHz PHY plus one 8x8 5 GHz PHY, or as a 4x4 2.4 GHz PHY plus two
+4x4 5 GHz PHYs.  Firmware advertises both DBS and DBS-SBS hardware modes,
+but ath11k normally gives DBS-SBS the higher priority.
+
+Add a board-scoped, read-only module parameter so userspace can persist the
+topology to use on the next boot.  Keep dual-4x4 as the default.  Refuse to
+initialize the radios when firmware does not advertise the requested mode;
+silently booting a different topology would apply WLAN configuration to the
+wrong physical radios.
+
+--- a/drivers/net/wireless/ath/ath11k/core.c
++++ b/drivers/net/wireless/ath/ath11k/core.c
+@@ -38,6 +38,11 @@ bool ath11k_ftm_mode;
+ module_param_named(ftm_mode, ath11k_ftm_mode, bool, 0444);
+ MODULE_PARM_DESC(ftm_mode, "Boots up in factory test mode");
+ 
++char *ath11k_xv3_8_hw_mode = "dual-4x4";
++module_param_named(xv3_8_hw_mode, ath11k_xv3_8_hw_mode, charp, 0444);
++MODULE_PARM_DESC(xv3_8_hw_mode,
++		 "Cambium XV3-8 radio topology: dual-4x4 or single-8x8");
++
+ static struct ath11k_hw_params ath11k_hw_params[] = {
+ 	{
+ 		.hw_rev = ATH11K_HW_IPQ8074,
+--- a/drivers/net/wireless/ath/ath11k/core.h
++++ b/drivers/net/wireless/ath/ath11k/core.h
+@@ -63,6 +63,7 @@ struct ath11k_skb_rxcb {
+ 
+ extern unsigned int ath11k_frame_mode;
+ extern bool ath11k_ftm_mode;
++extern char *ath11k_xv3_8_hw_mode;
+ 
+ #define ATH11K_SCAN_TIMEOUT_HZ (20 * HZ)
+ 
+--- a/drivers/net/wireless/ath/ath11k/wmi.c
++++ b/drivers/net/wireless/ath/ath11k/wmi.c
+@@ -4752,10 +4752,26 @@ static int ath11k_wmi_tlv_hw_mode_caps(s
+ {
+ 	struct wmi_tlv_svc_rdy_ext_parse *svc_rdy_ext = data;
+ 	struct wmi_hw_mode_capabilities *hw_mode_caps;
+-	enum wmi_host_hw_mode_config_type mode, pref;
++	enum wmi_host_hw_mode_config_type mode, pref, requested;
+ 	u32 i;
++	bool requested_found = false;
+ 	int ret;
+ 
++	requested = WMI_HOST_HW_MODE_MAX;
++	if (of_machine_is_compatible("cambiumnetworks,xv3-8")) {
++		if (!strcmp(ath11k_xv3_8_hw_mode, "dual-4x4"))
++			requested = WMI_HOST_HW_MODE_DBS_SBS;
++		else if (!strcmp(ath11k_xv3_8_hw_mode, "single-8x8"))
++			requested = WMI_HOST_HW_MODE_DBS;
++		else
++			ath11k_warn(soc,
++				    "invalid XV3-8 radio mode '%s', using dual-4x4\n",
++				    ath11k_xv3_8_hw_mode);
++
++		if (requested == WMI_HOST_HW_MODE_MAX)
++			requested = WMI_HOST_HW_MODE_DBS_SBS;
++	}
++
+ 	svc_rdy_ext->n_hw_mode_caps = 0;
+ 	svc_rdy_ext->hw_mode_caps = (struct wmi_hw_mode_capabilities *)ptr;
+ 
+@@ -4773,13 +4788,30 @@ static int ath11k_wmi_tlv_hw_mode_caps(s
+ 		mode = hw_mode_caps->hw_mode_id;
+ 		pref = soc->wmi_ab.preferred_hw_mode;
+ 
+-		if (ath11k_hw_mode_pri_map[mode] < ath11k_hw_mode_pri_map[pref]) {
++		if (requested != WMI_HOST_HW_MODE_MAX && mode == requested) {
+			svc_rdy_ext->pref_hw_mode_caps = *hw_mode_caps;
+			soc->wmi_ab.preferred_hw_mode = mode;
++			requested_found = true;
++		} else if (requested == WMI_HOST_HW_MODE_MAX &&
++			   ath11k_hw_mode_pri_map[mode] <
++			   ath11k_hw_mode_pri_map[pref]) {
++			svc_rdy_ext->pref_hw_mode_caps = *hw_mode_caps;
++			soc->wmi_ab.preferred_hw_mode = mode;
+ 		}
+ 		i++;
+ 	}
+ 
++	if (requested != WMI_HOST_HW_MODE_MAX && !requested_found) {
++		ath11k_err(soc,
++			  "requested XV3-8 radio mode '%s' is not supported by firmware\n",
++			  ath11k_xv3_8_hw_mode);
++		return -EOPNOTSUPP;
++	}
++
++	if (requested != WMI_HOST_HW_MODE_MAX)
++		ath11k_info(soc, "XV3-8 radio mode %s selected (hardware mode %d)\n",
++			    ath11k_xv3_8_hw_mode, requested);
++
+ 	ath11k_dbg(soc, ATH11K_DBG_WMI, "preferred_hw_mode:%d\n",
+ 		   soc->wmi_ab.preferred_hw_mode);
+ 	if (soc->wmi_ab.preferred_hw_mode == WMI_HOST_HW_MODE_MAX)
+-- 
+2.51.0
