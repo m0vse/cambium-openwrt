@@ -722,7 +722,9 @@ define Device/cambiumnetworks_thor-recovery
 	DEVICE_MODEL := Thor family RAM recovery
 	DEVICE_DTS := ipq8074-xv3-8 ipq8074-xe5-8-recovery
 	DEVICE_DTS_CONFIG := config@hk02
-	KERNEL = kernel-bin | fit none $$(KDIR)/image-ipq8074-xv3-8.dtb
+	KERNEL = kernel-bin | cambium-family-fit none
+	CAMBIUM_FIT_BOARDS := hk02:hk02:ipq8074-xv3-8 \
+		hk01.c6:hk01.c6:ipq8074-xe5-8-recovery
 	SOC := ipq8074
 	IMAGES :=
 	DEVICE_PACKAGES := cambium-board-data

@@ -467,6 +467,20 @@ define Build/fit
 	$(call Build/fit-image,$(1))
 endef
 
+# Build a FIT holding one kernel and the device trees of several boards.
+# CAMBIUM_FIT_BOARDS lists config:fdt-node:dts triples; DEVICE_DTS_CONFIG
+# selects the default configuration.
+define Build/cambium-family-fit
+	$(TOPDIR)/scripts/cambium-family-its.sh \
+		-k $@ -A $(LINUX_KARCH) -C $(word 1,$(1)) \
+		-a $(KERNEL_LOADADDR) -e $(if $(KERNEL_ENTRY),$(KERNEL_ENTRY),$(KERNEL_LOADADDR)) \
+		-d "$(DEVICE_VENDOR) $(DEVICE_MODEL) $(DEVICE_VARIANT)" \
+		$(if $(DEVICE_DTS_CONFIG),-D $(DEVICE_DTS_CONFIG)) \
+		$(foreach board,$(CAMBIUM_FIT_BOARDS),$(word 1,$(subst :, ,$(board))):$(word 2,$(subst :, ,$(board))):$(KDIR)/image-$(word 3,$(subst :, ,$(board))).dtb) \
+		> $@.its
+	$(call Build/fit-image,$(1))
+endef
+
 # A slot name from the basename alone collides between two targets that share
 # it in different directories below $(KDIR).
 cache_slot = $(KDIR)/cache/$(subst /,_,$(patsubst $(KDIR)/%,%,$(1)))
