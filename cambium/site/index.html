@@ -68,6 +68,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
       <a href="#install">Install</a>
       <a href="#upgrade">Upgrade &amp; rollback</a>
       <a href="#safety">Safety</a>
+      <a href="#help">Help wanted</a>
       <a href="https://github.com/m0vse/cambium-openwrt">Source</a>
     </nav>
   </div>
@@ -181,10 +182,12 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
 
 <section id="install">
   <h2>Installing</h2>
-  <div class="note danger"><strong>Read first.</strong> You need physical
-  access and ideally a serial console. Back up everything before writing
-  anything, and never overwrite the bootloader, U-Boot environment or ART
-  (calibration) partitions.</div>
+  <div class="note danger"><strong>Read first.</strong> Everything is done
+  from a root shell on the stock firmware: the models ported so far have no
+  interactive U-Boot prompt, so there is no serial-console route to boot an
+  image. A serial console is still useful for watching boot messages. Back
+  up everything before writing anything, and never erase or overwrite the
+  bootloader, U-Boot environment or ART (calibration) partitions.</div>
   <ol class="steps">
     <li><strong>Download</strong> the recovery and persistent images for the
     access point's family from the latest snapshot, and check them against the
@@ -196,15 +199,16 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
     firmware protects its root shell with a per-device challenge and unlock
     code. The tool that answers it is <strong>not published</strong>; please
     <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>
-    to ask about access. A serial console with U-Boot access is an alternative
-    route for the recovery trial.</li>
+    to ask about access. Every later step needs this root shell.</li>
     <li><strong>Back up</strong> both firmware slots, the U-Boot environment
     and the ART partition, and copy the backups off the access point.</li>
     <li><strong>Trial the recovery image</strong> (strongly recommended for
-    untested models). Load it into RAM and boot the model's configuration from
-    the table below. Nothing is written; a power cycle returns to the stock
-    firmware. Check that the model name, LAN, LEDs and, where applicable, the
-    radios come up.</li>
+    untested models). From the root shell, the recovery image is written to a
+    spare volume in the <em>inactive</em> slot and started once through a
+    one-shot U-Boot boot command, using the model's configuration from the
+    table below. OpenWrt then runs entirely from RAM; the stock firmware slot
+    is not touched, and the next power cycle returns to it. Check that the
+    model name, LAN, LEDs and, where applicable, the radios come up.</li>
     <li><strong>Install the persistent image</strong> into the
     <em>inactive</em> slot only (never the slot the stock firmware is running
     from), then boot it once. The safe-boot guard keeps OpenWrt only after it
@@ -218,8 +222,9 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
   prepared for publication.</p>
 
   <h3>Boot configurations</h3>
-  <p>The stock U-Boot boots a named FIT configuration. Use the one for your
-  model when booting an image by hand:</p>
+  <p>The stock U-Boot boots a named FIT configuration. The one-shot boot
+  command for a recovery trial or first persistent boot must name the one for
+  your model:</p>
   <div class="table-scroll">
   <table>
     <thead><tr><th>Family</th><th>Model &rarr; configuration</th></tr></thead>
@@ -261,16 +266,31 @@ reboot</pre>
 <section id="safety">
   <h2>Safety rules</h2>
   <ol>
-    <li>Never overwrite the bootloader, U-Boot environment or ART partitions.</li>
+    <li>Never erase or overwrite the bootloader, U-Boot environment or ART
+    partitions. Setting individual boot variables with
+    <code>fw_setenv</code> is part of the process; rewriting the partitions
+    is not.</li>
     <li>Keep a verified backup of every unit before writing anything.</li>
     <li>Boot a new model from RAM (recovery) before installing it.</li>
     <li>Treat calibration and manufacturing data as unique to each unit; never
     copy them between access points.</li>
     <li>Keep the stock firmware slot intact until OpenWrt has proven itself on
     that model.</li>
-    <li>Untested models: only trial units you can recover locally, ideally
-    with a serial console.</li>
+    <li>Untested models: only trial units you can recover locally, and watch
+    the boot on a serial console if you can.</li>
   </ol>
+</section>
+
+<section id="help">
+  <h2>Help wanted: hardware for validation</h2>
+  <p>Every model marked <span class="pill untested">untested</span> or
+  <span class="pill none">no build yet</span> is waiting for a unit to test
+  on. If you have one you could send for validation, spare, retired or
+  faulty-but-booting, it would be most welcome: each unit tested moves a
+  model to <span class="pill ok">validated</span> for everyone.</p>
+  <p>Please <a href="https://github.com/m0vse/cambium-openwrt/issues">open an
+  issue</a> with the model and its condition, and we can arrange the details.
+  Test reports from your own controlled trials are just as welcome.</p>
 </section>
 
 </main>
