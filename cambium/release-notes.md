@@ -10,20 +10,21 @@ SKU. Hardware status per model:
 
 | Family | Model | Recovery (RAM) | Persistent |
 | --- | --- | --- | --- |
+| Gambit (Wi-Fi 5, MIPS) | E400, E500, E501S, E502S | no build yet | no build yet |
 | Sage (IPQ4019) | E410 | validated | validated (A/B install and upgrades) |
 | | E410B, E430H, E430W, E510, E600, E700 | untested | untested |
+| Lila (Wi-Fi 5, MIPS) | E425W, E505 | no build yet | no build yet |
 | Thor (IPQ8074) | XV3-8 | validated | validated |
 | | XE5-8 | untested | not built: flash layout not yet captured |
-| Cheetah (IPQ5018) | XV2-21X | validated | validated |
-| | XV2-22H, XV2-23T | untested | untested |
 | Jaguar (IPQ6018) | XV2-2T1 | validated | validated |
 | | XV2-2, XV2-2T0, XE3-4, XE3-4TN | untested | untested |
-| Gambit (Wi-Fi 5, MIPS) | E400, E500, E501S, E502S | no build yet | no build yet |
-| Lila (Wi-Fi 5, MIPS) | E425W, E505 | no build yet | no build yet |
+| Cheetah (IPQ5018) | XV2-21X | validated | validated |
+| | XV2-22H, XV2-23T | untested | untested |
 | Miami (Wi-Fi 7, IPQ5332) | X7-35X, X7-53X, X7-55X, X7-56X | no build yet | no build yet |
 
-Gambit, Lila and Miami have no OpenWrt port yet; they are listed so the
-table covers every Cambium access point family.
+Families are listed oldest first. Gambit, Lila and Miami have no OpenWrt
+port yet; they are listed so the table covers every Cambium access point
+family.
 
 Untested models are included for controlled, locally recoverable trials:
 a model that RAM-boots the recovery image has a reasonable chance of
