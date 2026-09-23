@@ -362,17 +362,21 @@ define Device/cambiumnetworks_cheetah-recovery
 endef
 TARGET_DEVICES += cambiumnetworks_cheetah-recovery
 
-define Device/cambiumnetworks_xv2-21x
+define Device/cambiumnetworks_cheetah-persistent
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
 	# Cheetah U-Boot 2016.01 booted the uncompressed FIT during RAM trials.
-	KERNEL = kernel-bin | fit none $$(KDIR)/image-$$(DEVICE_DTS).dtb
+	KERNEL = kernel-bin | cambium-family-fit none
+	CAMBIUM_FIT_BOARDS := mp03.3-cheetah:mp03.3-cheetah:ipq5018-xv2-22h-persistent \
+		mp03.3-ocelot:mp03.3-ocelot:ipq5018-xv2-21x-persistent \
+		mp03.3-lynx:mp03.3-lynx:ipq5018-xv2-23t-persistent
 	DEVICE_VENDOR := Cambium Networks
-	DEVICE_MODEL := XV2-21X
+	DEVICE_MODEL := Cheetah family
 	DEVICE_VARIANT := persistent
-	DEVICE_DTS := ipq5018-xv2-21x-persistent
+	DEVICE_DTS := ipq5018-xv2-21x-persistent ipq5018-xv2-22h-persistent ipq5018-xv2-23t-persistent
 	DEVICE_DTS_CONFIG := config@mp03.3-ocelot
-	SUPPORTED_DEVICES := cambiumnetworks,xv2-21x
+	SUPPORTED_DEVICES := cambiumnetworks,xv2-21x cambiumnetworks,xv2-22h cambiumnetworks,xv2-23t
+	BOARD_NAME := cambiumnetworks_xv2-21x
 	SOC := ipq5018
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
@@ -383,4 +387,4 @@ define Device/cambiumnetworks_xv2-21x
 	IMAGES := factory.ubi
 	DEVICE_PACKAGES := uboot-envtools cambium-board-data cambium-cheetah-support
 endef
-TARGET_DEVICES += cambiumnetworks_xv2-21x
+TARGET_DEVICES += cambiumnetworks_cheetah-persistent
