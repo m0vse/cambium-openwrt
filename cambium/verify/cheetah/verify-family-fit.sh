@@ -1,7 +1,9 @@
 #!/bin/sh
 set -eu
-if [ "$#" -ne 1 ]; then echo "Usage: $0 cheetah-family-recovery.itb" >&2; exit 2; fi
+if [ "$#" -ne 1 ]; then echo "Usage: $0 cheetah-family.itb" >&2; exit 2; fi
 fit=$1
+flavor=${CHEETAH_FLAVOR:-recovery}
+case "$flavor" in recovery|persistent) ;; *) echo "Unknown Cheetah flavor: $flavor" >&2; exit 2 ;; esac
 selector=$(dirname "$0")/select-fit-config.sh
 expected='config@mp03.3-cheetah
 config@mp03.3-ocelot
@@ -25,10 +27,17 @@ for item in mp03.3-cheetah:34:XV2-22H mp03.3-ocelot:35:XV2-21X mp03.3-lynx:36:XV
 	test "$(fdtget -t s "$dtb" / model)" = "Cambium Networks $model"
 	actual=$(fdtget -t x "$dtb" /cambium-platform board-sku)
 	test "$(printf '%d' "0x$actual")" = "$sku"
-	# Recovery must not carry a persistent root selection.
-	if fdtget "$dtb" /chosen bootargs-append 2>/dev/null | grep -q 'ubi.mtd=rootfs'; then
-		echo "$model recovery tree selects persistent rootfs" >&2
-		exit 1
+	if [ "$flavor" = recovery ]; then
+		# Recovery must not carry a persistent root selection.
+		if fdtget "$dtb" /chosen bootargs-append 2>/dev/null | grep -q 'ubi.mtd=rootfs'; then
+			echo "$model recovery tree selects persistent rootfs" >&2
+			exit 1
+		fi
+	else
+		fdtget -t s "$dtb" /chosen bootargs-append | grep -q 'ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs' || {
+			echo "$model persistent tree lacks the OpenWrt root selection" >&2
+			exit 1
+		}
 	fi
 done
-printf 'Cheetah recovery FIT has three explicit known-SKU mappings; unknown SKUs are rejected.\n'
+printf 'Cheetah %s FIT has three explicit known-SKU mappings; unknown SKUs are rejected.\n' "$flavor"
