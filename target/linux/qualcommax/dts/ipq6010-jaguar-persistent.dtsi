@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: (GPL-2.0+)
+
+/* The active OEM rootfs_1 and all unrelated partitions stay read-only. */
+&{/chosen} {
+	bootargs-append = " ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait";
+};
+
+&{/soc@0/nand-controller@79b0000/nand@0/partitions/partition@0} {
+	/delete-property/ read-only;
+};
+
+&{/soc@0/spi@78b5000/flash@0/partitions/partition@6f0000} {
+	/delete-property/ read-only;
+};
