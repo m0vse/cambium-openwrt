@@ -32,6 +32,9 @@ running the persistent image, but neither has run on that hardware yet.
 Keep a verified backup of every unit and never
 overwrite the bootloader, ART or U-Boot environment partitions.
 
+Hardware for validation is very welcome: if you can send a unit of an
+untested or unported model, please open an issue on this repository.
+
 - Images use stock OpenWrt defaults: no SSH keys are included and root has
   no password until you set one. The LAN is a DHCP client and never serves
   DHCP or router advertisements.
