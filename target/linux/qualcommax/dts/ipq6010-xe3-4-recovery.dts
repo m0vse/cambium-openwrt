@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: (GPL-2.0+)
+
+/* CP01-C3 XE3-4 baseline; 7.2 storage offsets provisional on this sibling. */
+#include "ipq6010-xe3-4.dts"
+#include "ipq6010-jaguar-storage-recovery.dtsi"
+#include "ipq6010-jaguar-controls.dtsi"
+
+/ {
+	model = "Cambium Networks XE3-4";
+	compatible = "cambiumnetworks,xe3-4", "qcom,ipq6018-ap-cp01-c3",
+		     "qcom,ipq6018-ap-cp01", "qcom,ipq6018";
+
+	chosen { /delete-property/ bootargs-append; };
+
+	cambium-platform {
+		compatible = "cambium-platform";
+		board-sku = <32>;
+	};
+};
+
+/* OEM 7.2 XE3-4 disables SD; this image boots solely from RAM. */
+&sdhc { status = "disabled"; };
+
+&blsp1_i2c3 { clock-frequency = <400000>; };
