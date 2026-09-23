@@ -407,7 +407,12 @@ define Device/cambiumnetworks_jaguar-recovery
 	DEVICE_MODEL := Jaguar RAM recovery
 	DEVICE_DTS := ipq6010-xv2-2-recovery ipq6010-xv2-2t0-recovery ipq6010-xv2-2t1-recovery ipq6010-xe3-4-recovery ipq6010-xe3-4tn-recovery
 	DEVICE_DTS_CONFIG := config@cp01-c1-2
-	KERNEL = kernel-bin | libdeflate-gzip | fit gzip $$(KDIR)/image-ipq6010-xv2-2t1-recovery.dtb
+	KERNEL = kernel-bin | libdeflate-gzip | cambium-family-fit gzip
+	CAMBIUM_FIT_BOARDS := cp01-c1:cp01-c1:ipq6010-xv2-2-recovery \
+		cp01-c1-1:cp01-c1-2T:ipq6010-xv2-2t0-recovery \
+		cp01-c1-2:cp01-c1-2T1:ipq6010-xv2-2t1-recovery \
+		cp01-c3-xv3-4:cp01-c3-xv3-4:ipq6010-xe3-4-recovery \
+		cp01-c3-2:cp01-c3-2:ipq6010-xe3-4tn-recovery
 	DEVICE_PACKAGES := ipq-wifi-cambiumnetworks_xe34 ath11k-firmware-qcn9074 kmod-ath11k-pci cambium-board-data
 	SOC := ipq6010
 	IMAGES :=
@@ -422,7 +427,12 @@ define Device/cambiumnetworks_jaguar-persistent
 	DEVICE_VARIANT := persistent
 	DEVICE_DTS := ipq6010-xv2-2-persistent ipq6010-xv2-2t0-persistent ipq6010-xv2-2t1-persistent ipq6010-xe3-4-persistent ipq6010-xe3-4tn-persistent
 	DEVICE_DTS_CONFIG := config@cp01-c1-2
-	KERNEL = kernel-bin | libdeflate-gzip | fit gzip $$(KDIR)/image-ipq6010-xv2-2t1-persistent.dtb
+	KERNEL = kernel-bin | libdeflate-gzip | cambium-family-fit gzip
+	CAMBIUM_FIT_BOARDS := cp01-c1:cp01-c1:ipq6010-xv2-2-persistent \
+		cp01-c1-1:cp01-c1-2T:ipq6010-xv2-2t0-persistent \
+		cp01-c1-2:cp01-c1-2T1:ipq6010-xv2-2t1-persistent \
+		cp01-c3-xv3-4:cp01-c3-xv3-4:ipq6010-xe3-4-persistent \
+		cp01-c3-2:cp01-c3-2:ipq6010-xe3-4tn-persistent
 	SOC := ipq6010
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
