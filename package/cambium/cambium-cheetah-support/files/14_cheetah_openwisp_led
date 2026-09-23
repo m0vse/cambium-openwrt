@@ -1,0 +1,9 @@
+#!/bin/sh
+
+[ -r /lib/functions/system.sh ] && . /lib/functions/system.sh
+
+[ "$(board_name)" = 'cambiumnetworks,xv2-21x' ] || exit 0
+
+/etc/init.d/cheetah-openwisp-led enable
+
+exit 0
