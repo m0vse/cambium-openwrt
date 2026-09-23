@@ -379,6 +379,7 @@ define Device/cambium_e410
 	IMAGE/kernel.itb := append-kernel | check-size 4216k
 	IMAGE/rootfs.ubifs := e410-rootfs-ubifs | check-size 46128k
 	IMAGE/sysupgrade.bin := e410-rootfs-ubifs | check-size 46128k | sysupgrade-tar rootfs=$$$$@ | append-metadata
+	DEVICE_PACKAGES := cambium-sage-support
 endef
 TARGET_DEVICES += cambium_e410
 
@@ -1575,5 +1576,6 @@ define Device/cambiumnetworks_sage-persistent
 	IMAGE/kernel.itb := append-kernel | check-size 4216k
 	IMAGE/rootfs.ubifs := e410-rootfs-ubifs | check-size 46128k
 	IMAGE/sysupgrade.bin := e410-rootfs-ubifs | check-size 46128k | sysupgrade-tar rootfs=$$$$@ | append-metadata
+	DEVICE_PACKAGES := cambium-sage-support
 endef
 TARGET_DEVICES += cambiumnetworks_sage-persistent
