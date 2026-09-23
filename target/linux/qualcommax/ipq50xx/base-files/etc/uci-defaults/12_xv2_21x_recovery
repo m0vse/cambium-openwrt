@@ -1,0 +1,23 @@
+#!/bin/sh
+
+. /lib/functions/system.sh
+
+case "$(board_name)" in
+	cambiumnetworks,xv2-21x) hostname=xv2-21x ;;
+	cambiumnetworks,xv2-22h) hostname=xv2-22h ;;
+	cambiumnetworks,xv2-23t) hostname=xv2-23t ;;
+	*) exit 0 ;;
+esac
+
+# Join the existing management network as a DHCP client. Do not advertise
+# DHCP or router advertisements on the site's LAN.
+uci -q set dhcp.lan.ignore='1'
+uci -q set dhcp.lan.dhcpv4='disabled'
+uci -q set dhcp.lan.dhcpv6='disabled'
+uci -q set dhcp.lan.ra='disabled'
+uci -q commit dhcp
+
+uci -q set system.@system[0].hostname="$hostname"
+uci -q commit system
+
+exit 0

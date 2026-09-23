@@ -1,0 +1,86 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/*
+ * OEM mp03.3-cheetah has an internal PHY plus a QCA8337 with four external
+ * PHYs. This is a read-only recovery candidate for controlled hardware tests.
+ */
+#include "ipq5018-xv2-21x.dts"
+
+/ {
+	model = "Cambium Networks XV2-22H";
+	compatible = "cambiumnetworks,xv2-22h", "qcom,ipq5018";
+
+	cambium-platform {
+		board-sku = <34>;
+	};
+};
+
+/* OEM LED list is 0xff, GPIO30, GPIO0 and GPIO1 on this model. */
+&led_orange { gpios = <&tlmm 0 GPIO_ACTIVE_HIGH>; };
+&led_blue { gpios = <&tlmm 1 GPIO_ACTIVE_HIGH>; };
+
+&gmac1 {
+	status = "okay";
+	phy-mode = "sgmii";
+	nvmem-cells = <&macaddr_appsblenv_ethaddr (-4)>;
+	nvmem-cell-names = "mac-address";
+	fixed-link { speed = <1000>; full-duplex; };
+};
+
+&mdio1 {
+	status = "okay";
+	pinctrl-0 = <&mdio1_pins>;
+	pinctrl-names = "default";
+	reset-gpios = <&tlmm 39 GPIO_ACTIVE_LOW>;
+
+	qca8337_0: ethernet-phy@0 { reg = <0>; };
+	qca8337_1: ethernet-phy@1 { reg = <1>; };
+	qca8337_2: ethernet-phy@2 { reg = <2>; };
+	qca8337_3: ethernet-phy@3 { reg = <3>; };
+
+	ethernet-switch@17 {
+		compatible = "qca,qca8337";
+		reg = <0x17>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ethernet-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			ethernet-port@1 { reg = <1>; label = "lan1"; phy-handle = <&qca8337_0>; };
+			ethernet-port@2 { reg = <2>; label = "lan2"; phy-handle = <&qca8337_1>; };
+			ethernet-port@3 { reg = <3>; label = "lan3"; phy-handle = <&qca8337_2>; };
+			ethernet-port@4 { reg = <4>; label = "lan4"; phy-handle = <&qca8337_3>; };
+			ethernet-port@6 {
+				reg = <6>;
+				phy-mode = "sgmii";
+				ethernet = <&gmac1>;
+				qca,sgmii-enable-pll;
+				fixed-link { speed = <1000>; full-duplex; };
+			};
+		};
+	};
+};
+
+/* Radio board files and PoE outputs remain disabled until captured. */
+&wifi { status = "disabled"; };
+&wifi1 { status = "disabled"; };
+
+/* IPQ5018 MDIO1 on its only pin mux, as on the reference boards. */
+&tlmm {
+	mdio1_pins: mdio-state {
+		mdc-pins {
+			pins = "gpio36";
+			function = "mdc";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		mdio-pins {
+			pins = "gpio37";
+			function = "mdio";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
+};
