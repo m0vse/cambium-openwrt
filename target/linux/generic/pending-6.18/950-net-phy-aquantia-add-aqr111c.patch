@@ -1,0 +1,60 @@
+From 0000000000000000000000000000000000000001 Mon Sep 17 00:00:00 2001
+Subject: [PATCH] net: phy: aquantia: add AQR111C
+
+Add the AQR111C model ID published in Aquantia's maintained PHY-only Linux
+driver.  Its callbacks match the existing AQR111 entry.
+
+--- a/drivers/net/phy/aquantia/aquantia_main.c
++++ b/drivers/net/phy/aquantia/aquantia_main.c
+@@ -25,6 +25,7 @@
+ #define PHY_ID_AQR405	0x03a1b4b0
+ #define PHY_ID_AQR111	0x03a1b610
+ #define PHY_ID_AQR111B0	0x03a1b612
++#define PHY_ID_AQR111C	0x03a1b7e0
+ #define PHY_ID_AQR112	0x03a1b662
+ #define PHY_ID_AQR112C	0x03a1b790
+ #define PHY_ID_AQR112R	0x31c31d12
+@@ -1391,6 +1392,33 @@ static struct phy_driver aqr_driver[] = {
+ 	.inband_caps	= aqr_gen2_inband_caps,
+ 	.config_inband	= aqr_gen2_config_inband,
+ },
++{
++	PHY_ID_MATCH_MODEL(PHY_ID_AQR111C),
++	.name		= "Aquantia AQR111C",
++	.probe		= aqr107_probe,
++	.get_rate_matching = aqr_gen2_get_rate_matching,
++	.config_init	= aqr_gen3_config_init,
++	.config_aneg    = aqr_config_aneg,
++	.config_intr	= aqr_config_intr,
++	.handle_interrupt = aqr_handle_interrupt,
++	.read_status	= aqr_gen2_read_status,
++	.get_tunable    = aqr107_get_tunable,
++	.set_tunable    = aqr107_set_tunable,
++	.suspend	= aqr_gen1_suspend,
++	.resume		= aqr_gen1_resume,
++	.get_sset_count	= aqr107_get_sset_count,
++	.get_strings	= aqr107_get_strings,
++	.get_stats	= aqr107_get_stats,
++	.get_features   = aqr111_get_features,
++	.link_change_notify = aqr107_link_change_notify,
++	.led_brightness_set = aqr_phy_led_brightness_set,
++	.led_hw_is_supported = aqr_phy_led_hw_is_supported,
++	.led_hw_control_set = aqr_phy_led_hw_control_set,
++	.led_hw_control_get = aqr_phy_led_hw_control_get,
++	.led_polarity_set = aqr_phy_led_polarity_set,
++	.inband_caps	= aqr_gen2_inband_caps,
++	.config_inband	= aqr_gen2_config_inband,
++},
+ {
+ 	PHY_ID_MATCH_MODEL(PHY_ID_AQR111B0),
+ 	.name		= "Aquantia AQR111B0",
+@@ -1746,6 +1774,7 @@ static const struct mdio_device_id __maybe_unused aqr_tbl[] = {
+ 	{ PHY_ID_MATCH_MODEL(PHY_ID_AQR405) },
+ 	{ PHY_ID_MATCH_MODEL(PHY_ID_AQR111) },
+ 	{ PHY_ID_MATCH_MODEL(PHY_ID_AQR111B0) },
++	{ PHY_ID_MATCH_MODEL(PHY_ID_AQR111C) },
+ 	{ PHY_ID_MATCH_MODEL(PHY_ID_AQR112) },
+ 	{ PHY_ID_MATCH_MODEL(PHY_ID_AQR112C) },
+ 	{ PHY_ID_MATCH_MODEL(PHY_ID_AQR112R) },
+-- 
+2.51.0
