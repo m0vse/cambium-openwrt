@@ -400,3 +400,35 @@ define Device/yuncore_fap650
 	IMAGE/factory.ubin := append-ubi | qsdk-ipq-factory-nand
 endef
 TARGET_DEVICES += yuncore_fap650
+
+define Device/cambiumnetworks_jaguar-recovery
+	$(call Device/FitImage)
+	DEVICE_VENDOR := Cambium Networks
+	DEVICE_MODEL := Jaguar RAM recovery
+	DEVICE_DTS := ipq6010-xv2-2-recovery ipq6010-xv2-2t0-recovery ipq6010-xv2-2t1-recovery ipq6010-xe3-4-recovery ipq6010-xe3-4tn-recovery
+	DEVICE_DTS_CONFIG := config@cp01-c1-2
+	KERNEL = kernel-bin | libdeflate-gzip | fit gzip $$(KDIR)/image-ipq6010-xv2-2t1-recovery.dtb
+	DEVICE_PACKAGES := ipq-wifi-cambiumnetworks_xe34 ath11k-firmware-qcn9074 kmod-ath11k-pci
+	SOC := ipq6010
+	IMAGES :=
+endef
+TARGET_DEVICES += cambiumnetworks_jaguar-recovery
+
+define Device/cambiumnetworks_jaguar-persistent
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	DEVICE_VENDOR := Cambium Networks
+	DEVICE_MODEL := Jaguar family
+	DEVICE_VARIANT := persistent
+	DEVICE_DTS := ipq6010-xv2-2-persistent ipq6010-xv2-2t0-persistent ipq6010-xv2-2t1-persistent ipq6010-xe3-4-persistent ipq6010-xe3-4tn-persistent
+	DEVICE_DTS_CONFIG := config@cp01-c1-2
+	KERNEL = kernel-bin | libdeflate-gzip | fit gzip $$(KDIR)/image-ipq6010-xv2-2t1-persistent.dtb
+	SOC := ipq6010
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	NAND_SIZE := 256m
+	IMAGE_SIZE := 98304k
+	IMAGES := factory.ubi
+	DEVICE_PACKAGES := ipq-wifi-cambiumnetworks_xe34 ath11k-firmware-qcn9074 kmod-ath11k-pci uboot-envtools
+endef
+TARGET_DEVICES += cambiumnetworks_jaguar-persistent
