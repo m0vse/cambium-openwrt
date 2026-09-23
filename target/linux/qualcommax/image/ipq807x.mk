@@ -662,3 +662,21 @@ define Device/zyxel_nwa210ax
 	ZYXEL_MODEL_ID := 5c e1
 endef
 TARGET_DEVICES += zyxel_nwa210ax
+
+define Device/cambiumnetworks_xv3-8-recovery
+	$(call Device/FitImage)
+	# Keep the first-stage image compatible with minimal OEM U-Boot builds.
+	# The configuration is selected explicitly by the trial boot command.
+	KERNEL = kernel-bin | fit none $$(KDIR)/image-$$(DEVICE_DTS).dtb
+	DEVICE_VENDOR := Cambium Networks
+	DEVICE_MODEL := XV3-8
+	DEVICE_VARIANT := RAM recovery
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	DEVICE_DTS := ipq8074-xv3-8
+	DEVICE_DTS_CONFIG := config@hk02
+	SUPPORTED_DEVICES := cambiumnetworks,xv3-8
+	SOC := ipq8074
+	IMAGES :=
+endef
+TARGET_DEVICES += cambiumnetworks_xv3-8-recovery
