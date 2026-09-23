@@ -1,0 +1,10 @@
+#!/bin/sh
+
+case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+	cambiumnetworks,xv2-2|cambiumnetworks,xv2-2t0|\
+	cambiumnetworks,xv2-2t1|cambiumnetworks,xe3-4|\
+	cambiumnetworks,xe3-4tn) ;;
+	*) exit 0 ;;
+esac
+/etc/init.d/jaguar-bootguard enable
+exit 0
