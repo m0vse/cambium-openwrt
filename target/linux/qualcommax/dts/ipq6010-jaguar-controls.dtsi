@@ -1,0 +1,71 @@
+// SPDX-License-Identifier: (GPL-2.0+)
+
+/*
+ * All five Jaguar OEM 7.2 FIT trees use GPIO19 for the sole physical
+ * button and list status GPIOs 73, 56, 37 and 35 in the same order.
+ * OEM calls the key WPS; on the XV2-2T1 enclosure it is the reset button.
+ * Physical XV2-2T1 test established the four colours and active-high GPIO
+ * drive (the original XE3-4 active-low assumption illuminated at brightness
+ * zero). Other family models retain this best-effort mapping until checked.
+ * GPIO50 is the OEM USB indicator.
+ */
+&tlmm {
+	jaguar_reset_button_pins: jaguar-reset-button-pins {
+		pins = "gpio19";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+	};
+};
+
+&{/keys} {
+	pinctrl-0 = <&jaguar_reset_button_pins>;
+	pinctrl-names = "default";
+
+	reset {
+		debounce-interval = <60>;
+	};
+};
+
+/* Match the established E410/XV3-8 OpenWrt status sequence. */
+&{/aliases} {
+	led-boot = &jaguar_led_orange;
+	led-failsafe = &jaguar_led_red;
+	led-running = &led_status_white;
+	led-upgrade = &jaguar_led_orange;
+};
+
+&led_status_white {
+	/delete-property/ color;
+	label = "jaguar:status:green";
+	gpios = <&tlmm 56 GPIO_ACTIVE_HIGH>;
+	default-state = "off";
+};
+
+&led_status_amber {
+	/delete-property/ color;
+	label = "jaguar:status:blue";
+	gpios = <&tlmm 35 GPIO_ACTIVE_HIGH>;
+	default-state = "off";
+};
+
+&{/leds} {
+	jaguar_led_red: status-gpio73 {
+		label = "jaguar:status:red";
+		gpios = <&tlmm 73 GPIO_ACTIVE_HIGH>;
+		default-state = "off";
+	};
+
+	jaguar_led_orange: status-gpio37 {
+		label = "jaguar:status:orange";
+		gpios = <&tlmm 37 GPIO_ACTIVE_HIGH>;
+		default-state = "off";
+	};
+
+	usb {
+		label = "jaguar:usb";
+		gpios = <&tlmm 50 GPIO_ACTIVE_HIGH>;
+		linux,default-trigger = "usb-host";
+		default-state = "off";
+	};
+};

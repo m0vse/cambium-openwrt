@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: (GPL-2.0+)
+
+/* OEM XE3-4TN differs from XE3-4 in SKU, PoE/GPS GPIOs and SD/I2C setup. */
+#include "ipq6010-xe3-4-recovery.dts"
+
+/ {
+	model = "Cambium Networks XE3-4TN";
+	compatible = "cambiumnetworks,xe3-4tn", "qcom,ipq6018-ap-cp01-c3",
+		     "qcom,ipq6018-ap-cp01", "qcom,ipq6018";
+
+	cambium-platform {
+		board-sku = <33>;
+	};
+};
+
+/* The OEM TN tree enables SD and uses a 100 kHz I2C bus. */
+&sdhc { status = "okay"; };
+&blsp1_i2c3 { clock-frequency = <100000>; };
