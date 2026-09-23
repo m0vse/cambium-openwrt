@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/dts-v1/;
+
+#include "qcom-ipq4019-sage-dk07-recovery.dtsi"
+
+/ {
+	model = "Cambium Networks E700";
+	compatible = "cambiumnetworks,e700", "qcom,ipq4019";
+
+	cambium-platform {
+		compatible = "cambium-platform";
+		board-sku = <14>;
+	};
+};
+
+/* OEM uses GPIO 32 as MCU CS1.  Keep the unqualified MCU inactive. */
+&swport1 { status = "disabled"; };
+&swport2 { status = "disabled"; };
+&swport3 { status = "disabled"; };
+&swport4 { status = "okay"; label = "lan1"; };
+&swport5 { status = "okay"; label = "lan2"; };
