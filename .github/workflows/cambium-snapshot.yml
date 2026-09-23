@@ -119,6 +119,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: cambium/scripts/disable-upstream-workflows.sh
 
+      - name: Watch for a new OpenWrt stable branch
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Release builds start with the first stable series that branches
+          # from main after the qualcommax Ethernet rework (see cambium/README.md).
+          KNOWN_STABLE: '25.12'
+        run: |
+          latest=$(git ls-remote --heads https://github.com/openwrt/openwrt.git 'refs/heads/openwrt-*' |
+            sed 's|.*refs/heads/openwrt-||' | sort -V | tail -n 1)
+          echo "Latest upstream stable branch: openwrt-$latest"
+          [ "$(printf '%s\n%s\n' "$KNOWN_STABLE" "$latest" | sort -V | tail -n 1)" != "$KNOWN_STABLE" ] || exit 0
+          title="New OpenWrt stable branch: openwrt-$latest"
+          [ -z "$(gh issue list --state all --search "$title in:title" --json number --jq '.[].number')" ] || exit 0
+          gh label create stable-branch --color 0e8a16 --force >/dev/null
+          gh issue create --label stable-branch --title "$title" --body "Upstream OpenWrt has created \`openwrt-$latest\`.
+
+          Release builds for the Cambium families start from this series: port the Cambium commits onto the branch, check the device trees and kernel patches against its kernel, then enable tagged release builds (see cambium/README.md)."
+
       - name: Decide build
         id: result
         if: ${{ !cancelled() && steps.sync.outcome != 'failure' }}
