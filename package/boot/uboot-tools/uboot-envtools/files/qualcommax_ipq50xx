@@ -37,6 +37,9 @@ linksys,spnmx56)
 ubnt,unifi-6-pro)
 	ubootenv_add_mtd "u-boot-env" "0x0" "0x10000" "0x1000"
 	;;
+cambiumnetworks,xv2-21x|\
+cambiumnetworks,xv2-22h|\
+cambiumnetworks,xv2-23t|\
 wallys,dr5018s|\
 yuncore,ax830|\
 yuncore,ax850)
