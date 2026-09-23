@@ -703,11 +703,13 @@ define Device/cambiumnetworks_thor-persistent
 endef
 TARGET_DEVICES += cambiumnetworks_thor-persistent
 
-define Device/cambiumnetworks_xv3-8-installer
+# RAM image with the persistent device tree: only the inactive OpenWrt slot
+# is writable, so the factory image can be installed from it with ubiformat.
+define Device/cambiumnetworks_thor-installer
 	$(call Device/FitImage)
 	KERNEL = kernel-bin | fit none $$(KDIR)/image-$$(DEVICE_DTS).dtb
 	DEVICE_VENDOR := Cambium Networks
-	DEVICE_MODEL := XV3-8
+	DEVICE_MODEL := Thor family
 	DEVICE_VARIANT := RAM installer
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
@@ -716,9 +718,9 @@ define Device/cambiumnetworks_xv3-8-installer
 	SUPPORTED_DEVICES := cambiumnetworks,xv3-8
 	SOC := ipq8074
 	IMAGES :=
-	DEVICE_PACKAGES := cambium-board-data
+	DEVICE_PACKAGES := cambium-board-data ubi-utils
 endef
-TARGET_DEVICES += cambiumnetworks_xv3-8-installer
+TARGET_DEVICES += cambiumnetworks_thor-installer
 
 define Device/cambiumnetworks_thor-recovery
 	$(call Device/FitImage)
