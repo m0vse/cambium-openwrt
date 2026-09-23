@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/dts-v1/;
+
+#include "qcom-ipq4019-e410.dtsi"
+
+/ {
+	model = "Cambium Networks E510";
+	compatible = "cambiumnetworks,e510", "qcom,ipq4019";
+
+	cambium-platform {
+		compatible = "cambium-platform";
+		board-sku = <16>;
+	};
+};
+
+/* The OEM E510 tree moves the SPI-NAND chip select from GPIO 59 to GPIO 4. */
+&blsp1_spi1 {
+	cs-gpios = <&tlmm 54 GPIO_ACTIVE_LOW>,
+		   <&tlmm 4 GPIO_ACTIVE_LOW>;
+
+	flash@0 {
+		partitions {
+			partition@e0000 { read-only; };
+		};
+	};
+};
+
+&spi_pins {
+	mux_cs {
+		pins = "gpio54", "gpio4";
+	};
+};
+
+&fs_partition {
+	read-only;
+};
