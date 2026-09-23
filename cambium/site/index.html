@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cambium OpenWrt</title>
+<meta name="description" content="Community OpenWrt builds for Cambium Networks enterprise Wi-Fi access points.">
+<style>
+:root {
+  --bg: #fbfbf9; --fg: #1d1f21; --muted: #5d6166; --line: #dfe1e3;
+  --card: #ffffff; --accent: #0b6e4f; --accent-soft: #e3f2ec;
+  --warn: #8a5a00; --warn-soft: #fdf3dc; --bad: #9b2c2c; --bad-soft: #fbe7e7;
+  --code: #f2f3f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a; --fg: #e6e7e8; --muted: #a0a4a9; --line: #2e3237;
+    --card: #1c1f23; --accent: #5cc9a0; --accent-soft: #1b3a2f;
+    --warn: #e7b85c; --warn-soft: #3a2f16; --bad: #f08a8a; --bad-soft: #3d2020;
+    --code: #23272c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { border-bottom: 1px solid var(--line); background: var(--card); }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+header .wrap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 24px; padding-top: 20px; padding-bottom: 14px; }
+header h1 { margin: 0; font-size: 1.5rem; }
+header h1 span { color: var(--accent); }
+nav { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .95rem; }
+nav a { color: var(--muted); text-decoration: none; }
+nav a:hover { color: var(--accent); }
+main { padding: 8px 0 48px; }
+section { margin-top: 36px; }
+h2 { font-size: 1.3rem; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.05rem; margin: 22px 0 8px; }
+a { color: var(--accent); }
+p, li { max-width: 72ch; }
+code, pre { font: .9em/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code); border-radius: 4px; }
+code { padding: 1px 5px; }
+pre { padding: 12px 14px; overflow-x: auto; }
+.lead { font-size: 1.08rem; color: var(--muted); }
+.note { border-left: 4px solid var(--warn); background: var(--warn-soft); padding: 10px 14px; border-radius: 4px; margin: 16px 0; }
+.note.danger { border-color: var(--bad); background: var(--bad-soft); }
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .93rem; background: var(--card); }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; background: var(--code); }
+td.fam { font-weight: 600; white-space: nowrap; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.ok { background: var(--accent-soft); color: var(--accent); }
+.untested { background: var(--warn-soft); color: var(--warn); }
+.none { background: var(--code); color: var(--muted); }
+ol.steps > li { margin-bottom: 14px; }
+.downloads td, .downloads th { white-space: nowrap; }
+footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; padding: 18px 0 30px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Cambium <span>OpenWrt</span></h1>
+    <nav>
+      <a href="#downloads">Downloads</a>
+      <a href="#hardware">Hardware</a>
+      <a href="#how">How it works</a>
+      <a href="#install">Install</a>
+      <a href="#upgrade">Upgrade &amp; rollback</a>
+      <a href="#safety">Safety</a>
+      <a href="https://github.com/m0vse/cambium-openwrt">Source</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section>
+  <p class="lead">Community OpenWrt builds for Cambium Networks enterprise Wi-Fi
+  access points (cnPilot and XV/XE series). Each build is upstream OpenWrt
+  <code>main</code> with a small, reviewable stack of Cambium hardware patches
+  on top, rebuilt automatically every day.</p>
+  <p>The aim is to keep capable enterprise access points useful on open,
+  maintained firmware, managed by OpenWrt directly or by an
+  <a href="https://openwisp.org/">OpenWISP</a> controller. This project is not
+  affiliated with or endorsed by Cambium Networks.</p>
+  <div class="note"><strong>Development snapshots.</strong> Images are built
+  and checked automatically but are not tested on hardware for every build.
+  Only the models marked <span class="pill ok">validated</span> below have run
+  on real hardware. Always keep a way back to the stock firmware.</div>
+</section>
+
+<section id="downloads">
+  <h2>Downloads</h2>
+  <p>Each snapshot is a GitHub release with one recovery and one persistent
+  image per family, the family ImageBuilder and checksums. The matching
+  package feed (kernel modules and Cambium packages) is served from this site
+  and is already configured in each image.</p>
+  <div id="builds" class="table-scroll"><p>Loading the latest snapshots&hellip;
+  If nothing appears, see the
+  <a href="https://github.com/m0vse/cambium-openwrt/releases">releases page</a>.</p></div>
+</section>
+
+<section id="hardware">
+  <h2>Supported hardware</h2>
+  <p>Access points are grouped by Cambium's hardware families. Each family
+  image contains the device tree of every model in it and boots the one that
+  matches the access point's board SKU, so there is exactly one recovery and
+  one persistent image per family.</p>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Family</th><th>Model</th><th>SKU</th><th>Recovery (RAM)</th><th>Persistent</th></tr></thead>
+    <tbody>
+      <tr><td class="fam" rowspan="7">Sage<br><small>IPQ4019, Wi-Fi 5</small></td><td>E410</td><td>10</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
+      <tr><td>E410B</td><td>21</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
+      <tr><td>E430H</td><td>15</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
+      <tr><td>E430W</td><td>13</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
+      <tr><td>E510</td><td>16</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
+      <tr><td>E600</td><td>11</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
+      <tr><td>E700</td><td>14</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
+      <tr><td class="fam" rowspan="2">Thor<br><small>IPQ8074, Wi-Fi 6</small></td><td>XV3-8</td><td>19</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
+      <tr><td>XE5-8</td><td>30</td><td><span class="pill untested">untested</span></td><td><span class="pill none">not built</span> flash layout not yet captured</td></tr>
+      <tr><td class="fam" rowspan="3">Cheetah<br><small>IPQ5018, Wi-Fi 6</small></td><td>XV2-21X</td><td>35</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
+      <tr><td>XV2-22H</td><td>34</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
+      <tr><td>XV2-23T</td><td>36</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
+      <tr><td class="fam" rowspan="5">Jaguar<br><small>IPQ6018, Wi-Fi 6/6E</small></td><td>XV2-2T1</td><td>31</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
+      <tr><td>XV2-2</td><td>20</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
+      <tr><td>XV2-2T0</td><td>22</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
+      <tr><td>XE3-4</td><td>32</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
+      <tr><td>XE3-4TN</td><td>33</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
+      <tr><td class="fam">Gambit<br><small>MIPS, Wi-Fi 5</small></td><td>E400, E500, E501S, E502S</td><td>6, 7, 9, 12</td><td colspan="2"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
+      <tr><td class="fam">Lila<br><small>MIPS, Wi-Fi 5</small></td><td>E425W, E505</td><td>17, 18</td><td colspan="2"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
+      <tr><td class="fam">Miami<br><small>IPQ5332, Wi-Fi 7</small></td><td>X7-35X, X7-53X, X7-55X, X7-56X</td><td>44, 49, 42, 43</td><td colspan="2"><span class="pill none">no build yet</span> needs hardware and a new OpenWrt target</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><strong>Untested</strong> models are included for controlled trials on
+  units you can recover locally. A model that RAM-boots the recovery image
+  has a reasonable chance of running the persistent image, but neither has
+  run on that hardware yet. Reports from such trials are very welcome.</p>
+</section>
+
+<section id="how">
+  <h2>How it works</h2>
+  <h3>Two images per family</h3>
+  <p><strong>Recovery</strong> is a RAM-only image: it boots from memory,
+  writes nothing, and a power cycle returns the access point to its stock
+  firmware. Use it to check that a model works before installing anything.
+  <strong>Persistent</strong> is installed into the access point's
+  <em>inactive</em> firmware slot. Cambium access points keep two firmware
+  slots; OpenWrt only ever uses one of them, and the stock firmware stays
+  intact in the other as a fallback.</p>
+  <h3>No Cambium files are distributed</h3>
+  <p>The radios need a Wi-Fi board file from Cambium's firmware. These images
+  do not include any. On first boot, the access point copies the board file
+  its own stock firmware uses from the retained stock slot, read-only. Radio
+  calibration is read from the access point's own calibration partition as
+  usual. Neither is ever modified. If the stock slot is missing, the radios
+  stay off and wired networking still works.</p>
+  <h3>Safe boot</h3>
+  <p>On Sage, Cheetah and Jaguar, each boot of a newly installed image is a
+  one-off: until the access point has come up healthy (network, and radios
+  where validated), the next reboot returns to the stock firmware. Only a
+  healthy system arms OpenWrt as the default, so a failed install recovers
+  itself with a power cycle. Thor (XV3-8) boots OpenWrt directly; its stock
+  firmware stays in the other slot for a manual return.</p>
+  <h3>Defaults</h3>
+  <ul>
+    <li>Stock OpenWrt login: no SSH keys are included and <code>root</code>
+    has no password until you set one.</li>
+    <li>The LAN port is a DHCP <em>client</em>. The access point never serves
+    DHCP or router advertisements onto your network.</li>
+    <li>Persistent images include LuCI, WPA-Enterprise (<code>wpad-mbedtls</code>),
+    802.11r/k/v roaming (<code>usteer</code>), WireGuard, OpenVPN, LLDP and the
+    OpenWISP agents. Anything else can be added from the package feeds.</li>
+    <li><code>/etc/openwrt_release</code> shows the upstream OpenWrt version;
+    <code>/etc/cambium-openwrt-release</code> records the family build ID and
+    source commits.</li>
+  </ul>
+</section>
+
+<section id="install">
+  <h2>Installing</h2>
+  <div class="note danger"><strong>Read first.</strong> You need physical
+  access and ideally a serial console. Back up everything before writing
+  anything, and never overwrite the bootloader, U-Boot environment or ART
+  (calibration) partitions.</div>
+  <ol class="steps">
+    <li><strong>Download</strong> the recovery and persistent images for the
+    access point's family from the latest snapshot, and check them against the
+    release's <code>SHA256SUMS</code>.</li>
+    <li><strong>Identify the model.</strong> On the stock firmware, the board
+    SKU (see the table above) selects the device tree. The images reject
+    unknown SKUs.</li>
+    <li><strong>Get a root shell on the stock firmware.</strong> Cambium's
+    firmware protects its root shell with a per-device challenge and unlock
+    code. The tool that answers it is <strong>not published</strong>; please
+    <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>
+    to ask about access. A serial console with U-Boot access is an alternative
+    route for the recovery trial.</li>
+    <li><strong>Back up</strong> both firmware slots, the U-Boot environment
+    and the ART partition, and copy the backups off the access point.</li>
+    <li><strong>Trial the recovery image</strong> (strongly recommended for
+    untested models). Load it into RAM and boot the model's configuration from
+    the table below. Nothing is written; a power cycle returns to the stock
+    firmware. Check that the model name, LAN, LEDs and, where applicable, the
+    radios come up.</li>
+    <li><strong>Install the persistent image</strong> into the
+    <em>inactive</em> slot only (never the slot the stock firmware is running
+    from), then boot it once. The safe-boot guard keeps OpenWrt only after it
+    comes up healthy.</li>
+    <li><strong>After the first boot</strong>, set a root password, check
+    <code>cat /tmp/cambium-board-data.status</code> (should be
+    <code>imported</code> or <code>present</code> on Thor, Cheetah and Jaguar)
+    and configure the network or OpenWISP as required.</li>
+  </ol>
+  <p>Family installer scripts that automate steps 4&ndash;6 are being
+  prepared for publication.</p>
+
+  <h3>Boot configurations</h3>
+  <p>The stock U-Boot boots a named FIT configuration. Use the one for your
+  model when booting an image by hand:</p>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Family</th><th>Model &rarr; configuration</th></tr></thead>
+    <tbody>
+      <tr><td class="fam">Sage</td><td>E410 <code>config@5</code>, E600 <code>config@10</code>, E430W <code>config@13</code>, E700 <code>config@14</code>, E430H <code>config@15</code>, E510 <code>config@16</code>, E410B <code>config@17</code></td></tr>
+      <tr><td class="fam">Thor</td><td>XV3-8 <code>config@hk02</code>, XE5-8 <code>config@hk01.c6</code> (recovery only)</td></tr>
+      <tr><td class="fam">Cheetah</td><td>XV2-21X <code>config@mp03.3-ocelot</code>, XV2-22H <code>config@mp03.3-cheetah</code>, XV2-23T <code>config@mp03.3-lynx</code></td></tr>
+      <tr><td class="fam">Jaguar</td><td>XV2-2 <code>config@cp01-c1</code>, XV2-2T0 <code>config@cp01-c1-1</code>, XV2-2T1 <code>config@cp01-c1-2</code>, XE3-4 <code>config@cp01-c3-xv3-4</code>, XE3-4TN <code>config@cp01-c3-2</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="upgrade">
+  <h2>Upgrade &amp; rollback</h2>
+  <h3>Upgrading</h3>
+  <ul>
+    <li><strong>Sage and Thor</strong> use the standard OpenWrt
+    <code>sysupgrade</code> with the family <code>sysupgrade.bin</code>, from
+    LuCI, the command line or OpenWISP. Sage writes the other slot and keeps
+    the previous one as a fallback until the new image proves healthy.</li>
+    <li><strong>Cheetah and Jaguar</strong> have no generic
+    <code>sysupgrade</code> path yet; reinstall the persistent
+    <code>factory.ubi</code> into the inactive slot.</li>
+    <li>Kernel modules must come from the same snapshot as the running image.
+    The feed for each snapshot is configured in the image; feeds for the two
+    most recent snapshots are kept online.</li>
+  </ul>
+  <h3>Going back to the stock firmware</h3>
+  <p>The stock firmware is never overwritten. Selecting its slot in the U-Boot
+  environment and rebooting returns the access point to Cambium's firmware,
+  for example (slot numbers vary by model; check <code>fw_printenv</code>
+  first):</p>
+<pre>fw_setenv bootcmd bootipq
+fw_setenv image 1
+reboot</pre>
+</section>
+
+<section id="safety">
+  <h2>Safety rules</h2>
+  <ol>
+    <li>Never overwrite the bootloader, U-Boot environment or ART partitions.</li>
+    <li>Keep a verified backup of every unit before writing anything.</li>
+    <li>Boot a new model from RAM (recovery) before installing it.</li>
+    <li>Treat calibration and manufacturing data as unique to each unit; never
+    copy them between access points.</li>
+    <li>Keep the stock firmware slot intact until OpenWrt has proven itself on
+    that model.</li>
+    <li>Untested models: only trial units you can recover locally, ideally
+    with a serial console.</li>
+  </ol>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    Built from <a href="https://github.com/m0vse/cambium-openwrt">m0vse/cambium-openwrt</a>,
+    a fork of <a href="https://openwrt.org/">OpenWrt</a>. OpenWrt is free
+    software licensed mainly under the GPL. Cambium Networks, cnPilot and
+    cnMaestro are trademarks of their owners; this project is independent of
+    them.
+  </div>
+</footer>
+
+<script>
+(function () {
+  var box = document.getElementById('builds');
+  var repo = 'https://github.com/m0vse/cambium-openwrt';
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+  fetch('builds.json', {cache: 'no-cache'}).then(function (r) {
+    if (!r.ok) throw new Error(r.status); return r.json();
+  }).then(function (data) {
+    var builds = (data && data.builds) || [];
+    if (!builds.length) throw new Error('empty');
+    var rows = builds.map(function (b, i) {
+      var feeds = (b.families || []).map(function (f) {
+        return '<a href="' + esc(b.build_id) + '/' + esc(f) + '/">' + esc(f) + '</a>';
+      }).join(', ');
+      return '<tr><td><a href="' + repo + '/releases/tag/snapshot-' + esc(b.build_id) + '">' +
+        esc(b.build_id) + '</a>' + (i === 0 ? ' <span class="pill ok">latest</span>' : '') +
+        '</td><td>' + esc((b.families || []).join(', ')) + '</td><td>' + feeds + '</td></tr>';
+    }).join('');
+    box.innerHTML = '<table class="downloads"><thead><tr><th>Snapshot</th><th>Families</th>' +
+      '<th>Package feeds</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<p>Older images: <a href="' + repo + '/releases">all releases</a>.</p>';
+  }).catch(function () {
+    box.innerHTML = '<p>See the <a href="' + repo + '/releases">releases page</a> for the latest images.</p>';
+  });
+})();
+</script>
+</body>
+</html>
