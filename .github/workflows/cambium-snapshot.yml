@@ -1,0 +1,222 @@
+name: Cambium snapshot
+
+# Daily: rebase the Cambium commits onto upstream OpenWrt main, build every
+# Cambium family, then publish a GitHub release and the matching package feed.
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      sync:
+        description: Rebase onto upstream OpenWrt before building
+        type: boolean
+        default: true
+      force:
+        description: Build even if upstream has not changed
+        type: boolean
+        default: false
+      families:
+        description: Families to build (space separated)
+        type: string
+        default: sage thor cheetah jaguar
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cambium-snapshot
+  cancel-in-progress: false
+
+env:
+  GIT_AUTHOR_NAME: Phil Taylor
+  GIT_AUTHOR_EMAIL: phil@m0vse.uk
+  GIT_COMMITTER_NAME: Phil Taylor
+  GIT_COMMITTER_EMAIL: phil@m0vse.uk
+
+jobs:
+  sync:
+    name: Sync with upstream
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      issues: write
+      actions: write
+    outputs:
+      sha: ${{ steps.result.outputs.sha }}
+      upstream: ${{ steps.result.outputs.upstream }}
+      build: ${{ steps.result.outputs.build }}
+      build_id: ${{ steps.result.outputs.build_id }}
+      families: ${{ steps.result.outputs.families }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          # Rebasing can carry upstream workflow changes, which GITHUB_TOKEN
+          # may not push. A token with contents and workflows write access
+          # avoids that.
+          token: ${{ secrets.CAMBIUM_SYNC_TOKEN || github.token }}
+
+      - name: Keep upstream OpenWrt workflows disabled in this fork
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: cambium/scripts/disable-upstream-workflows.sh
+
+      - name: Rebase Cambium commits onto upstream
+        id: sync
+        if: github.event_name == 'schedule' || inputs.sync
+        run: cambium/scripts/sync-upstream.sh
+
+      - name: Report rebase conflict
+        if: failure() && steps.sync.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ steps.sync.outputs.conflict_commit }}
+          SUBJECT: ${{ steps.sync.outputs.conflict_subject }}
+          FILES: ${{ steps.sync.outputs.conflict_files }}
+          UPSTREAM: ${{ steps.sync.outputs.upstream }}
+        run: |
+          title="Upstream sync conflict: $SUBJECT"
+          body="The daily rebase onto upstream OpenWrt \`${UPSTREAM}\` stopped at
+          Cambium commit \`${COMMIT}\` (${SUBJECT}).
+
+          Conflicting files: \`${FILES}\`
+
+          The branch and the last published snapshot are unchanged. Rebase
+          locally with \`cambium/scripts/sync-upstream.sh\`, resolve, and
+          force-push; the next scheduled run then continues normally.
+
+          Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          existing=$(gh issue list --label upstream-sync --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh label create upstream-sync --color d93f0b --force >/dev/null
+            gh issue create --title "$title" --label upstream-sync --body "$body"
+          fi
+
+      - name: Push rebased branch
+        if: steps.sync.outputs.rebased == 'true'
+        env:
+          OLD: ${{ steps.sync.outputs.old_head }}
+          BRANCH: ${{ github.event.repository.default_branch }}
+        run: git push --force-with-lease="$BRANCH:$OLD" origin "HEAD:$BRANCH"
+
+      - name: Disable any workflows added by upstream
+        if: steps.sync.outputs.rebased == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: cambium/scripts/disable-upstream-workflows.sh
+
+      - name: Decide build
+        id: result
+        env:
+          REBASED: ${{ steps.sync.outputs.rebased }}
+          FORCE: ${{ inputs.force }}
+          FAMILIES: ${{ inputs.families || 'sage thor cheetah jaguar' }}
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "upstream=$(git merge-base HEAD upstream/main 2>/dev/null || git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          built=$(git ls-remote --tags origin 'refs/tags/snapshot-*' | grep -c "^$(git rev-parse HEAD)" || true)
+          if [ "$REBASED" = true ] || [ "$FORCE" = true ] || [ "$built" -eq 0 ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "Nothing new to build." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          day=$(date -u +%Y.%m.%d)
+          n=$(git ls-remote --tags origin "refs/tags/snapshot-$day.*" | wc -l)
+          echo "build_id=$day.$n" >> "$GITHUB_OUTPUT"
+          echo "families=$(printf '%s\n' $FAMILIES | jq -Rcs 'split("\n") | map(select(length > 0))')" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.family }}
+    needs: sync
+    if: needs.sync.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        family: ${{ fromJSON(needs.sync.outputs.families) }}
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force >/dev/null || true
+          df -h /
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk \
+            gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev \
+            python3-setuptools python3-dev rsync swig unzip zlib1g-dev file \
+            wget zstd device-tree-compiler
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Add upstream reference
+        run: git fetch --no-tags https://github.com/openwrt/openwrt.git main:refs/remotes/upstream/main
+
+      - name: Restore source downloads
+        uses: actions/cache@v4
+        with:
+          path: dl
+          key: dl-${{ matrix.family }}-${{ github.run_id }}
+          restore-keys: dl-${{ matrix.family }}-
+
+      - name: Build and verify
+        env:
+          CAMBIUM_FEED_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          CAMBIUM_APK_PRIVATE_KEY: ${{ secrets.CAMBIUM_APK_PRIVATE_KEY }}
+        run: cambium/scripts/build.sh ${{ matrix.family }} ${{ needs.sync.outputs.build_id }}
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: cambium-${{ matrix.family }}
+          path: cambium-output/${{ matrix.family }}
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.family }}
+          path: logs
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish:
+    name: Publish snapshot
+    needs: [sync, build]
+    if: ${{ !cancelled() && needs.sync.outputs.build == 'true' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.sha }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cambium-*
+          path: out
+
+      - name: Publish release and package feeds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_ID: ${{ needs.sync.outputs.build_id }}
+          SHA: ${{ needs.sync.outputs.sha }}
+          UPSTREAM: ${{ needs.sync.outputs.upstream }}
+          FAMILIES: ${{ join(fromJSON(needs.sync.outputs.families), ' ') }}
+          FEED_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: cambium/scripts/publish.sh out
