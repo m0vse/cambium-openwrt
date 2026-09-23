@@ -15,8 +15,7 @@
 	aliases {
 		serial0 = &blsp1_uart5;
 		ethernet0 = &swport6;
-		ethernet1 = &swport4;
-		label-mac-device = &swport4;
+		label-mac-device = &swport6;
 	};
 
 	chosen {
@@ -253,7 +252,7 @@
 };
 
 &uniphy0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &uniphy2 {
@@ -286,6 +285,7 @@
 			pcs-handle = <&uniphy0 3>;
 			nvmem-cells = <&macaddr_base 0>;
 			nvmem-cell-names = "mac-address";
+			status = "disabled";
 		};
 
 		swport6: port@6 {
@@ -331,6 +331,7 @@
 		#size-cells = <0>;
 		compatible = "qcom,qca8075-package";
 		reg = <0>;
+		status = "disabled";
 
 		qca8075_3: ethernet-phy@3 {
 			compatible = "ethernet-phy-ieee802.3-c22";
