@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+#include "ipq8074-xv3-8.dts"
+
+/ {
+	model = "Cambium Networks XV3-8 (OpenWrt persistent)";
+
+	chosen {
+		bootargs-append = " ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait";
+	};
+};
+
+/* Only the OpenWrt slot is writable.  Preserve rootfs_1 as OEM recovery. */
+&rootfs {
+	/delete-property/ read-only;
+};
