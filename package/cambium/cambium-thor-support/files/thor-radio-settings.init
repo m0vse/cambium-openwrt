@@ -1,0 +1,16 @@
+#!/bin/sh /etc/rc.common
+
+START=12
+USE_PROCD=1
+
+start_service() {
+	/usr/sbin/thor-radio-settings sync
+}
+
+reload_service() {
+	/usr/sbin/thor-radio-settings sync
+}
+
+service_triggers() {
+	procd_add_reload_trigger xv3_8_radio
+}
