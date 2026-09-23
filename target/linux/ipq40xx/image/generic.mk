@@ -35,6 +35,13 @@ define Device/UbiFit
 	IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
 endef
 
+define Build/e410-rootfs-ubifs
+	rm -f $@
+	$(STAGING_DIR_HOST)/bin/mkfs.ubifs \
+		-m 2048 -e 126976 -c 372 --space-fixup --compr=zlib \
+		--squash-uids -r $(TARGET_DIR) -o $@
+endef
+
 define Device/DniImage
 	$(call Device/FitzImage)
 	NETGEAR_BOARD_ID :=
@@ -338,17 +345,39 @@ define Device/cellc_rtl30vw
 endef
 TARGET_DEVICES += cellc_rtl30vw
 
-# Initial bring-up profile. Only the initramfs FIT is intended for use;
-# persistent images stay disabled until the factory A/B update path is proven.
+# The OEM bootloader reads a FIT from a 34-LEB linuxN volume and mounts the
+# matching 372-LEB rootfsN volume as UBIFS. Keep these size limits explicit;
+# platform upgrade code will manage the existing A/B volumes separately.
+define Device/cambium_e410-recovery
+	$(call Device/FitzImage)
+	DEVICE_VENDOR := Cambium Networks
+	DEVICE_MODEL := cnPilot E410
+	DEVICE_VARIANT := RAM recovery
+	DEVICE_DTS := qcom-ipq4019-e410-recovery
+	DEVICE_DTS_CONFIG := config@ap.dk01.1-c2
+	DEVICE_FIT_COMPATIBLE := cambium,e410
+	SOC := qcom-ipq4019
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	IMAGES :=
+endef
+TARGET_DEVICES += cambium_e410-recovery
+
 define Device/cambium_e410
-	$(call Device/FitImage)
+	$(call Device/FitzImage)
+	KERNEL_INITRAMFS = kernel-bin | fit none $$(KDIR)/image-$$(DEVICE_DTS).dtb
 	DEVICE_VENDOR := Cambium Networks
 	DEVICE_MODEL := cnPilot E410
 	SOC := qcom-ipq4019
 	DEVICE_DTS_CONFIG := config@ap.dk01.1-c2
+	DEVICE_FIT_COMPATIBLE := cambium,e410
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
-	IMAGES :=
+	KERNEL_INSTALL := 1
+	KERNEL_SIZE := 4216k
+	IMAGES := $(if $(CONFIG_TARGET_ROOTFS_INITRAMFS),,kernel.itb rootfs.ubifs)
+	IMAGE/kernel.itb := append-kernel | check-size 4216k
+	IMAGE/rootfs.ubifs := e410-rootfs-ubifs | check-size 46128k
 endef
 TARGET_DEVICES += cambium_e410
 
