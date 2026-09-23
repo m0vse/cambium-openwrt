@@ -71,6 +71,14 @@ snapshot is tagged `snapshot-YYYY.MM.DD.N`.
 It can also be started by hand from the Actions tab, optionally without
 syncing, for a subset of families, or forced when upstream has not changed.
 
+### Release builds
+
+Only snapshots are built for now. OpenWrt 25.12 uses the older qualcommax
+Ethernet description (`dp1`-`dp6` NSS-DP ports rather than `swport`/`uniphy`),
+so the Thor, Cheetah and Jaguar device trees would need new hardware bring-up
+there. Release builds will start with the next stable series, which branches
+from `main`; the sync job opens a `stable-branch` issue when upstream creates it.
+
 ### One-time repository setup
 
 - Enable Actions for the fork.
