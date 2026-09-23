@@ -1,0 +1,12 @@
+#!/bin/sh /etc/rc.common
+
+# Run before the boot script loads kernel modules so ath11k finds board.bin.
+START=09
+
+boot() {
+	/usr/sbin/cambium-board-data
+}
+
+start() {
+	/usr/sbin/cambium-board-data
+}
