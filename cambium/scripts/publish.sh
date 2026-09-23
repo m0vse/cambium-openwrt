@@ -11,6 +11,22 @@ set -eu
 
 in=$(cd "${1:?usage: $0 artifact-dir}" && pwd)
 repo=${GITHUB_REPOSITORY:?}
+
+# When republishing an earlier run, recover the snapshot identity from the
+# build output itself.
+release_value() {
+	sed -n "s/^$1='\\(.*\\)'$/\\1/p" "$in"/cambium-*/images/cambium-openwrt-release | sort -u
+}
+[ -n "${FAMILIES:-}" ] || FAMILIES=$(ls -1 "$in" | sed -n 's/^cambium-//p' | tr '\n' ' ')
+[ -n "${BUILD_ID:-}" ] || BUILD_ID=$(cat "$in"/cambium-*/BUILD_ID | sort -u)
+[ -n "${SHA:-}" ] || SHA=$(release_value CAMBIUM_SOURCE_COMMIT)
+[ -n "${UPSTREAM:-}" ] || UPSTREAM=$(release_value OPENWRT_UPSTREAM_COMMIT)
+for value in "$BUILD_ID" "$SHA" "$UPSTREAM"; do
+	case "$value" in
+	''|*[[:space:]]*) echo "Build output does not identify exactly one snapshot" >&2; exit 1 ;;
+	esac
+done
+FEED_URL=${FEED_URL:?}
 tag=snapshot-$BUILD_ID
 keep_releases=${KEEP_RELEASES:-14}
 keep_feeds=${KEEP_FEEDS:-2}
