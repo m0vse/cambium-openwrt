@@ -682,22 +682,26 @@ define Device/cambiumnetworks_xv3-8-recovery
 endef
 TARGET_DEVICES += cambiumnetworks_xv3-8-recovery
 
-define Device/cambiumnetworks_xv3-8
+define Device/cambiumnetworks_thor-persistent
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
 	# Thor U-Boot 2016.01 on this unit loads an uncompressed FIT reliably.
 	KERNEL = kernel-bin | fit none $$(KDIR)/image-$$(DEVICE_DTS).dtb
 	DEVICE_VENDOR := Cambium Networks
-	DEVICE_MODEL := XV3-8
+	DEVICE_MODEL := Thor family
+	DEVICE_VARIANT := persistent
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	DEVICE_DTS := ipq8074-xv3-8-persistent
 	DEVICE_DTS_CONFIG := config@hk02
+	# XV3-8 only: the XE5-8 flash layout has not been captured yet.
 	SUPPORTED_DEVICES := cambiumnetworks,xv3-8
+	# Keep the sysupgrade layout the installed XV3-8 images expect.
+	BOARD_NAME := cambiumnetworks_xv3-8
 	SOC := ipq8074
 	DEVICE_PACKAGES := uboot-envtools cambium-board-data cambium-thor-support
 endef
-TARGET_DEVICES += cambiumnetworks_xv3-8
+TARGET_DEVICES += cambiumnetworks_thor-persistent
 
 define Device/cambiumnetworks_xv3-8-installer
 	$(call Device/FitImage)
