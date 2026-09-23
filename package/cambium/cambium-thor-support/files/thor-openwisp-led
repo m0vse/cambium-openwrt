@@ -1,0 +1,83 @@
+#!/bin/sh
+. /lib/functions/system.sh
+set -u
+
+blue_led=${THOR_OPENWISP_BLUE_LED_PATH:-/sys/class/leds/blue:status}
+green_led=${THOR_OPENWISP_GREEN_LED_PATH:-/sys/class/leds/green:status}
+state=${THOR_OPENWISP_LED_STATE:-/tmp/thor-openwisp-managed}
+interval=${THOR_OPENWISP_LED_INTERVAL:-60}
+once=${THOR_OPENWISP_LED_ONCE:-0}
+
+set_managed() {
+	[ -d "$blue_led" ] && [ -d "$green_led" ] || return 0
+	printf '%s\n' none >"$blue_led/trigger"
+	printf '%s\n' none >"$green_led/trigger"
+	if [ "$1" = 1 ]; then
+		printf '%s\n' 0 >"$green_led/brightness"
+		printf '%s\n' 1 >"$blue_led/brightness"
+	else
+		printf '%s\n' 0 >"$blue_led/brightness"
+		printf '%s\n' 1 >"$green_led/brightness"
+	fi
+}
+
+managed() {
+	local url uuid key management_interface management_ip work config headers status
+	url=$(uci -q get openwisp.http.url) || return 1
+	uuid=$(uci -q get openwisp.http.uuid) || return 1
+	key=$(uci -q get openwisp.http.key) || return 1
+	management_interface=$(uci -q get openwisp.http.management_interface) || return 1
+	management_ip=$(openwisp-get-address "$management_interface") || return 1
+
+	case "$url" in
+		https://*) ;;
+		*) return 1 ;;
+	esac
+	printf '%s' "$url" | grep -Eq '^https://[0-9A-Za-z._:-]+(/[^"[:space:]]*)?$' || return 1
+	printf '%s' "$uuid" | grep -Eq '^[0-9A-Fa-f-]{32,36}$' || return 1
+	printf '%s' "$key" | grep -Eq '^[0-9A-Za-z_-]{16,128}$' || return 1
+	printf '%s' "$management_ip" | grep -Eq '^[0-9A-Fa-f:.]+$' || return 1
+
+	umask 077
+	work=/tmp/thor-openwisp-led.$$
+	config=$work.curl
+	headers=$work.headers
+	printf 'url = "%s/controller/checksum/%s/?key=%s&management_ip=%s"\n' \
+		"$url" "$uuid" "$key" "$management_ip" >"$config"
+	status=$(curl --silent --show-error --connect-timeout 5 --max-time 15 \
+		--dump-header "$headers" --output /dev/null --write-out '%{http_code}' \
+		--config "$config" 2>/dev/null) || {
+		rm -f "$config" "$headers"
+		return 1
+	}
+	if [ "$status" = 200 ] && grep -qi '^X-Openwisp-Controller:' "$headers"; then
+		rm -f "$config" "$headers"
+		return 0
+	fi
+	rm -f "$config" "$headers"
+	return 1
+}
+
+case "$(board_name 2>/dev/null)" in
+	cambiumnetworks,xv3-8) ;;
+	*) exit 0 ;;
+esac
+
+case "$interval" in
+	''|*[!0-9]*) interval=60 ;;
+esac
+[ "$interval" -ge 15 ] || interval=15
+
+trap 'set_managed 0; rm -f "$state"; exit 0' INT TERM
+while :; do
+	if managed; then
+		touch "$state"
+		set_managed 1
+	else
+		rm -f "$state"
+		set_managed 0
+	fi
+	[ "$once" = 1 ] && exit 0
+	sleep "$interval" &
+	wait $!
+done

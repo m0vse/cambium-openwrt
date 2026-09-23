@@ -1,0 +1,45 @@
+#!/bin/sh
+set -e
+
+. /lib/functions/system.sh
+[ "$(board_name)" = 'cambiumnetworks,xv2-21x' ] || exit 0
+grep -q 'ubi.mtd=rootfs' /proc/cmdline || exit 0
+
+bootcmd='setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 kernel && bootm 0x60000000#config@mp03.3-ocelot; bootipq'
+
+healthy() {
+	[ "$(cat /sys/class/ubi/ubi0/mtd_num 2>/dev/null)" = 1 ] || return 1
+	[ -e /dev/ubiblock0_1 ] || return 1
+	# Board data is imported from the retained OEM slot at boot. Without it the
+	# radios cannot start; keep the wired AP rather than falling back to OEM.
+	if [ -s /lib/firmware/ath11k/IPQ5018/hw1.0/board.bin ] &&
+	   [ -s /lib/firmware/ath11k/QCN6122/hw1.0/board.bin ]; then
+		[ -d /sys/class/ieee80211/phy0 ] && [ -d /sys/class/ieee80211/phy1 ] || return 1
+	fi
+	ip -4 address show dev br-lan.1 | grep -q 'inet ' || return 1
+	ip -4 route show default dev br-lan.1 | grep -q '^default ' || return 1
+}
+
+# The previous U-Boot command already selected OEM before trying this image.
+# Only a fully started system is allowed to select OpenWrt for the next boot.
+attempt=0
+while [ "$attempt" -lt 60 ]; do
+	if healthy; then
+		current=$(fw_printenv -n bootcmd)
+		[ "$current" = bootipq ] || {
+			logger -t cheetah-bootguard "bootcmd changed independently; leaving it alone"
+			exit 1
+		}
+		[ "$(fw_printenv -n image)" = 1 ] || exit 1
+		fw_setenv changing_bootcmd 1
+		fw_setenv bootcmd "$bootcmd"
+		[ "$(fw_printenv -n bootcmd)" = "$bootcmd" ] || exit 1
+		logger -t cheetah-bootguard "healthy; guarded OpenWrt boot rearmed"
+		exit 0
+	fi
+	attempt=$((attempt + 1))
+	sleep 5
+done
+
+logger -t cheetah-bootguard "startup checks failed; rebooting to OEM"
+reboot
