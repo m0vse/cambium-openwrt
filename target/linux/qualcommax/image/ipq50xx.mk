@@ -349,6 +349,19 @@ define Device/cambiumnetworks_xv2-23t-recovery
 endef
 TARGET_DEVICES += cambiumnetworks_xv2-23t-recovery
 
+define Device/cambiumnetworks_cheetah-recovery
+	$(call Device/cambiumnetworks_xv2-21x-recovery)
+	DEVICE_MODEL := Cheetah family
+	DEVICE_DTS := ipq5018-xv2-21x ipq5018-xv2-22h-recovery ipq5018-xv2-23t-recovery
+	DEVICE_DTS_CONFIG := config@mp03.3-ocelot
+	KERNEL = kernel-bin | cambium-family-fit none
+	CAMBIUM_FIT_BOARDS := mp03.3-cheetah:mp03.3-cheetah:ipq5018-xv2-22h-recovery \
+		mp03.3-ocelot:mp03.3-ocelot:ipq5018-xv2-21x \
+		mp03.3-lynx:mp03.3-lynx:ipq5018-xv2-23t-recovery
+	SUPPORTED_DEVICES := cambiumnetworks,xv2-21x cambiumnetworks,xv2-22h cambiumnetworks,xv2-23t
+endef
+TARGET_DEVICES += cambiumnetworks_cheetah-recovery
+
 define Device/cambiumnetworks_xv2-21x
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
