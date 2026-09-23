@@ -1,0 +1,351 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/dts-v1/;
+
+#include "ipq8074.dtsi"
+#include "ipq8074-hk-cpu.dtsi"
+#include "ipq8074-ess.dtsi"
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "Cambium Networks XV3-8";
+	compatible = "cambiumnetworks,xv3-8", "qcom,ipq8074";
+
+	aliases {
+		serial0 = &blsp1_uart5;
+		ethernet0 = &swport6;
+		ethernet1 = &swport4;
+		label-mac-device = &swport4;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	cambium-platform {
+		board-sku = <19>;
+	};
+
+	keys {
+		compatible = "gpio-keys";
+
+		reset {
+			label = "reset";
+			gpios = <&tlmm 57 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+			debounce-interval = <60>;
+		};
+	};
+};
+
+&blsp1_uart5 {
+	status = "okay";
+};
+
+&blsp1_spi1 {
+	status = "okay";
+
+	flash@0 {
+		compatible = "jedec,spi-nor";
+		reg = <0>;
+		spi-max-frequency = <50000000>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "0:SBL1";
+				reg = <0x000000 0x050000>;
+				read-only;
+			};
+
+			partition@50000 {
+				label = "0:MIBIB";
+				reg = <0x050000 0x010000>;
+				read-only;
+			};
+
+			partition@60000 {
+				label = "0:BOOTCONFIG";
+				reg = <0x060000 0x020000>;
+				read-only;
+			};
+
+			partition@80000 {
+				label = "0:BOOTCONFIG1";
+				reg = <0x080000 0x020000>;
+				read-only;
+			};
+
+			partition@a0000 {
+				label = "0:QSEE";
+				reg = <0x0a0000 0x180000>;
+				read-only;
+			};
+
+			partition@220000 {
+				label = "0:QSEE_1";
+				reg = <0x220000 0x180000>;
+				read-only;
+			};
+
+			partition@3a0000 {
+				label = "0:DEVCFG";
+				reg = <0x3a0000 0x010000>;
+				read-only;
+			};
+
+			partition@3b0000 {
+				label = "0:DEVCFG_1";
+				reg = <0x3b0000 0x010000>;
+				read-only;
+			};
+
+			partition@3c0000 {
+				label = "0:APDP";
+				reg = <0x3c0000 0x010000>;
+				read-only;
+			};
+
+			partition@3d0000 {
+				label = "mfginfo";
+				reg = <0x3d0000 0x010000>;
+				read-only;
+			};
+
+			partition@3e0000 {
+				label = "0:RPM";
+				reg = <0x3e0000 0x040000>;
+				read-only;
+			};
+
+			partition@420000 {
+				label = "0:RPM_1";
+				reg = <0x420000 0x040000>;
+				read-only;
+			};
+
+			partition@460000 {
+				label = "0:CDT";
+				reg = <0x460000 0x010000>;
+				read-only;
+			};
+
+			partition@470000 {
+				label = "0:CDT_1";
+				reg = <0x470000 0x010000>;
+				read-only;
+			};
+
+			partition@480000 {
+				label = "oldappsblenv";
+				reg = <0x480000 0x010000>;
+				read-only;
+			};
+
+			partition@490000 {
+				label = "0:APPSBL";
+				reg = <0x490000 0x0a0000>;
+				read-only;
+			};
+
+			partition@530000 {
+				label = "0:APPSBL_1";
+				reg = <0x530000 0x0a0000>;
+				read-only;
+			};
+
+			art: partition@5d0000 {
+				label = "0:ART";
+				reg = <0x5d0000 0x040000>;
+				read-only;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					macaddr_base: mac-address@40 {
+						compatible = "mac-base";
+						reg = <0x40 0x6>;
+						#nvmem-cell-cells = <1>;
+					};
+				};
+			};
+
+			partition@610000 {
+				label = "0:ETHPHYFW";
+				reg = <0x610000 0x080000>;
+				read-only;
+			};
+
+			partition@690000 {
+				label = "0:APDP_1";
+				reg = <0x690000 0x010000>;
+				read-only;
+			};
+
+			partition@6a0000 {
+				label = "0:APPSBLENV";
+				reg = <0x6a0000 0x010000>;
+				read-only;
+			};
+
+			partition@6b0000 {
+				label = "config";
+				reg = <0x6b0000 0x950000>;
+				read-only;
+			};
+		};
+	};
+};
+
+&qpic_bam {
+	status = "okay";
+};
+
+&qpic_nand {
+	status = "okay";
+
+	nand@0 {
+		reg = <0>;
+		nand-ecc-strength = <4>;
+		nand-ecc-step-size = <512>;
+		nand-bus-width = <8>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "rootfs";
+				reg = <0x0000000 0x6000000>;
+				read-only;
+			};
+
+			partition@6000000 {
+				label = "rootfs_1";
+				reg = <0x6000000 0x6000000>;
+				read-only;
+			};
+
+			partition@c000000 {
+				label = "0:NVRAM";
+				reg = <0xc000000 0x3000000>;
+				read-only;
+			};
+
+			partition@f000000 {
+				label = "crashLog";
+				reg = <0xf000000 0x1000000>;
+				read-only;
+			};
+		};
+	};
+};
+
+&edma {
+	status = "okay";
+};
+
+&uniphy0 {
+	status = "okay";
+};
+
+&uniphy2 {
+	status = "okay";
+};
+
+&switch {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			ethernet = <&edma>;
+			phy-mode = "internal";
+
+			fixed-link {
+				speed = <1000>;
+				full-duplex;
+			};
+		};
+
+		swport4: port@4 {
+			reg = <4>;
+			label = "lan";
+			phy-handle = <&qca8075_3>;
+			phy-mode = "psgmii";
+			pcs-handle = <&uniphy0 3>;
+			nvmem-cells = <&macaddr_base 0>;
+			nvmem-cell-names = "mac-address";
+		};
+
+		swport6: port@6 {
+			reg = <6>;
+			label = "lan-multigig";
+			phy-handle = <&aqr_phy>;
+			phy-mode = "usxgmii";
+			managed = "in-band-status";
+			pcs-handle = <&uniphy2 0>;
+			nvmem-cells = <&macaddr_base 1>;
+			nvmem-cell-names = "mac-address";
+		};
+
+	};
+};
+
+&tlmm {
+	mdio_pins: mdio-pins {
+		mdc {
+			pins = "gpio68";
+			function = "mdc";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		mdio {
+			pins = "gpio69";
+			function = "mdio";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
+};
+
+&mdio {
+	status = "okay";
+	pinctrl-0 = <&mdio_pins>;
+	pinctrl-names = "default";
+	reset-gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
+
+	ethernet-phy-package@0 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "qcom,qca8075-package";
+		reg = <0>;
+
+		qca8075_3: ethernet-phy@3 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <3>;
+		};
+	};
+
+	aqr_phy: ethernet-phy@8 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <8>;
+	};
+
+};
+
+/* Radios stay disabled until the OEM BDF and calibration path is validated. */
+&wifi {
+	status = "disabled";
+};
