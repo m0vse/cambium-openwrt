@@ -20,6 +20,10 @@ on:
         description: Families to build (space separated)
         type: string
         default: sage thor cheetah jaguar
+      republish_run:
+        description: Only publish the build output of this earlier run ID (no sync or build)
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -40,6 +44,7 @@ env:
 jobs:
   sync:
     name: Sync with upstream
+    if: ${{ !inputs.republish_run }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -203,26 +208,33 @@ jobs:
   publish:
     name: Publish snapshot
     needs: [sync, build]
-    if: ${{ !cancelled() && needs.sync.outputs.build == 'true' }}
+    if: ${{ !cancelled() && (needs.sync.outputs.build == 'true' || inputs.republish_run) }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v5
-        with:
-          ref: ${{ needs.sync.outputs.sha }}
 
       - uses: actions/download-artifact@v4
         with:
           pattern: cambium-*
           path: out
+          run-id: ${{ inputs.republish_run || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Publish release and package feeds
         env:
-          GH_TOKEN: ${{ github.token }}
+          # GITHUB_TOKEN may not create a tag on a commit whose workflow files
+          # differ from the default branch (e.g. after a later fix), so use
+          # the sync token when it is configured.
+          GH_TOKEN: ${{ secrets.CAMBIUM_SYNC_TOKEN || github.token }}
           BUILD_ID: ${{ needs.sync.outputs.build_id }}
           SHA: ${{ needs.sync.outputs.sha }}
           UPSTREAM: ${{ needs.sync.outputs.upstream }}
-          FAMILIES: ${{ join(fromJSON(needs.sync.outputs.families), ' ') }}
+          FAMILIES_JSON: ${{ needs.sync.outputs.families }}
           FEED_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
-        run: cambium/scripts/publish.sh out
+        run: |
+          FAMILIES=$(printf '%s' "${FAMILIES_JSON:-[]}" | jq -r 'join(" ")')
+          export FAMILIES
+          cambium/scripts/publish.sh out
