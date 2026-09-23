@@ -7,8 +7,12 @@
 board=$(board_name)
 
 case "$FIRMWARE" in
+"IPQ8074/cal-ahb-c000000.wifi.bin"|\
 "ath11k/IPQ8074/hw2.0/cal-ahb-c000000.wifi.bin")
 	case "$board" in
+	cambiumnetworks,xv3-8)
+		caldata_extract "0:ART" 0x1000 0x20000
+		;;
 	aliyun,ap8220)
 		caldata_extract "0:art" 0x1000 0x20000
 		addr=$(mtd_get_mac_text product_info 0x4b)
