@@ -202,8 +202,11 @@ done
 log "Collecting to $output"
 rm -rf "$output"
 mkdir -p "$output/images" "$output/feed/targets/$target/$subtarget" "$output/feed/packages/$arch"
+# Only recovery devices publish RAM (initramfs) images; the initramfs builds
+# of persistent devices are a side effect of building both kinds together.
 find "$bin_dir" -maxdepth 1 -type f \( -name '*cambiumnetworks_*' -o -name 'profiles.json' \
 	-o -name '*.buildinfo' -o -name 'sha256sums' -o -name '*imagebuilder*' \) \
+	! \( -name '*-initramfs-*' ! -name '*-recovery-initramfs-*' \) \
 	-exec cp {} "$output/images/" \;
 cp -R "$bin_dir/packages" "$output/feed/targets/$target/$subtarget/"
 cp -R "bin/packages/$arch/base" "$output/feed/packages/$arch/"
