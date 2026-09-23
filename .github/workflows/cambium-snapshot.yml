@@ -59,6 +59,7 @@ jobs:
           token: ${{ secrets.CAMBIUM_SYNC_TOKEN || github.token }}
 
       - name: Keep upstream OpenWrt workflows disabled in this fork
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: cambium/scripts/disable-upstream-workflows.sh
@@ -104,6 +105,7 @@ jobs:
         run: git push --force-with-lease="$BRANCH:$OLD" origin "HEAD:$BRANCH"
 
       - name: Disable any workflows added by upstream
+        continue-on-error: true
         if: steps.sync.outputs.rebased == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -111,6 +113,7 @@ jobs:
 
       - name: Decide build
         id: result
+        if: ${{ !cancelled() && steps.sync.outcome != 'failure' }}
         env:
           REBASED: ${{ steps.sync.outputs.rebased }}
           FORCE: ${{ inputs.force }}
