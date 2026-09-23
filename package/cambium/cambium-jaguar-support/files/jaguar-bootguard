@@ -1,0 +1,55 @@
+#!/bin/sh
+set -e
+
+. /lib/functions/system.sh
+
+case "$(board_name)" in
+	cambiumnetworks,xv2-2) config='config@cp01-c1' ;;
+	cambiumnetworks,xv2-2t0) config='config@cp01-c1-1' ;;
+	cambiumnetworks,xv2-2t1) config='config@cp01-c1-2' ;;
+	cambiumnetworks,xe3-4) config='config@cp01-c3-xv3-4' ;;
+	cambiumnetworks,xe3-4tn) config='config@cp01-c3-2' ;;
+	*) exit 0 ;;
+esac
+grep -q 'ubi.mtd=rootfs' /proc/cmdline || exit 0
+
+bootcmd="setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:0x6000000@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$config; reset"
+
+env_dev=$(awk '$4 == "\"0:APPSBLENV\"" { sub(":", "", $1); print "/dev/" $1 }' /proc/mtd)
+[ -n "$env_dev" ] || exit 1
+[ "$(cat "/sys/class/mtd/${env_dev#/dev/}/size")" = 65536 ] || exit 1
+env_config=/tmp/jaguar-fw_env.config
+printf '%s 0x0 0x00010000 0x00010000 1\n' "$env_dev" > "$env_config"
+fw_print() { fw_printenv -c "$env_config" "$@"; }
+fw_set() { fw_setenv -c "$env_config" "$@"; }
+
+healthy() {
+	rootfs_mtd=$(awk '$4 == "\"rootfs\"" { sub(/^mtd/, "", $1); sub(":", "", $1); print $1 }' /proc/mtd)
+	[ -n "$rootfs_mtd" ] || return 1
+	[ "$(cat /sys/class/ubi/ubi0/mtd_num 2>/dev/null)" = "$rootfs_mtd" ] || return 1
+	[ -e /dev/ubiblock0_1 ] || return 1
+	mount | grep -q ' on /overlay type ubifs (rw,' || return 1
+	ip -4 address show dev br-lan | grep -q 'inet ' || return 1
+	ip -4 route show default dev br-lan | grep -q '^default ' || return 1
+}
+
+attempt=0
+while [ "$attempt" -lt 60 ]; do
+	if healthy; then
+		[ "$(fw_print -n bootcmd)" = bootipq ] || {
+			logger -t jaguar-bootguard 'bootcmd changed independently; leaving it alone'
+			exit 1
+		}
+		[ "$(fw_print -n image)" = 1 ] || exit 1
+		fw_set changing_bootcmd 1
+		fw_set bootcmd "$bootcmd"
+		[ "$(fw_print -n bootcmd)" = "$bootcmd" ] || exit 1
+		logger -t jaguar-bootguard 'healthy; guarded OpenWrt boot rearmed'
+		exit 0
+	fi
+	attempt=$((attempt + 1))
+	sleep 5
+done
+
+logger -t jaguar-bootguard 'startup checks failed; rebooting to OEM'
+reboot
