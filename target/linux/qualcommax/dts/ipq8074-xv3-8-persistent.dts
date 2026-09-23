@@ -14,3 +14,8 @@
 &rootfs {
 	/delete-property/ read-only;
 };
+
+/* Permit guarded bootcmd updates through /etc/fw_env.config. */
+&appsblenv {
+	/delete-property/ read-only;
+};
