@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/dts-v1/;
+
+#include "qcom-ipq4019-sage-dk07-recovery.dtsi"
+
+/ {
+	model = "Cambium Networks E430W";
+	compatible = "cambiumnetworks,e430w", "qcom,ipq4019";
+
+	cambium-platform {
+		compatible = "cambium-platform";
+		board-sku = <13>;
+	};
+};
+
+&phy_reset { gpios = <49 GPIO_ACTIVE_HIGH>; };
+&swport1 { status = "okay"; label = "lan1"; };
+&swport2 { status = "okay"; label = "lan2"; };
+&swport3 { status = "okay"; label = "lan3"; };
+&swport4 { status = "okay"; label = "lan4"; };
+&swport5 { status = "disabled"; };
