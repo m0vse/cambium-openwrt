@@ -1,0 +1,61 @@
+--- a/drivers/net/mdio/mdio-ipq4019.c
++++ b/drivers/net/mdio/mdio-ipq4019.c
+@@ -8,6 +8,7 @@
+ #include <linux/kernel.h>
+ #include <linux/module.h>
+ #include <linux/of_address.h>
++#include <linux/of.h>
+ #include <linux/of_mdio.h>
+ #include <linux/phy.h>
+ #include <linux/platform_device.h>
+@@ -52,5 +53,9 @@ struct ipq4019_mdio_data {
+ 	void __iomem	*membase;
+ 	void __iomem *eth_ldo_rdy;
+ 	struct clk *mdio_clk;
++	void __iomem *xv2_gephy_reset;
++	void __iomem *xv2_mdio_reset;
+ 	unsigned int mdc_rate;
++	u32 xv2_working_mode;
++	bool xv2_recovery_attempted;
+ };
+@@ -125,6 +130,27 @@ static int ipq4019_mdio_read_c22(struct mii_bus *bus, int mii_id, int regnum)
+ 	if (ipq4019_mdio_wait_busy(bus))
+ 		return -ETIMEDOUT;
+ 
+ 	data = readl(priv->membase + MDIO_MODE_REG);
++	if (mii_id == 7 && priv->xv2_gephy_reset) {
++		if (data && !priv->xv2_working_mode) {
++			priv->xv2_working_mode = data;
++			dev_info(bus->parent,
++				 "XV2 MDIO initial mode=%08x gephy_reset=%08x mdio_reset=%08x\n",
++				 data, readl(priv->xv2_gephy_reset),
++				 readl(priv->xv2_mdio_reset));
++		} else if (!data && priv->xv2_working_mode &&
++			   !priv->xv2_recovery_attempted) {
++			priv->xv2_recovery_attempted = true;
++			dev_warn(bus->parent,
++				 "XV2 MDIO lost: gephy_reset=%08x mdio_reset=%08x\n",
++				 readl(priv->xv2_gephy_reset),
++				 readl(priv->xv2_mdio_reset));
++			writel(priv->xv2_working_mode,
++			       priv->membase + MDIO_MODE_REG);
++			data = readl(priv->membase + MDIO_MODE_REG);
++			dev_warn(bus->parent,
++				 "XV2 MDIO mode restore readback=%08x\n", data);
++		}
++	}
+ 
+ 	data &= ~MDIO_MODE_C45;
+@@ -350,4 +378,12 @@ static int ipq4019_mdio_probe(struct platform_device *pdev)
+ 	if (IS_ERR(priv->membase))
+ 		return PTR_ERR(priv->membase);
+ 
++	/* XV2-21X diagnostic: read only two reset registers used by GCC. */
++	if (of_machine_is_compatible("cambiumnetworks,xv2-21x")) {
++		priv->xv2_gephy_reset = devm_ioremap(&pdev->dev, 0x01856004, 4);
++		priv->xv2_mdio_reset = devm_ioremap(&pdev->dev, 0x01858000, 4);
++		if (!priv->xv2_gephy_reset || !priv->xv2_mdio_reset)
++			return -ENOMEM;
++	}
++
+ 	priv->mdio_clk = devm_clk_get_optional(&pdev->dev, "gcc_mdio_ahb_clk");
