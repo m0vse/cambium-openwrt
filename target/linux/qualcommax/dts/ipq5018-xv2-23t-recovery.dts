@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/* OEM mp03.3-lynx differs from XV2-21X mp03.3-ocelot only by board SKU. */
+#include "ipq5018-xv2-21x.dts"
+
+/ {
+	model = "Cambium Networks XV2-23T";
+	compatible = "cambiumnetworks,xv2-23t", "qcom,ipq5018";
+
+	cambium-platform {
+		board-sku = <36>;
+	};
+};
+
+/* The captured OEM FIT does not supply this model's radio board files. */
+&wifi { status = "disabled"; };
+&wifi1 { status = "disabled"; };

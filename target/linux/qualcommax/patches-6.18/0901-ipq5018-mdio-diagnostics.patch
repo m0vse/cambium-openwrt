@@ -1,0 +1,27 @@
+--- a/drivers/net/mdio/mdio-ipq4019.c
++++ b/drivers/net/mdio/mdio-ipq4019.c
+@@ -125,6 +125,7 @@ static int ipq4019_mdio_read_c22(struct mii_bus *bus, int mii_id, int regnum)
+ 	struct ipq4019_mdio_data *priv = bus->priv;
+ 	unsigned int data;
+ 	unsigned int cmd;
++	static unsigned int trace_reads;
+ 
+ 	if (ipq4019_mdio_wait_busy(bus))
+ 		return -ETIMEDOUT;
+@@ -148,7 +149,17 @@ static int ipq4019_mdio_read_c22(struct mii_bus *bus, int mii_id, int regnum)
+ 		return -ETIMEDOUT;
+ 
+ 	/* Read and return data */
+-	return readl(priv->membase + MDIO_DATA_READ_REG);
++	data = readl(priv->membase + MDIO_DATA_READ_REG);
++	if (mii_id == 7 && trace_reads < 16) {
++		trace_reads++;
++		dev_info(bus->parent,
++			 "XV2 MDIO phy=%d reg=%d mode=%08x addr=%08x cmd=%08x data=%08x\n",
++			 mii_id, regnum,
++			 readl(priv->membase + MDIO_MODE_REG),
++			 readl(priv->membase + MDIO_ADDR_REG),
++			 readl(priv->membase + MDIO_CMD_REG), data);
++	}
++	return data;
+ }
