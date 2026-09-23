@@ -1,0 +1,10 @@
+#!/bin/sh
+
+[ -r /lib/functions/system.sh ] && . /lib/functions/system.sh
+
+[ "$(board_name)" = 'cambiumnetworks,xv3-8' ] || exit 0
+
+/etc/init.d/thor-radio-settings enable
+/usr/sbin/thor-radio-settings sync
+
+exit 0
