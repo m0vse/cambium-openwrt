@@ -358,7 +358,6 @@
 
 };
 
-/* Radios stay disabled until the OEM BDF and calibration path is validated. */
 &wifi {
-	status = "disabled";
+	status = "okay";
 };
