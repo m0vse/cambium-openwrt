@@ -206,6 +206,9 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
 
   <h3>Overview</h3>
   <ol class="steps">
+    <li><strong>Use <a href="#installer">the installer</a></strong> for the
+    steps after the root shell: one command each, with every check below
+    built in.</li>
     <li><strong>Get a root shell on the stock firmware.</strong> Cambium's
     firmware protects its root shell with a per-device challenge and unlock
     code. The tool that answers it is <strong>not published</strong>; please
@@ -226,6 +229,46 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
     <li><strong>Install the persistent image</strong> into the inactive slot,
     boot it once, check it, then make it the default.</li>
   </ol>
+
+  <h3 id="installer">The installer: one command per step</h3>
+  <p><code>cambium-install.sh</code> (from the release, or
+  <a href="cambium-install.sh">this site</a>) runs the procedures below for
+  every family from the stock firmware's root shell: it identifies the
+  model, checks the flash layout, running slot and boot environment,
+  fetches and verifies the images against the release checksums, backs up
+  what it will touch, writes, reads back and arms the self-restoring boot.
+  It writes nothing until every check has passed and you add
+  <code>--yes</code>, and it stops at the first problem with the exact
+  reason (the failing command, its exit status and its error) and a log in
+  <code>/tmp/cambium-install/install.log</code>.</p>
+  <p>On your computer, serve the release files over http (the stock
+  firmware's <code>wget</code> may not do https):</p>
+<pre>mkdir cambium &amp;&amp; cd cambium        # put every release file here (images, SHA256SUMS, select-config.sh, cambium-install.sh)
+python3 -m http.server 8000</pre>
+  <p>On the access point, fetch the script and do a check run:</p>
+<pre>wget -O /tmp/cambium-install.sh http://COMPUTER_IP:8000/cambium-install.sh
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram      # checks everything and backs up; writes nothing</pre>
+  <p>Copy the backups it made off the access point, from your computer:</p>
+<pre>scp -O 'root@AP_IP:/tmp/cambium-install/backup/*' .</pre>
+  <p>Then run it for real; it reboots into OpenWrt once:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --backed-up --yes ram</pre>
+  <p>With a TFTP server that accepts uploads, <code>--tftp COMPUTER_IP</code>
+  uploads the backups itself, so one run with <code>--yes</code> is enough
+  (Sage's RAM boot always needs <code>--tftp</code>: its U-Boot loads the
+  image from that server as <code>sage-recovery.itb</code>).</p>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Command</th><th>Does</th></tr></thead>
+    <tbody>
+      <tr><td><code>ram</code></td><td>RAM-boots the recovery image once, every family. Any later reboot returns to the stock firmware. On a model that is not validated, stop here and <a href="#report">send a report</a>.</td></tr>
+      <tr><td><code>install</code></td><td>Installs the persistent image on a validated model and arms its guarded first boot (Sage: a one-shot trial, then <code>sage-migration-mark-good --confirm</code> in OpenWrt). Thor: RAM-boots the installer; run <code>install</code> again inside it, then <code>boot</code> from the stock firmware, then <code>commit</code> in OpenWrt.</td></tr>
+      <tr><td><code>--trial</code></td><td>Hardware trial of a persistent image not yet validated on the model, e.g. the Jaguar A/B build.</td></tr>
+      <tr><td><code>--persistent-test</code></td><td>Jaguar: RAM-boot the A/B persistent trees (the test-only image) with no bank attached.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>The per-family steps below are what the script does, for reference and
+  for doing it by hand.</p>
 
   <h3>Common steps (stock firmware root shell)</h3>
   <p>Copy images to the access point's <code>/tmp</code> from a TFTP server

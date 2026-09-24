@@ -55,7 +55,7 @@ recovery|installer|persistent) ;;
 esac
 
 sku=
-node=/proc/device-tree/cambium-platform/board-sku
+node=${CAMBIUM_SKU_NODE:-/proc/device-tree/cambium-platform/board-sku}
 if [ -r "$node" ]; then
 	hex=$(od -An -tx1 "$node" | tr -d ' \\n')
 	[ -n "$hex" ] && sku=$(printf '%d' "0x$hex")
