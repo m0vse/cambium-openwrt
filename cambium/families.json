@@ -1,5 +1,5 @@
 {
-  "_comment": "Source of truth for Cambium families, models, board SKUs and FIT configurations. Used by build.sh (per-release manifest and FIT cross-check), select-config.sh and the project site. status values: validated, untested, not-built, no-build, refused (built, but must not be installed on this model).",
+  "_comment": "Source of truth for Cambium families, models, board SKUs and FIT configurations. Used by build.sh (per-release manifest and FIT cross-check), select-config.sh and the project site. status values: validated, untested, not-built, no-build, refused (built, but must not be installed on this model). Only validated models may use the persistent or installer image; select-config.sh gives untested models the recovery (RAM) image only.",
   "families": [
     {
       "family": "gambit",
