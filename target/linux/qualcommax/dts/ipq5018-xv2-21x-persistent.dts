@@ -1,19 +1,4 @@
 // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 
 #include "ipq5018-xv2-21x.dts"
-
-/ {
-	chosen {
-		bootargs-append = " swiotlb=1 coherent_pool=2M ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait";
-	};
-};
-
-/* rootfs_1 remains the OEM fallback; only the OpenWrt slot is writable. */
-&rootfs {
-	/delete-property/ read-only;
-};
-
-/* Linux rearms the guarded boot only after network and radio checks pass. */
-&appsblenv {
-	/delete-property/ read-only;
-};
+#include "ipq5018-cheetah-persistent.dtsi"

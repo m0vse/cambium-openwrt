@@ -175,15 +175,17 @@ persistent=$work/kernel.itb"
 	;;
 cheetah)
 	CHEETAH_FLAVOR=recovery sh "$verify" "$(image '*cambiumnetworks_cheetah-recovery-initramfs-uImage.itb')"
-	CHEETAH_FLAVOR=persistent sh "$verify" "$(image '*cambiumnetworks_cheetah-persistent-squashfs-kernel.itb')"
+	sysupgrade=$(image '*cambiumnetworks_cheetah-persistent-squashfs-sysupgrade.bin')
+	tar -xOf "$sysupgrade" sysupgrade-cambiumnetworks_cheetah/kernel > "$work/cheetah-kernel.itb" ||
+		fail "Cheetah sysupgrade lacks the family kernel"
+	CHEETAH_FLAVOR=persistent sh "$verify" "$work/cheetah-kernel.itb"
 	fits="recovery=$(image '*cambiumnetworks_cheetah-recovery-initramfs-uImage.itb')
-persistent=$(image '*cambiumnetworks_cheetah-persistent-squashfs-kernel.itb')"
-	[ "$(head -c 4 "$(image '*cambiumnetworks_cheetah-persistent-squashfs-rootfs.squashfs')")" = hsqs ] ||
-		fail "Cheetah root image is not SquashFS"
-	[ "$(wc -c < "$(image '*cambiumnetworks_cheetah-persistent-squashfs-factory.ubi')")" -lt 100663296 ] ||
-		fail "Cheetah factory image exceeds the 96 MiB rootfs partition"
-	! find "$bin_dir" -maxdepth 1 -name '*cambiumnetworks_cheetah-persistent-*sysupgrade.bin' | grep -q . ||
-		fail "Cheetah must not publish a generic sysupgrade image yet"
+persistent=$work/cheetah-kernel.itb"
+	factory=$(image '*cambiumnetworks_cheetah-persistent-squashfs-factory.ubi')
+	[ "$(wc -c < "$factory")" -lt 100663296 ] ||
+		fail "Cheetah factory image exceeds the 96 MiB bank"
+	grep -aq cambium_device_data "$factory" ||
+		fail "Cheetah factory image lacks the device-data vault volume"
 	;;
 jaguar)
 	JAGUAR_FLAVOR=recovery sh "$verify" "$(image '*cambiumnetworks_jaguar-recovery-initramfs-uImage.itb')"
@@ -243,7 +245,8 @@ cp files/etc/cambium-openwrt-release "$output/images/cambium-openwrt-release"
 # The kernel and rootfs content of each factory image the installer writes
 # with ubiformat, so it can hash them back after writing.
 for f in "$output/images/"*cambiumnetworks_thor-persistent-squashfs-factory.ubi \
-	"$output/images/"*cambiumnetworks_jaguar-persistent-squashfs-factory.ubi; do
+	"$output/images/"*cambiumnetworks_jaguar-persistent-squashfs-factory.ubi \
+	"$output/images/"*cambiumnetworks_cheetah-persistent-squashfs-factory.ubi; do
 	[ -f "$f" ] || continue
 	python3 cambium/scripts/ubi-contents.py "$f" > "$f.contents" ||
 		fail "cannot read the kernel and rootfs content of ${f##*/}"
