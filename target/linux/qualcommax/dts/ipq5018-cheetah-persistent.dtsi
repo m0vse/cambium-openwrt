@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/*
+ * Cheetah A/B persistent trees: both 96 MiB firmware banks and the U-Boot
+ * environment are writable, and U-Boot's boot command selects the bank with
+ * ubi.mtd=rootfs or ubi.mtd=rootfs_1, so no root is appended here. 0:TRAINING,
+ * 0:NVRAM, crashLog, ART and the other NOR partitions stay read-only.
+ */
+/ {
+	chosen {
+		bootargs-append = " swiotlb=1 coherent_pool=2M";
+	};
+};
+
+&rootfs {
+	/delete-property/ read-only;
+};
+
+&rootfs_1 {
+	/delete-property/ read-only;
+};
+
+&appsblenv {
+	/delete-property/ read-only;
+};
