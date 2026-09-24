@@ -125,6 +125,13 @@ board SKUs, FIT configurations and hardware status. From it:
   and refuses unknown SKUs, images not built for the model, and any
   persistent or installer image for a model that is not validated.
 
+`site/cambium-install.sh`, also a release asset, runs the install
+procedures (RAM boot, persistent install, and Thor's installer stages) for
+every family from the stock firmware, with layout, slot, environment and
+checksum checks, backups and read-back; `tests/cambium-install.sh`
+simulates each family and checks the U-Boot commands against the validated
+ones.
+
 Untested models are RAM boot only. `site/cambium-report.sh`, also a release
 asset, collects a read-only hardware report on the stock firmware or in the
 booted recovery image for a *Cambium hardware report* issue
