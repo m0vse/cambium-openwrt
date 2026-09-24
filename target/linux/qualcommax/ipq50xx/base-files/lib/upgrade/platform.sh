@@ -3,7 +3,7 @@
 PART_NAME=firmware
 REQUIRE_IMAGE_METADATA=1
 
-RAMFS_COPY_BIN='dumpimage fw_printenv fw_setenv head seq'
+RAMFS_COPY_BIN='dumpimage fw_printenv fw_setenv head seq sha256sum tr'
 RAMFS_COPY_DATA='/etc/fw_env.config /var/lock/fw_printenv.lock'
 
 fritzbox_remove_oem_ubi_volumes() {
@@ -173,6 +173,11 @@ linksys_mx_pre_upgrade() {
 }
 
 platform_check_image() {
+	# Cambium A/B family images must never reach a generic NAND path.
+	if command -v ab_family >/dev/null && ab_family; then
+		cambium_ab_check_image "$1"
+		return
+	fi
 	return 0;
 }
 
@@ -188,6 +193,10 @@ platform_pre_upgrade() {
 }
 
 platform_do_upgrade() {
+	if command -v ab_family >/dev/null && ab_family; then
+		cambium_ab_do_upgrade "$1"
+		return
+	fi
 	case "$(board_name)" in
 	avm,fritzbox-4050)
 		sync

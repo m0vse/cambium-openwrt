@@ -135,8 +135,8 @@ jobs:
       - name: Test the stock-style hostname
         run: sh cambium/tests/cambium-hostname.sh
 
-      - name: Test the Jaguar A/B logic
-        run: sh cambium/tests/jaguar-ab.sh
+      - name: Test the shared A/B logic (every family module)
+        run: sh cambium/tests/cambium-ab.sh
 
       - name: Watch for a new OpenWrt stable branch
         continue-on-error: true
