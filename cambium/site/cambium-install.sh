@@ -8,6 +8,9 @@
 #   sh cambium-install.sh [options] install   install the persistent image
 #   sh cambium-install.sh [options] boot      Thor: trial boot the installed image
 #   sh cambium-install.sh [options] commit    Thor: keep the installed image
+#   sh cambium-install.sh [options] update-upgrader
+#                                             Jaguar OpenWrt: install the
+#                                             release's A/B upgrade scripts
 #
 # Options:
 #   --from SRC      where the release files come from: a directory holding
@@ -21,6 +24,9 @@
 #                   validated on this model (only on a unit you can recover)
 #   --persistent-test  Jaguar: RAM-boot the A/B persistent trees instead
 #                   (test-only image), with no firmware bank attached
+#   --format-inactive  let ram erase the inactive slot (after backing it up)
+#                   when its stock firmware copy leaves too little free space
+#                   for the RAM image
 #   --no-reboot     arm everything but do not reboot
 #   --yes           make the changes; without it only checks and backs up
 #
@@ -34,10 +40,10 @@ WORK=$R/tmp/cambium-install
 LOG=$WORK/install.log
 GITHUB=https://github.com/m0vse/cambium-openwrt/releases/download
 
-cmd= src= tftp= ap_ip= backed_up= trial= yes= reboot=1 ptest=
+cmd= src= tftp= ap_ip= backed_up= trial= yes= reboot=1 ptest= format_inactive=
 while [ $# -gt 0 ]; do
 	case "$1" in
-	ram|install|boot|commit) cmd=$1 ;;
+	ram|install|boot|commit|update-upgrader) cmd=$1 ;;
 	--from) src=${2:-}; shift ;;
 	--release) src=$GITHUB/${2:-}; shift ;;
 	--tftp) tftp=${2:-}; shift ;;
@@ -45,14 +51,15 @@ while [ $# -gt 0 ]; do
 	--backed-up) backed_up=1 ;;
 	--trial) trial=1 ;;
 	--persistent-test) ptest=1 ;;
+	--format-inactive) format_inactive=1 ;;
 	--no-reboot) reboot= ;;
 	--yes) yes=1 ;;
-	-h|--help) sed -n '2,31p' "$0"; exit 0 ;;
+	-h|--help) sed -n '2,38p' "$0"; exit 0 ;;
 	*) echo "cambium-install: unknown argument '$1' (see --help)" >&2; exit 2 ;;
 	esac
 	shift
 done
-[ -n "$cmd" ] || { sed -n '2,31p' "$0"; exit 2; }
+[ -n "$cmd" ] || { sed -n '2,38p' "$0"; exit 2; }
 [ -z "$src" ] && [ -n "$tftp" ] && src=tftp:$tftp
 
 mkdir -p "$WORK" || { echo "cambium-install: cannot create $WORK" >&2; exit 1; }
@@ -282,13 +289,24 @@ attach() {
 
 # stage_ram IMAGE MTD: put IMAGE in an "openwrt" UBI volume on MTD and read it back.
 stage_ram() {
-	local image=$1 mtd=$2 ubi vol bytes want
+	local image=$1 mtd=$2 ubi vol bytes want leb free
 	need ubiattach ubimkvol ubirmvol ubiupdatevol
+	[ -z "$format_inactive" ] || need ubiformat ubidetach
 	bytes=$(wc -c < "$image")
 	want=$(sha256sum "$image" | cut -d' ' -f1)
 	attach "$mtd"; ubi=$UBI
 	[ -n "$(vol_of "$ubi" openwrt)" ] && step "remove the old staging volume" ubirmvol "$R/dev/$ubi" -N openwrt
-	step "ubimkvol openwrt ($bytes bytes) on $ubi (not enough free space in the inactive slot?)" \
+	leb=$(cat "$R/sys/class/ubi/$ubi/eraseblock_size" 2>/dev/null)
+	free=$(cat "$R/sys/class/ubi/$ubi/avail_eraseblocks" 2>/dev/null)
+	if [ -n "$leb" ] && [ -n "$free" ] && [ "$free" -lt $(( (bytes + leb - 1) / leb )) ]; then
+		[ -n "$format_inactive" ] ||
+			die "the inactive slot (mtd$mtd) has $free free UBI eraseblocks but the RAM image needs $(( (bytes + leb - 1) / leb )): its stock firmware copy fills it. Run again with --format-inactive to erase that slot (it is backed up) and stage the image there"
+		say "erasing the inactive slot mtd$mtd (--format-inactive; its backup is off the access point)"
+		step "ubidetach mtd$mtd" ubidetach -m "$mtd"
+		step "ubiformat mtd$mtd" ubiformat "$R/dev/mtd$mtd" -y
+		attach "$mtd"; ubi=$UBI
+	fi
+	step "ubimkvol openwrt ($bytes bytes) on $ubi" \
 		ubimkvol "$R/dev/$ubi" -N openwrt -s "$bytes"
 	vol=$(vol_of "$ubi" openwrt)
 	[ -n "$vol" ] || die "the openwrt volume was created but does not show in /sys/class/ubi"
@@ -297,6 +315,20 @@ stage_ram() {
 	[ "$(head -c "$bytes" "$R/dev/$vol" | sha256sum | cut -d' ' -f1)" = "$want" ] ||
 		die "the staged image does not read back correctly from $vol"
 	say "staged ${image##*/} in $vol on mtd$mtd and read it back"
+}
+
+# verify_factory UBI CONTENTS: hash the kernel and rootfs content of a
+# written factory image. CONTENTS lists "volume bytes sha256" as built: the
+# FIT's own size and the SquashFS bytes_used, without the UBI padding.
+verify_factory() {
+	local ubi=$1 contents=$2 name bytes want vol
+	while read -r name bytes want; do
+		vol=$(vol_of "$ubi" "$name")
+		[ -n "$vol" ] || die "the written image has no $name volume"
+		[ "$(head -c "$bytes" "$R/dev/$vol" | sha256sum | cut -d' ' -f1)" = "$want" ] ||
+			die "the $name volume does not read back as built (first $bytes bytes)"
+		say "$name volume reads back as built ($bytes bytes)"
+	done < "$contents"
 }
 
 # arm BOOTCMD: arm a one-shot (changing_bootcmd first, as this U-Boot needs).
@@ -327,7 +359,7 @@ dry_run_stop() {
 # --- commands --------------------------------------------------------------------------
 
 cmd_ram() {
-	local flavour=recovery image off tpart t bootargs=
+	local flavour=recovery image off tpart upart t bootargs=
 	on_openwrt && die "this is already OpenWrt: run it from the stock firmware's root shell"
 	load_release
 	[ -n "$ptest" ] && flavour=persistent
@@ -355,7 +387,9 @@ cmd_ram() {
 		;;
 	jaguar)
 		layout_jaguar
-		if [ "$RUN" = "$R1" ]; then t=$R0 tpart=rootfs off=0x0; else t=$R1 tpart=rootfs_1 off=$BANK; fi
+		# Slot 0: the XV2-2T1's validated "(rootfs)" form; slot 1: the "(fs)"
+		# form that RAM-booted the XV2-2 from its slot 1.
+		if [ "$RUN" = "$R1" ]; then t=$R0 tpart=rootfs upart=rootfs off=0x0; else t=$R1 tpart=rootfs_1 upart=fs off=$BANK; fi
 		if [ -n "$ptest" ]; then
 			image=$(get_image cambiumnetworks_jaguar-persistent-initramfs-uImage.itb) || exit 1
 			# The A/B trees leave both banks writable: attach none.
@@ -366,7 +400,7 @@ cmd_ram() {
 		backup "$R/dev/mtd${t}ro"
 		dry_run_stop "stage the RAM image in $tpart (mtd$t) and boot it once"
 		stage_ram "$image" "$t"
-		arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@$off($tpart)\" && ubi part $tpart && ubi read 0x60000000 openwrt && ${bootargs}bootm 0x60000000#$CONFIG; reset"
+		arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@$off($upart)\" && ubi part $upart && ubi read 0x60000000 openwrt && ${bootargs}bootm 0x60000000#$CONFIG; reset"
 		;;
 	thor)
 		[ -n "$ptest" ] && die "--persistent-test is for Jaguar"
@@ -399,23 +433,29 @@ thor_oneshot() {
 }
 
 install_jaguar() {
-	local image ubi v
+	local image contents ubi v t tslot
 	layout_jaguar
-	require_stock_on_rootfs_1
+	# OpenWrt goes into whichever slot the stock firmware is not running from.
+	if [ "$RUN" = "$R1" ]; then t=$R0 tslot=0; else t=$R1 tslot=1; fi
 	image=$(get_image cambiumnetworks_jaguar-persistent-squashfs-factory.ubi) || exit 1
+	contents=$(get_image cambiumnetworks_jaguar-persistent-squashfs-factory.ubi.contents) || exit 1
 	need ubiformat ubiattach ubidetach
-	backup "$R/dev/mtd${R0}ro"
-	dry_run_stop "write the persistent image over rootfs (mtd$R0) and boot it once"
-	ubi=$(ubi_of_mtd "$R0")
-	[ -n "$ubi" ] && step "ubidetach mtd$R0" ubidetach -m "$R0"
-	step "ubiformat mtd$R0 with ${image##*/}" ubiformat "$R/dev/mtd$R0" -y -f "$image"
-	attach "$R0"; ubi=$UBI
+	backup "$R/dev/mtd${t}ro"
+	dry_run_stop "write the persistent image over $([ "$tslot" = 0 ] && echo rootfs || echo rootfs_1) (mtd$t) and boot it once"
+	ubi=$(ubi_of_mtd "$t")
+	[ -n "$ubi" ] && step "ubidetach mtd$t" ubidetach -m "$t"
+	step "ubiformat mtd$t with ${image##*/}" ubiformat "$R/dev/mtd$t" -y -f "$image"
+	attach "$t"; ubi=$UBI
 	for v in kernel rootfs rootfs_data cambium_device_data; do
-		[ -n "$(vol_of "$ubi" "$v")" ] || die "the written image has no $v volume on mtd$R0"
+		[ -n "$(vol_of "$ubi" "$v")" ] || die "the written image has no $v volume on mtd$t"
 	done
-	say "rootfs (mtd$R0) holds kernel, rootfs, rootfs_data and cambium_device_data"
-	arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$CONFIG; reset"
-	say "guarded first boot armed: after a healthy start OpenWrt re-arms its boot; otherwise the next boot returns to the stock firmware."
+	verify_factory "$ubi" "$contents"
+	say "slot $tslot (mtd$t) holds kernel, rootfs, rootfs_data and cambium_device_data"
+	case "$tslot" in
+	0) arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$CONFIG; reset" ;;
+	1) arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@$BANK(fs)\" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$CONFIG; reset" ;;
+	esac
+	say "guarded first boot of slot $tslot armed: after a healthy start OpenWrt re-arms its boot; otherwise the next boot returns to the stock firmware."
 	say "in OpenWrt: set a root password (passwd); cat /tmp/cambium-board-data.status should say vault"
 }
 
@@ -489,17 +529,21 @@ install_thor_stock() {
 
 # Thor, stage 2 (OpenWrt installer in RAM): write the persistent image.
 install_thor_installer() {
-	local image r0
+	local image contents r0
 	grep -q 'ubi.mtd=' "$R/proc/cmdline" && die "this OpenWrt runs from flash, not the Thor installer in RAM"
 	r0=$(mtd_idx rootfs)
 	[ -n "$r0" ] || die "no rootfs partition in /proc/mtd"
 	[ "$(mtd_size rootfs)" = 06000000 ] || die "rootfs is not 96 MiB"
 	[ $(( $(cat "$R/sys/class/mtd/mtd$r0/flags") & 0x400 )) -ne 0 ] || die "rootfs is read-only: this is not the Thor installer"
 	image=$(get_image cambiumnetworks_thor-persistent-squashfs-factory.ubi) || exit 1
-	need ubiformat
+	contents=$(get_image cambiumnetworks_thor-persistent-squashfs-factory.ubi.contents) || exit 1
+	need ubiformat ubiattach ubidetach
 	dry_run_stop "write the persistent image over rootfs (mtd$r0)"
 	[ -n "$(ubi_of_mtd "$r0")" ] && step "ubidetach mtd$r0" ubidetach -m "$r0"
 	step "ubiformat mtd$r0 with ${image##*/}" ubiformat "$R/dev/mtd$r0" -y -f "$image"
+	attach "$r0"
+	verify_factory "$UBI" "$contents"
+	step "ubidetach mtd$r0" ubidetach -m "$r0"
 	say "installed. Rebooting to the stock firmware; there, run: sh cambium-install.sh --from ... boot --yes"
 }
 
@@ -558,10 +602,48 @@ cmd_commit() {
 	say "OpenWrt is now the default boot; rootfs_1 keeps the stock firmware for a manual return."
 }
 
+# Jaguar (installed OpenWrt): sysupgrade runs the upgrade scripts of the
+# running system, not of the new image, so a fixed writer must be installed
+# on the running system before it can be used.
+cmd_update_upgrader() {
+	local lib up newlib newup old=$WORK/upgrader-before
+	on_openwrt || die "update-upgrader runs in an installed Jaguar OpenWrt"
+	grep -q 'ubi.mtd=' "$R/proc/cmdline" || die "this OpenWrt does not run from flash"
+	load_release
+	identify recovery
+	[ "$FAMILY" = jaguar ] || die "update-upgrader is for the Jaguar A/B upgrade"
+	lib=$R/lib/functions/cambium-jaguar.sh
+	up=$R/lib/upgrade/cambium-jaguar.sh
+	[ -f "$lib" ] && [ -f "$up" ] || die "this image has no Jaguar A/B upgrade scripts to update"
+	newlib=$(get_image cambium-jaguar-functions.sh) || exit 1
+	newup=$(get_image cambium-jaguar-upgrade.sh) || exit 1
+	step "syntax check of the new scripts" sh -n "$newlib"
+	step "syntax check of the new scripts" sh -n "$newup"
+	if cmp -s "$newlib" "$lib" && cmp -s "$newup" "$up"; then
+		say "the running upgrade scripts are already the release's"
+		return 0
+	fi
+	dry_run_stop "replace $lib and $up with the release's copies (the old ones are kept in $old)"
+	mkdir -p "$old"
+	step "keep the old functions script" cp "$lib" "$old/functions-cambium-jaguar.sh"
+	step "keep the old upgrade script" cp "$up" "$old/upgrade-cambium-jaguar.sh"
+	step "install $lib" cp "$newlib" "$lib"
+	step "install $up" cp "$newup" "$up"
+	(board_name() { cat "$R/tmp/sysinfo/board_name"; }
+	 CAMBIUM_JAGUAR_LIB=$lib . "$up" && command -v jaguar_ubi_node && command -v jaguar_step &&
+		command -v cambium_jaguar_do_upgrade) > /dev/null 2>&1 ||
+		{ cp "$old/functions-cambium-jaguar.sh" "$lib"; cp "$old/upgrade-cambium-jaguar.sh" "$up"
+		  die "the installed scripts do not load; the old ones are restored"; }
+	cmp -s "$newlib" "$lib" && cmp -s "$newup" "$up" || die "the installed scripts do not match the release"
+	say "the running system now uses the release's A/B upgrade scripts (old copies in $old)."
+	say "next: sysupgrade -T IMAGE, then sysupgrade [-n] IMAGE with the matching test-only sysupgrade.bin"
+}
+
 [ "$(id -u 2>/dev/null)" = 0 ] || [ -n "$R" ] || die "run this as root"
 case "$cmd" in
 ram) cmd_ram ;;
 install) cmd_install ;;
 boot) cmd_boot ;;
 commit) cmd_commit ;;
+update-upgrader) cmd_update_upgrader ;;
 esac
