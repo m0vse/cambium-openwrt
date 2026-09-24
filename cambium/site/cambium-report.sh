@@ -165,7 +165,8 @@ collect() {
 		done
 	done
 	showfile /tmp/cambium-board-data.status
-	show 'jaguar-ab-status' jaguar-ab-status
+	show 'cambium-ab-status' cambium-ab-status
+	show 'jaguar-ab-status (older images)' jaguar-ab-status
 
 	section 'PCI devices'
 	for d in /sys/bus/pci/devices/*; do
