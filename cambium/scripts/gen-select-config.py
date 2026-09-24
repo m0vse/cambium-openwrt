@@ -33,6 +33,7 @@ def main():
                 else:
                     note = entry.get("note") or ("no OpenWrt build for this family yet"
                                                  if entry["status"] == "no-build" else "not built")
+                    note = note.replace("'", "'\\''")
                     lines.append(f"\t\t{var}_status={entry['status']} {var}_note='{note}'")
             lines.append("\t\t;;")
             cases.append("\n".join(lines))
