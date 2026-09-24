@@ -376,19 +376,17 @@ define Device/cambiumnetworks_cheetah-persistent
 	DEVICE_DTS := ipq5018-xv2-21x-persistent ipq5018-xv2-22h-persistent ipq5018-xv2-23t-persistent
 	DEVICE_DTS_CONFIG := config@mp03.3-ocelot
 	SUPPORTED_DEVICES := cambiumnetworks,xv2-21x cambiumnetworks,xv2-22h cambiumnetworks,xv2-23t
-	BOARD_NAME := cambiumnetworks_xv2-21x
 	SOC := ipq5018
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	NAND_SIZE := 256m
 	IMAGE_SIZE := 98304k
-	# Do not emit a generic nand_do_upgrade archive. Cheetah requires a
-	# family-specific inactive-slot writer and compatibility preflight first.
-	# The separate kernel and root images let the OEM firmware write the
-	# inactive slot volume by volume, as validated on the XV2-21X.
-	IMAGES := factory.ubi kernel.itb rootfs.squashfs
-	IMAGE/kernel.itb := append-kernel
-	IMAGE/rootfs.squashfs := append-rootfs
+	# A/B banks: kernel (0), rootfs (1), rootfs_data (2) and the per-bank
+	# device-data vault (3); the cambium-ab sysupgrade writes the inactive one.
+	IMAGES := factory.ubi sysupgrade.bin
+	IMAGE/factory.ubi := cambium-ab-ubi
+	IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+	BOARD_NAME := cambiumnetworks_cheetah
 	DEVICE_PACKAGES := uboot-envtools cambium-board-data cambium-cheetah-support
 endef
 TARGET_DEVICES += cambiumnetworks_cheetah-persistent
