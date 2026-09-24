@@ -143,9 +143,9 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
       <tr><td>XV2-2T0</td><td>22</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
       <tr><td>XE3-4</td><td>32</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
       <tr><td>XE3-4TN</td><td>33</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
-      <tr><td class="fam" rowspan="3">Cheetah<br><small>IPQ5018, Wi-Fi 6</small></td><td rowspan="3">7.2-r1</td><td>XV2-21X</td><td>35</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
-      <tr><td>XV2-22H</td><td>34</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
-      <tr><td>XV2-23T</td><td>36</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
+      <tr><td class="fam" rowspan="3">Cheetah<br><small>IPQ5018, Wi-Fi 6</small></td><td rowspan="3">7.2-r1</td><td>XV2-21X</td><td>35</td><td><span class="pill ok">validated</span></td><td><span class="pill untested">untested</span> now the A/B build; the one-OEM image was validated</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
+      <tr><td>XV2-22H</td><td>34</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
+      <tr><td>XV2-23T</td><td>36</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
       <tr><td class="fam">Miami<br><small>IPQ5332, Wi-Fi 7</small></td><td>7.2-r1</td><td>X7-35X, X7-53X, X7-55X, X7-56X</td><td>44, 49, 42, 43</td><td colspan="3"><span class="pill none">no build yet</span> needs hardware and a new OpenWrt target</td></tr>
     </tbody>
   </table>
@@ -635,50 +635,66 @@ ssh root@AP_IP fw_printenv bootcmd  # run jaguar_stableN for the old slot</pre>
   <code>vault</code> afterwards. Please report any failure in an issue.</p>
   </details>
 
-  <details>
-  <summary><strong>Cheetah</strong> &mdash; validated on the XV2-21X (stock firmware 7.2-r1)</summary>
-  <p>The stock firmware runs from <code>rootfs_1</code>
-  (<code>mtd3</code>, <code>image=1</code>); OpenWrt is installed into
-  <code>rootfs</code> (<code>mtd2</code>), attached as UBI device 2:</p>
-<pre>cat /sys/class/ubi/ubi0/mtd_num    # must be 3 (stock firmware on rootfs_1)
-ubiattach /dev/ubi_ctrl -m 2
-cat /sys/class/ubi/ubi2/mtd_num    # must be 2
-dd if=/dev/mtd2ro of=/tmp/oem-rootfs.bin bs=131072   # copy off the AP with APPSBLENV and ART backups</pre>
-  <p><strong>RAM boot.</strong> Stage
-  <code>...cheetah-recovery-initramfs-uImage.itb</code> and arm the
-  one-shot:</p>
-<pre>CONFIG=; eval "$(sh /tmp/select-config.sh recovery)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
-ubimkvol /dev/ubi2 -N openwrt -s "$(wc -c &lt; /tmp/RECOVERY.itb)"
-ubiupdatevol /dev/ubi2_2 /tmp/RECOVERY.itb
-head -c "$(wc -c &lt; /tmp/RECOVERY.itb)" /dev/ubi2_2 | sha256sum
-fw_setenv changing_bootcmd 1
-fw_printenv changing_bootcmd
-[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs &amp;&amp; ubi read 0x60000000 openwrt &amp;&amp; bootm 0x60000000#'"$CONFIG"'; reset'
-fw_printenv changing_bootcmd bootcmd image
-sync; reboot</pre>
-  <p><strong>Install</strong> <code>...cheetah-persistent-squashfs-kernel.itb</code>
-  and <code>...cheetah-persistent-squashfs-rootfs.squashfs</code> into the
-  inactive slot, replacing its volumes (the running <code>rootfs_1</code> is
-  not touched):</p>
-<pre>CONFIG=; eval "$(sh /tmp/select-config.sh persistent)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
-[ -n "$CONFIG" ] &amp;&amp;
-for id in $(ls /sys/class/ubi | sed -n 's/^ubi2_\([0-9]*\)$/\1/p' | sort -rn); do ubirmvol /dev/ubi2 -n "$id"; done &amp;&amp;
-ubimkvol /dev/ubi2 -N kernel -s "$(wc -c &lt; /tmp/KERNEL.itb)" &amp;&amp;
-ubiupdatevol /dev/ubi2_0 /tmp/KERNEL.itb &amp;&amp;
-ubimkvol /dev/ubi2 -N rootfs -s "$(wc -c &lt; /tmp/ROOTFS.squashfs)" &amp;&amp;
-ubiupdatevol /dev/ubi2_1 /tmp/ROOTFS.squashfs &amp;&amp;
-ubimkvol /dev/ubi2 -N rootfs_data -m
-sync
-head -c "$(wc -c &lt; /tmp/KERNEL.itb)" /dev/ubi2_0 | sha256sum
-head -c "$(wc -c &lt; /tmp/ROOTFS.squashfs)" /dev/ubi2_1 | sha256sum</pre>
-  <p><strong>First boot.</strong> Arm the guarded boot; OpenWrt re-arms it
-  after each healthy start:</p>
-<pre>CONFIG=; eval "$(sh /tmp/select-config.sh persistent)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
-[ -n "$CONFIG" ] &amp;&amp; fw_setenv changing_bootcmd 1
-fw_printenv changing_bootcmd
-[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs &amp;&amp; ubi read 0x60000000 kernel &amp;&amp; bootm 0x60000000#'"$CONFIG"'; bootipq'
-fw_printenv changing_bootcmd bootcmd
-sync; reboot</pre>
+  <details id="cheetah">
+  <summary><strong>Cheetah</strong> &mdash; recovery validated on the XV2-21X (stock firmware 7.2-r1); A/B build untested</summary>
+  <p>The Cheetah persistent image is now the same A/B build as Jaguar's: two
+  OpenWrt banks, <code>sysupgrade</code> writing the inactive one, and
+  automatic rollback. Its boot command now sets the kernel arguments for the
+  bank, which has not yet run on hardware, so the install needs
+  <code>--trial</code> on every Cheetah model for now; only trial a unit you
+  can recover. The earlier one-OEM persistent image was validated on the
+  XV2-21X. Cheetah's banks are 96&nbsp;MiB, <code>rootfs</code> at NAND
+  <code>0x80000</code> and <code>rootfs_1</code> at <code>0x6080000</code>;
+  OpenWrt is installed into <code>rootfs</code>, so the stock firmware must
+  be running from <code>rootfs_1</code>. Use the
+  <a href="#installer">installer</a> for every step that writes flash.</p>
+
+  <h4>RAM boot</h4>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram        # check run: layout, slot, image hashes; backs up and uploads; writes nothing
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes ram</pre>
+  <p>In the booted image, <a href="#report">run the hardware report</a>. Any
+  reboot or power cycle returns to the stock firmware.</p>
+
+  <h4>Persistent install</h4>
+  <p>Writes <code>factory.ubi</code> over <code>rootfs</code>, hashes its
+  kernel and root filesystem back, and arms the guarded first boot. Until
+  conversion, every boot first restores the stock <code>bootcmd</code>;
+  OpenWrt re-arms its boot after each healthy start (on the XV2-21X that
+  includes both radios), and an unhealthy start returns to the stock
+  firmware:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --trial install              # check run
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --trial --yes install</pre>
+  <p>In OpenWrt, set a root password and check the device-data vault, the
+  guard and the radios:</p>
+<pre>passwd
+cat /tmp/cambium-board-data.status      # vault: both board files copied into this bank's vault
+cambium-ab-status                       # family=cheetah, mode=oem-fallback, running=0
+logread -e cambium-ab-guard             # "healthy; guarded OpenWrt boot of slot 0 rearmed" within 5 minutes
+iw dev</pre>
+
+  <h4>Convert to two OpenWrt banks</h4>
+  <p>Replaces the stock firmware in <code>rootfs_1</code> with a copy of the
+  running OpenWrt bank; afterwards only your off-device backup can bring the
+  stock firmware back. From your computer, back up the stock bank:</p>
+<pre>N=$(ssh root@AP_IP "sed -n 's/^mtd\([0-9]*\):.*\"rootfs_1\"\$/\1/p' /proc/mtd"); echo "stock bank: mtd$N"
+ssh root@AP_IP "cat /dev/mtd$N" &gt; cheetah-oem-rootfs_1.bin
+sha256sum cheetah-oem-rootfs_1.bin
+ssh root@AP_IP "sha256sum /dev/mtd$N"            # must match; keep the file safe</pre>
+  <p>Then, in OpenWrt:</p>
+<pre>cambium-ab-convert --oem-sha256 HASH --allow-untested --yes
+cambium-ab-status                                  # mode=ab, confirmed=0
+reboot                                             # must come back on slot 0</pre>
+
+  <h4>A/B sysupgrade</h4>
+  <p>The same as Jaguar: the inactive bank is written and read back, a
+  one-shot trial boots it, and the guard commits it once healthy or the AP
+  returns to the old bank. <code>cambium-ab-status</code> shows the result,
+  and the failing command and its error in <code>last_failure</code> if a
+  step fails:</p>
+<pre>wget -O /tmp/sysupgrade.bin http://COMPUTER_IP:8000/openwrt-qualcommax-ipq50xx-cambiumnetworks_cheetah-persistent-squashfs-sysupgrade.bin
+sysupgrade -T /tmp/sysupgrade.bin
+sysupgrade /tmp/sysupgrade.bin                     # keeps settings; add -n to reset them
+cambium-ab-status                                  # a few minutes later: running = confirmed = the new slot</pre>
   </details>
 
   <h3>After the first boot (all families)</h3>
@@ -728,11 +744,11 @@ sync; reboot</pre>
     the XV2-2 and XV2-2T1: it writes the inactive bank, trial-boots it and
     rolls back automatically if the new bank fails its checks. See the
     <a href="#jaguar">Jaguar steps</a>.</li>
-    <li><strong>Cheetah</strong> has no <code>sysupgrade</code> path yet.
-    Return to the stock firmware (below), then repeat the install with the
-    new persistent image; it writes <code>rootfs</code> again, never the stock
-    firmware's <code>rootfs_1</code>. The same applies to a Jaguar that has
-    not been converted to two OpenWrt banks.</li>
+    <li><strong>Cheetah</strong> has the same A/B <code>sysupgrade</code> after
+    conversion, not yet tested on hardware; see the
+    <a href="#cheetah">Cheetah steps</a>. Before conversion, a Jaguar or
+    Cheetah is upgraded by reinstalling the persistent image from the stock
+    firmware.</li>
     <li>Kernel modules must come from the same snapshot as the running image.
     The feed for each snapshot is configured in the image; feeds for the two
     most recent snapshots are kept online.</li>
