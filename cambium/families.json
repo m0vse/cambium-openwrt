@@ -310,11 +310,11 @@
           "persistent": {
             "config": "config@cp01-c1",
             "status": "untested",
-            "note": "A/B image under hardware test; no persistent install has run on an XV2-2 yet"
+            "note": "A/B image under hardware test: installed into slot 1 and converted on one unit (2026-09-24); its first A/B sysupgrade failed in stage 2 (missing UBI device nodes, since fixed) and is being retried"
           },
           "sysupgrade": {
             "status": "untested",
-            "note": "A/B with automatic rollback, under hardware test; not published"
+            "note": "A/B with automatic rollback, under hardware test; run cambium-install.sh update-upgrader before a sysupgrade; not published"
           }
         },
         {
@@ -343,7 +343,7 @@
           "persistent": {
             "config": "config@cp01-c1-2",
             "status": "untested",
-            "note": "The persistent image is now the A/B build (both banks writable, device-data vault) and is under hardware test; the earlier one-OEM persistent image was validated"
+            "note": "The persistent image is now the A/B build (both banks writable, device-data vault) and is under hardware test; the earlier one-OEM persistent image was validated on this model"
           },
           "sysupgrade": {
             "status": "untested",
