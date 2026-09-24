@@ -1,8 +1,0 @@
-#!/bin/sh
-
-case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
-	cambiumnetworks,xv2-21x|cambiumnetworks,xv2-22h|cambiumnetworks,xv2-23t) ;;
-	*) exit 0 ;;
-esac
-/etc/init.d/cheetah-bootguard enable
-exit 0

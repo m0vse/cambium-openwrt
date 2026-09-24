@@ -48,8 +48,10 @@ common; each family adds a small module,
 `/lib/functions/cambium-ab-<family>.sh` (in its support package), with its
 board table (models, SKUs, FIT configurations, bank size and slot-1 offset,
 usable LEBs, protected partitions, the prefix of its U-Boot variables) and
-its U-Boot boot commands. Jaguar is the first family on it; Cheetah, Thor
-and Sage follow.
+its U-Boot boot commands. Jaguar (validated) and Cheetah (A/B untested on
+hardware) use it; Thor and Sage follow. Cheetah's banks are 96 MiB at NAND
+`0x80000` and `0x6080000`, and its boot commands set `bootargs` with the
+bank, as Jaguar's do.
 
 Jaguar's A/B image and its family `sysupgrade.bin` are validated on the
 XV2-2 and XV2-2T1 and untested on the XV2-2T0, XE3-4 and XE3-4TN, where
@@ -107,7 +109,7 @@ kept out of releases, in each build's `cambium-jaguar` Actions artifact under
   U-Boot variables keep the family prefix (`jaguar_boot0`, ...), so
   installed units carry on across the change.
 
-`tests/jaguar-ab.sh` exercises all of this against simulated flash, sysfs and
+`tests/cambium-ab.sh` exercises all of this against simulated flash, sysfs and
 U-Boot environment, including an interruption at every write and environment
 step of the upgrade and the conversion.
 
