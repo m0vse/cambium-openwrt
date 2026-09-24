@@ -95,7 +95,9 @@ The family image must fit the XV2-2's smaller bank; `build.sh` fails the
 build if it does not.
 
 Hardware gates, in order, on the XV2-2T1 and then the XV2-2, with PoE power
-control at hand:
+control at hand. The site's Jaguar section
+(https://m0vse.github.io/cambium-openwrt/#jaguar) gives the exact commands
+for each, for both bank layouts:
 
 1. RAM-boot `...jaguar-persistent-initramfs-uImage.itb` (the persistent
    trees with a RAM root, staged like the recovery image) and confirm both
