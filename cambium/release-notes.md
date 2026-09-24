@@ -11,8 +11,8 @@ SKU. Hardware status per model:
 | Family | Stock firmware | Model | Recovery (RAM) | Persistent |
 | --- | --- | --- | --- | --- |
 | Gambit (Wi-Fi 5, MIPS) | 4.2.3.3-r10 | E400, E500, E501S, E502S | no build yet | no build yet |
-| Sage (IPQ4019) | 4.2.3.3-r10 | E410 | validated | validated (A/B install and upgrades) |
-| | | E410B, E430H, E430W, E510, E600, E700 | untested | untested |
+| Sage (IPQ4019) | 4.2.3.3-r10 | E410, E410B | validated | validated (A/B install and upgrades) |
+| | | E430H, E430W, E510, E600, E700 | untested | untested |
 | Lila (Wi-Fi 5, MIPS) | 4.2.3.3-r10 | E425W, E505 | no build yet | no build yet |
 | Thor (IPQ8074) | 7.2-r1 | XV3-8 | validated | validated |
 | | | XE5-8 | untested | not built: flash layout not yet captured |
