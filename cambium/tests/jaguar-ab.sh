@@ -455,8 +455,7 @@ new_ap cambiumnetworks,xv2-2t0; run_board_data >/dev/null 2>&1
 check "untested model needs --allow-untested" 1 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --yes
 new_ap
 new_ap cambiumnetworks,xv2-2; run_board_data >/dev/null 2>&1
-check "XV2-2 conversion needs --allow-untested" 1 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --yes
-check "XV2-2 conversion with --allow-untested" 0 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --allow-untested --yes
+check "XV2-2 conversion (validated on hardware)" 0 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --yes
 assert "XV2-2 slot 1 is a copy of slot 0" cmp -s "$S/flash/mtd1/1.data" "$S/flash/mtd0/1.data"
 assert "XV2-2 boot command uses its 52 MiB slot 1" [ "$(env_get jaguar_boot1)" = \
 	'nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x3400000@0x3400000(fs)" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1' ]
