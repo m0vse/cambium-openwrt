@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: (GPL-2.0+)
 
 /*
- * A/B: both 96 MiB firmware banks are writable, and U-Boot's boot command
- * selects the bank with ubi.mtd=rootfs or ubi.mtd=rootfs_1, so no root
- * arguments are appended here. The U-Boot environment is writable for the
- * boot guard; ART, NVRAM, crashLog and every other NOR partition stay
+ * A/B: U-Boot's boot command selects the bank with ubi.mtd=rootfs or
+ * ubi.mtd=rootfs_1, so no root arguments are appended here. This makes
+ * bank 0 and the U-Boot environment (for the boot guard) writable; each
+ * model's persistent tree unlocks its own second bank, whose offset depends
+ * on the NAND size. ART, NVRAM, crashLog and every other NOR partition stay
  * read-only.
  */
 &{/soc@0/nand-controller@79b0000/nand@0/partitions/partition@0} {
-	/delete-property/ read-only;
-};
-
-&{/soc@0/nand-controller@79b0000/nand@0/partitions/partition@6000000} {
 	/delete-property/ read-only;
 };
 
