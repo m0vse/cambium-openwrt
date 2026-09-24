@@ -8,10 +8,46 @@
       "stock_firmware": "4.2.3.3-r10",
       "built": false,
       "models": [
-        {"model": "E400", "sku": 6, "recovery": {"status": "no-build"}, "persistent": {"status": "no-build"}},
-        {"model": "E500", "sku": 7, "recovery": {"status": "no-build"}, "persistent": {"status": "no-build"}},
-        {"model": "E501S", "sku": 9, "recovery": {"status": "no-build"}, "persistent": {"status": "no-build"}},
-        {"model": "E502S", "sku": 12, "recovery": {"status": "no-build"}, "persistent": {"status": "no-build"}}
+        {
+          "model": "E400",
+          "sku": 6,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          }
+        },
+        {
+          "model": "E500",
+          "sku": 7,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          }
+        },
+        {
+          "model": "E501S",
+          "sku": 9,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          }
+        },
+        {
+          "model": "E502S",
+          "sku": 12,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          }
+        }
       ]
     },
     {
@@ -26,28 +62,93 @@
         "persistent": "cambiumnetworks_sage-persistent"
       },
       "models": [
-        {"model": "E410", "sku": 10,
-         "recovery": {"config": "config@5", "status": "validated"},
-         "persistent": {"config": "config@ap.dk01.1-c2", "status": "validated",
-                        "note": "E410 legacy boot alias of config@5, as used by the validated A/B boot commands"}},
-        {"model": "E600", "sku": 11,
-         "recovery": {"config": "config@10", "status": "untested"},
-         "persistent": {"config": "config@10", "status": "untested"}},
-        {"model": "E430W", "sku": 13,
-         "recovery": {"config": "config@13", "status": "untested"},
-         "persistent": {"config": "config@13", "status": "untested"}},
-        {"model": "E700", "sku": 14,
-         "recovery": {"config": "config@14", "status": "untested"},
-         "persistent": {"config": "config@14", "status": "untested"}},
-        {"model": "E430H", "sku": 15,
-         "recovery": {"config": "config@15", "status": "untested"},
-         "persistent": {"config": "config@15", "status": "untested"}},
-        {"model": "E510", "sku": 16,
-         "recovery": {"config": "config@16", "status": "untested"},
-         "persistent": {"config": "config@16", "status": "untested"}},
-        {"model": "E410B", "sku": 21,
-         "recovery": {"config": "config@17", "status": "untested"},
-         "persistent": {"config": "config@17", "status": "untested"}}
+        {
+          "model": "E410",
+          "sku": 10,
+          "recovery": {
+            "config": "config@5",
+            "status": "validated"
+          },
+          "persistent": {
+            "config": "config@ap.dk01.1-c2",
+            "status": "validated",
+            "note": "E410 legacy boot alias of config@5, as used by the validated A/B boot commands"
+          }
+        },
+        {
+          "model": "E600",
+          "sku": 11,
+          "recovery": {
+            "config": "config@10",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@10",
+            "status": "untested"
+          }
+        },
+        {
+          "model": "E430W",
+          "sku": 13,
+          "recovery": {
+            "config": "config@13",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@13",
+            "status": "untested"
+          }
+        },
+        {
+          "model": "E700",
+          "sku": 14,
+          "recovery": {
+            "config": "config@14",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@14",
+            "status": "untested"
+          }
+        },
+        {
+          "model": "E430H",
+          "sku": 15,
+          "recovery": {
+            "config": "config@15",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@15",
+            "status": "untested"
+          }
+        },
+        {
+          "model": "E510",
+          "sku": 16,
+          "recovery": {
+            "config": "config@16",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@16",
+            "status": "untested"
+          }
+        },
+        {
+          "model": "E410B",
+          "sku": 21,
+          "recovery": {
+            "config": "config@5",
+            "status": "validated",
+            "note": "Same hardware as the E410: boots the E410 configuration, as on the validated units. config@17 (the E410B tree) is built but not used, because the E410 upgrade and mark-good helpers match only cambium,e410."
+          },
+          "persistent": {
+            "config": "config@ap.dk01.1-c2",
+            "status": "validated",
+            "note": "Same hardware as the E410: boots the E410 configuration, as on the validated units. config@17 (the E410B tree) is built but not used, because the E410 upgrade and mark-good helpers match only cambium,e410."
+          }
+        }
       ]
     },
     {
@@ -57,8 +158,26 @@
       "stock_firmware": "4.2.3.3-r10",
       "built": false,
       "models": [
-        {"model": "E425W", "sku": 17, "recovery": {"status": "no-build"}, "persistent": {"status": "no-build"}},
-        {"model": "E505", "sku": 18, "recovery": {"status": "no-build"}, "persistent": {"status": "no-build"}}
+        {
+          "model": "E425W",
+          "sku": 17,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          }
+        },
+        {
+          "model": "E505",
+          "sku": 18,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          }
+        }
       ]
     },
     {
@@ -74,14 +193,38 @@
         "persistent": "cambiumnetworks_thor-persistent"
       },
       "models": [
-        {"model": "XV3-8", "sku": 19,
-         "recovery": {"config": "config@hk02", "status": "validated"},
-         "installer": {"config": "config@hk02", "status": "validated"},
-         "persistent": {"config": "config@hk02", "status": "validated"}},
-        {"model": "XE5-8", "sku": 30,
-         "recovery": {"config": "config@hk01.c6", "status": "untested"},
-         "installer": {"status": "not-built", "note": "flash layout not yet captured"},
-         "persistent": {"status": "not-built", "note": "flash layout not yet captured"}}
+        {
+          "model": "XV3-8",
+          "sku": 19,
+          "recovery": {
+            "config": "config@hk02",
+            "status": "validated"
+          },
+          "installer": {
+            "config": "config@hk02",
+            "status": "validated"
+          },
+          "persistent": {
+            "config": "config@hk02",
+            "status": "validated"
+          }
+        },
+        {
+          "model": "XE5-8",
+          "sku": 30,
+          "recovery": {
+            "config": "config@hk01.c6",
+            "status": "untested"
+          },
+          "installer": {
+            "status": "not-built",
+            "note": "flash layout not yet captured"
+          },
+          "persistent": {
+            "status": "not-built",
+            "note": "flash layout not yet captured"
+          }
+        }
       ]
     },
     {
@@ -96,21 +239,66 @@
         "persistent": "cambiumnetworks_jaguar-persistent"
       },
       "models": [
-        {"model": "XV2-2", "sku": 20,
-         "recovery": {"config": "config@cp01-c1", "status": "untested"},
-         "persistent": {"config": "config@cp01-c1", "status": "untested"}},
-        {"model": "XV2-2T0", "sku": 22,
-         "recovery": {"config": "config@cp01-c1-1", "status": "untested"},
-         "persistent": {"config": "config@cp01-c1-1", "status": "untested"}},
-        {"model": "XV2-2T1", "sku": 31,
-         "recovery": {"config": "config@cp01-c1-2", "status": "validated"},
-         "persistent": {"config": "config@cp01-c1-2", "status": "validated"}},
-        {"model": "XE3-4", "sku": 32,
-         "recovery": {"config": "config@cp01-c3-xv3-4", "status": "untested"},
-         "persistent": {"config": "config@cp01-c3-xv3-4", "status": "untested"}},
-        {"model": "XE3-4TN", "sku": 33,
-         "recovery": {"config": "config@cp01-c3-2", "status": "untested"},
-         "persistent": {"config": "config@cp01-c3-2", "status": "untested"}}
+        {
+          "model": "XV2-2",
+          "sku": 20,
+          "recovery": {
+            "config": "config@cp01-c1",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@cp01-c1",
+            "status": "untested"
+          }
+        },
+        {
+          "model": "XV2-2T0",
+          "sku": 22,
+          "recovery": {
+            "config": "config@cp01-c1-1",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@cp01-c1-1",
+            "status": "untested"
+          }
+        },
+        {
+          "model": "XV2-2T1",
+          "sku": 31,
+          "recovery": {
+            "config": "config@cp01-c1-2",
+            "status": "validated"
+          },
+          "persistent": {
+            "config": "config@cp01-c1-2",
+            "status": "validated"
+          }
+        },
+        {
+          "model": "XE3-4",
+          "sku": 32,
+          "recovery": {
+            "config": "config@cp01-c3-xv3-4",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@cp01-c3-xv3-4",
+            "status": "untested"
+          }
+        },
+        {
+          "model": "XE3-4TN",
+          "sku": 33,
+          "recovery": {
+            "config": "config@cp01-c3-2",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@cp01-c3-2",
+            "status": "untested"
+          }
+        }
       ]
     },
     {
@@ -125,15 +313,42 @@
         "persistent": "cambiumnetworks_cheetah-persistent"
       },
       "models": [
-        {"model": "XV2-22H", "sku": 34,
-         "recovery": {"config": "config@mp03.3-cheetah", "status": "untested"},
-         "persistent": {"config": "config@mp03.3-cheetah", "status": "untested"}},
-        {"model": "XV2-21X", "sku": 35,
-         "recovery": {"config": "config@mp03.3-ocelot", "status": "validated"},
-         "persistent": {"config": "config@mp03.3-ocelot", "status": "validated"}},
-        {"model": "XV2-23T", "sku": 36,
-         "recovery": {"config": "config@mp03.3-lynx", "status": "untested"},
-         "persistent": {"config": "config@mp03.3-lynx", "status": "untested"}}
+        {
+          "model": "XV2-22H",
+          "sku": 34,
+          "recovery": {
+            "config": "config@mp03.3-cheetah",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@mp03.3-cheetah",
+            "status": "untested"
+          }
+        },
+        {
+          "model": "XV2-21X",
+          "sku": 35,
+          "recovery": {
+            "config": "config@mp03.3-ocelot",
+            "status": "validated"
+          },
+          "persistent": {
+            "config": "config@mp03.3-ocelot",
+            "status": "validated"
+          }
+        },
+        {
+          "model": "XV2-23T",
+          "sku": 36,
+          "recovery": {
+            "config": "config@mp03.3-lynx",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@mp03.3-lynx",
+            "status": "untested"
+          }
+        }
       ]
     },
     {
@@ -143,10 +358,46 @@
       "stock_firmware": "7.2-r1",
       "built": false,
       "models": [
-        {"model": "X7-55X", "sku": 42, "recovery": {"status": "no-build"}, "persistent": {"status": "no-build"}},
-        {"model": "X7-56X", "sku": 43, "recovery": {"status": "no-build"}, "persistent": {"status": "no-build"}},
-        {"model": "X7-35X", "sku": 44, "recovery": {"status": "no-build"}, "persistent": {"status": "no-build"}},
-        {"model": "X7-53X", "sku": 49, "recovery": {"status": "no-build"}, "persistent": {"status": "no-build"}}
+        {
+          "model": "X7-55X",
+          "sku": 42,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          }
+        },
+        {
+          "model": "X7-56X",
+          "sku": 43,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          }
+        },
+        {
+          "model": "X7-35X",
+          "sku": 44,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          }
+        },
+        {
+          "model": "X7-53X",
+          "sku": 49,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          }
+        }
       ]
     }
   ]
