@@ -6,11 +6,12 @@
 #
 #   sh cambium-install.sh [options] ram       RAM-boot the recovery image
 #   sh cambium-install.sh [options] install   install the persistent image
-#   sh cambium-install.sh [options] boot      Thor: trial boot the installed image
-#   sh cambium-install.sh [options] commit    Thor: keep the installed image
+#   sh cambium-install.sh [options] stock     installed OpenWrt, not yet
+#                                             converted to A/B: make the
+#                                             stock firmware the default boot
 #   sh cambium-install.sh [options] update-upgrader
-#                                             Jaguar OpenWrt: install the
-#                                             release's A/B upgrade scripts
+#                                             installed A/B OpenWrt: install
+#                                             the release's upgrade scripts
 #
 # Options:
 #   --from SRC      where the release files come from: a directory holding
@@ -45,7 +46,7 @@ GITHUB=https://github.com/m0vse/cambium-openwrt/releases/download
 cmd= src= tftp= ap_ip= backed_up= trial= yes= reboot=1 ptest= format_inactive=
 while [ $# -gt 0 ]; do
 	case "$1" in
-	ram|install|boot|commit|update-upgrader) cmd=$1 ;;
+	ram|install|stock|update-upgrader) cmd=$1 ;;
 	--from) src=${2:-}; shift ;;
 	--release) src=$GITHUB/${2:-}; shift ;;
 	--tftp) tftp=${2:-}; shift ;;
@@ -505,6 +506,11 @@ cmd_ram() {
 thor_oneshot() {
 	echo "setenv changing_bootcmd; setenv bootcmd \"aq_load_fw&&bootipq\"; saveenv; aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x0(rootfs)\"; ubi part rootfs; ubi read 0x60000000 $1; bootm 0x60000000#$CONFIG; bootipq"
 }
+# The cambium-ab Thor module's guarded boot of slot 0 (config@hk02 is rooted
+# in rootfs).
+thor_guarded() {
+	echo "setenv changing_bootcmd; setenv bootcmd \"aq_load_fw&&bootipq\"; saveenv; aq_load_fw; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:0x6000000@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && bootm 0x60000000#$CONFIG; bootipq"
+}
 
 install_jaguar() {
 	local image contents ubi v t tslot
@@ -581,10 +587,37 @@ install_sage() {
 	say "in OpenWrt: passwd, check the LAN and both radios, then: sage-migration-mark-good --confirm"
 }
 
-# Thor, stage 1 (stock firmware): RAM-boot the installer.
-install_thor_stock() {
+# Thor: write the factory image into rootfs (mtd $1), check it and arm its
+# guarded first boot.
+thor_write() {
+	local image contents v
+	image=$(get_image cambiumnetworks_thor-persistent-squashfs-factory.ubi) || exit 1
+	contents=$(get_image cambiumnetworks_thor-persistent-squashfs-factory.ubi.contents) || exit 1
+	[ -n "$(ubi_of_mtd "$1")" ] && step "ubidetach mtd$1" ubidetach -m "$1"
+	step "ubiformat mtd$1 with ${image##*/}" ubiformat "$R/dev/mtd$1" -y -f "$image"
+	attach "$1"
+	for v in kernel rootfs rootfs_data cambium_device_data; do
+		[ -n "$(vol_of "$UBI" "$v")" ] || die "the written image has no $v volume on mtd$1"
+	done
+	verify_factory "$UBI" "$contents"
+	arm "$(thor_guarded)"
+	say "guarded first boot armed: after a healthy start OpenWrt re-arms its boot; otherwise the next boot returns to the stock firmware."
+	say "in OpenWrt: set a root password (passwd); cat /tmp/cambium-board-data.status should say vault"
+}
+
+# Thor from the stock firmware: install directly when it has ubiformat,
+# otherwise RAM-boot the installer, in which install is run again.
+install_thor() {
 	local image
 	layout_thor
+	if have ubiformat && have ubidetach; then
+		backup "$R/dev/mtd${R0}ro"
+		dry_run_stop "write the persistent image over rootfs (mtd$R0) and boot it once"
+		thor_write "$R0"
+		return
+	fi
+	say "this stock firmware has no ubiformat: the Thor RAM installer writes the image instead"
+	identify installer
 	image=$(get_image cambiumnetworks_thor-installer-initramfs-uImage.itb) || exit 1
 	backup "$R/dev/mtd${R0}ro"
 	dry_run_stop "stage the installer in rootfs (mtd$R0) and boot it once"
@@ -593,24 +626,18 @@ install_thor_stock() {
 	say "the installer boots once. In it (SSH root@AP_IP), run this script again: sh cambium-install.sh --from ... install --yes"
 }
 
-# Thor, stage 2 (OpenWrt installer in RAM): write the persistent image.
+# Thor RAM installer: write the persistent image and arm its first boot.
 install_thor_installer() {
-	local image contents r0
+	local r0
 	grep -q 'ubi.mtd=' "$R/proc/cmdline" && die "this OpenWrt runs from flash, not the Thor installer in RAM"
 	r0=$(mtd_idx rootfs)
 	[ -n "$r0" ] || die "no rootfs partition in /proc/mtd"
 	[ "$(mtd_size rootfs)" = 06000000 ] || die "rootfs is not 96 MiB"
 	[ $(( $(cat "$R/sys/class/mtd/mtd$r0/flags") & 0x400 )) -ne 0 ] || die "rootfs is read-only: this is not the Thor installer"
-	image=$(get_image cambiumnetworks_thor-persistent-squashfs-factory.ubi) || exit 1
-	contents=$(get_image cambiumnetworks_thor-persistent-squashfs-factory.ubi.contents) || exit 1
 	need ubiformat ubiattach ubidetach
-	dry_run_stop "write the persistent image over rootfs (mtd$r0)"
-	[ -n "$(ubi_of_mtd "$r0")" ] && step "ubidetach mtd$r0" ubidetach -m "$r0"
-	step "ubiformat mtd$r0 with ${image##*/}" ubiformat "$R/dev/mtd$r0" -y -f "$image"
-	attach "$r0"
-	verify_factory "$UBI" "$contents"
-	step "ubidetach mtd$r0" ubidetach -m "$r0"
-	say "installed. Rebooting to the stock firmware; there, run: sh cambium-install.sh --from ... boot --yes"
+	check_stock_bootcmd
+	dry_run_stop "write the persistent image over rootfs (mtd$r0) and boot it once"
+	thor_write "$r0"
 }
 
 cmd_install() {
@@ -629,43 +656,39 @@ cmd_install() {
 	jaguar) install_jaguar ;;
 	cheetah) install_cheetah ;;
 	sage) install_sage ;;
-	thor) identify installer; install_thor_stock ;;
+	thor) install_thor ;;
 	*) die "no install procedure for family $FAMILY" ;;
 	esac
 	finish
 }
 
-# Thor, stage 3 (stock firmware): trial boot the installed image once.
-cmd_boot() {
-	local ubi
-	on_openwrt && die "run boot from the stock firmware"
-	load_release
-	identify persistent
-	[ "$FAMILY" = thor ] || die "boot is only for Thor; other families arm their first boot during install"
-	check_stock_bootcmd
-	layout_thor
-	attach "$R0"; ubi=$UBI
-	[ -n "$(vol_of "$ubi" kernel)" ] && [ -n "$(vol_of "$ubi" rootfs)" ] ||
-		die "rootfs (mtd$R0) has no installed kernel and rootfs: run install first"
-	dry_run_stop "boot the installed image once"
-	arm "$(thor_oneshot kernel)"
-	say "trial boot armed. When OpenWrt, its LAN and radios are healthy, run in OpenWrt: sh cambium-install.sh --from ... commit --yes"
+# Installed OpenWrt that still has the stock firmware in its other slot:
+# make the stock firmware the default again, e.g. to reinstall with the
+# current layout. Refused once both banks run OpenWrt.
+cmd_stock() {
+	local board env want
+	on_openwrt || die "stock runs in an installed OpenWrt; the stock firmware is already running"
+	grep -q 'ubi.mtd=' "$R/proc/cmdline" || die "this OpenWrt does not run from flash"
+	need fw_printenv fw_setenv
+	board=$(cat "$R/tmp/sysinfo/board_name" 2>/dev/null)
+	case "$board" in
+	cambiumnetworks,xv3-8) env=thor want='aq_load_fw&&bootipq' ;;
+	cambiumnetworks,xv2-2*|cambiumnetworks,xe3-4*) env=jaguar want=bootipq ;;
+	cambiumnetworks,xv2-21x|cambiumnetworks,xv2-22h|cambiumnetworks,xv2-23t) env=cheetah want=bootipq ;;
+	cambiumnetworks,e*) die "on Sage, use sage-migration-rollback-oem" ;;
+	*) die "$board is not a Cambium family this script knows" ;;
+	esac
+	[ "$(getenv "${env}_ab_version")" = 1 ] &&
+		die "both firmware banks run OpenWrt (converted to A/B): there is no stock firmware to return to"
+	getenv bootcmd > /dev/null || die "cannot read the U-Boot environment (fw_printenv failed)"
+	dry_run_stop "make the stock firmware the default boot"
+	# The default bootcmd first: U-Boot accepts it with or without the marker.
+	setenv_checked bootcmd "$want"
+	step "fw_setenv changing_bootcmd" fw_setenv changing_bootcmd
+	[ -z "$(getenv changing_bootcmd)" ] || die "changing_bootcmd did not clear"
+	say "the stock firmware is the default boot again; this OpenWrt stays in its slot until it is overwritten."
+	say "from the stock firmware: sh cambium-install.sh --from ... install"
 	finish
-}
-
-# Thor, stage 4 (installed OpenWrt): make it the default.
-cmd_commit() {
-	on_openwrt || die "run commit in the installed OpenWrt"
-	grep -q 'ubi.mtd=rootfs ' "$R/proc/cmdline" || grep -q 'ubi.mtd=rootfs$' "$R/proc/cmdline" ||
-		die "this OpenWrt is not running from rootfs"
-	load_release
-	identify persistent
-	[ "$FAMILY" = thor ] || die "commit is only for Thor; Jaguar and Cheetah re-arm their own boot, Sage uses sage-migration-mark-good"
-	need fw_setenv fw_printenv
-	dry_run_stop "make the installed image the default boot"
-	setenv_checked changing_bootcmd 1
-	setenv_checked bootcmd "aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x0(rootfs)\"; ubi part rootfs; ubi read 0x60000000 kernel; bootm 0x60000000#$CONFIG"
-	say "OpenWrt is now the default boot; rootfs_1 keeps the stock firmware for a manual return."
 }
 
 # Installed OpenWrt with A/B banks: sysupgrade runs the upgrade scripts of
@@ -715,7 +738,6 @@ cmd_update_upgrader() {
 case "$cmd" in
 ram) cmd_ram ;;
 install) cmd_install ;;
-boot) cmd_boot ;;
-commit) cmd_commit ;;
+stock) cmd_stock ;;
 update-upgrader) cmd_update_upgrader ;;
 esac
