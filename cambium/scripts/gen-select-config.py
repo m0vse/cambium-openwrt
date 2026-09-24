@@ -57,7 +57,9 @@ esac
 sku=
 node=${CAMBIUM_SKU_NODE:-/proc/device-tree/cambium-platform/board-sku}
 if [ -r "$node" ]; then
-	hex=$(od -An -tx1 "$node" | tr -d ' \\n')
+	# The stock firmware has od; OpenWrt's BusyBox has hexdump instead.
+	hex=$(od -An -tx1 "$node" 2>/dev/null | tr -d ' \\n')
+	[ -n "$hex" ] || hex=$(hexdump -v -e '1/1 "%02x"' "$node" 2>/dev/null)
 	[ -n "$hex" ] && sku=$(printf '%d' "0x$hex")
 fi
 if [ -z "$sku" ] && [ -r /proc/sku ]; then
