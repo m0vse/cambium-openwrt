@@ -247,6 +247,7 @@ if [ "$family" = jaguar ]; then
 	mkdir -p "$output/test-only"
 	mv "$output/images/"*cambiumnetworks_jaguar-persistent-squashfs-sysupgrade.bin "$output/test-only/"
 	cp "$bin_dir/"*cambiumnetworks_jaguar-persistent-initramfs-uImage.itb "$output/test-only/"
+	(cd "$output/test-only" && sha256sum -- * > test-only-SHA256SUMS)
 fi
 # Machine-readable model/SKU/configuration/image manifest; also fails if
 # cambium/families.json names a configuration the built FITs lack.
