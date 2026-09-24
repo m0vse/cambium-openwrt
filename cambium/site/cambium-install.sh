@@ -676,41 +676,47 @@ cmd_commit() {
 	say "OpenWrt is now the default boot; rootfs_1 keeps the stock firmware for a manual return."
 }
 
-# Jaguar (installed OpenWrt): sysupgrade runs the upgrade scripts of the
-# running system, not of the new image, so a fixed writer must be installed
-# on the running system before it can be used.
+# Installed OpenWrt with A/B banks: sysupgrade runs the upgrade scripts of
+# the running system, not of the new image, so a fixed writer must be
+# installed on the running system before it can be used. Installs the
+# release's cambium-ab core, writer and family module.
 cmd_update_upgrader() {
-	local lib up newlib newup old=$WORK/upgrader-before
-	on_openwrt || die "update-upgrader runs in an installed Jaguar OpenWrt"
+	local f dst new n=0 old=$WORK/upgrader-before
+	on_openwrt || die "update-upgrader runs in an installed OpenWrt"
 	grep -q 'ubi.mtd=' "$R/proc/cmdline" || die "this OpenWrt does not run from flash"
+	[ -f "$R/lib/upgrade/cambium-ab.sh" ] ||
+		die "this image predates the shared A/B scripts (cambium-ab): upgrade it with sysupgrade instead"
 	load_release
 	identify recovery
-	[ "$FAMILY" = jaguar ] || die "update-upgrader is for the Jaguar A/B upgrade"
-	lib=$R/lib/functions/cambium-jaguar.sh
-	up=$R/lib/upgrade/cambium-jaguar.sh
-	[ -f "$lib" ] && [ -f "$up" ] || die "this image has no Jaguar A/B upgrade scripts to update"
-	newlib=$(get_image cambium-jaguar-functions.sh) || exit 1
-	newup=$(get_image cambium-jaguar-upgrade.sh) || exit 1
-	step "syntax check of the new scripts" sh -n "$newlib"
-	step "syntax check of the new scripts" sh -n "$newup"
-	if cmp -s "$newlib" "$lib" && cmp -s "$newup" "$up"; then
+	# Each entry: the release file's name suffix, then where it is installed.
+	set -- "cambium-ab.sh:/lib/functions/cambium-ab.sh" \
+		"cambium-ab-upgrade.sh:/lib/upgrade/cambium-ab.sh" \
+		"cambium-ab-$FAMILY.sh:/lib/functions/cambium-ab-$FAMILY.sh"
+	for f; do
+		new=$(get_image "${f%%:*}") || exit 1
+		step "syntax check of ${new##*/}" sh -n "$new"
+		cmp -s "$new" "$R${f#*:}" || n=$((n + 1))
+	done
+	if [ "$n" = 0 ]; then
 		say "the running upgrade scripts are already the release's"
 		return 0
 	fi
-	dry_run_stop "replace $lib and $up with the release's copies (the old ones are kept in $old)"
+	dry_run_stop "replace the running A/B scripts with the release's copies (the old ones are kept in $old)"
 	mkdir -p "$old"
-	step "keep the old functions script" cp "$lib" "$old/functions-cambium-jaguar.sh"
-	step "keep the old upgrade script" cp "$up" "$old/upgrade-cambium-jaguar.sh"
-	step "install $lib" cp "$newlib" "$lib"
-	step "install $up" cp "$newup" "$up"
+	for f; do
+		dst=$R${f#*:}
+		[ -f "$dst" ] && step "keep the old ${f#*:}" cp "$dst" "$old/${f%%:*}"
+		step "install ${f#*:}" cp "$WORK/$(asset "${f%%:*}")" "$dst"
+	done
 	(board_name() { cat "$R/tmp/sysinfo/board_name"; }
-	 CAMBIUM_JAGUAR_LIB=$lib . "$up" && command -v jaguar_ubi_node && command -v jaguar_step &&
-		command -v cambium_jaguar_do_upgrade) > /dev/null 2>&1 ||
-		{ cp "$old/functions-cambium-jaguar.sh" "$lib"; cp "$old/upgrade-cambium-jaguar.sh" "$up"
-		  die "the installed scripts do not load; the old ones are restored"; }
-	cmp -s "$newlib" "$lib" && cmp -s "$newup" "$up" || die "the installed scripts do not match the release"
-	say "the running system now uses the release's A/B upgrade scripts (old copies in $old)."
-	say "next: sysupgrade -T IMAGE, then sysupgrade [-n] IMAGE with the matching test-only sysupgrade.bin"
+	 CAMBIUM_AB_LIB=$R/lib/functions/cambium-ab.sh CAMBIUM_AB_MODULES=$R/lib/functions \
+		. "$R/lib/upgrade/cambium-ab.sh" && command -v ab_ubi_node && command -v ab_step &&
+		command -v cambium_ab_do_upgrade && ab_board "$(board_name)") > /dev/null 2>&1 || {
+		for f; do [ -f "$old/${f%%:*}" ] && cp "$old/${f%%:*}" "$R${f#*:}"; done
+		die "the installed scripts do not load; the old ones are restored"
+	}
+	say "the running system now uses the release's A/B scripts (old copies in $old)."
+	say "next: sysupgrade -T IMAGE, then sysupgrade [-n] IMAGE"
 }
 
 [ "$(id -u 2>/dev/null)" = 0 ] || [ -n "$R" ] || die "run this as root"
