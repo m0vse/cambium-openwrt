@@ -224,10 +224,19 @@ new_ap() {
 	touch "$S/calls"
 	echo "$board" > "$S/board"
 	set_sku "$(sku_byte "$board")"
-	printf '%s\n' 'dev:    size   erasesize  name' \
-		'mtd0: 06000000 00020000 "rootfs"' 'mtd1: 06000000 00020000 "rootfs_1"' \
-		'mtd2: 03000000 00020000 "NVRAM"' 'mtd3: 01000000 00020000 "crashLog"' \
-		'mtd4: 00080000 00010000 "0:ART"' 'mtd5: 00010000 00010000 "0:APPSBLENV"' > "$S/proc_mtd"
+	if [ "$board" = cambiumnetworks,xv2-2 ]; then
+		# 128 MiB NAND: two 52 MiB banks (416 PEBs, 392 usable LEBs).
+		printf '%s\n' 'dev:    size   erasesize  name' \
+			'mtd0: 03400000 00020000 "rootfs"' 'mtd1: 03400000 00020000 "rootfs_1"' \
+			'mtd2: 01000000 00020000 "0:NVRAM"' 'mtd3: 00800000 00020000 "crashlog"' \
+			'mtd4: 00080000 00010000 "0:ART"' 'mtd5: 00010000 00010000 "0:APPSBLENV"' > "$S/proc_mtd"
+		echo 392 > "$S/bank_lebs"
+	else
+		printf '%s\n' 'dev:    size   erasesize  name' \
+			'mtd0: 06000000 00020000 "rootfs"' 'mtd1: 06000000 00020000 "rootfs_1"' \
+			'mtd2: 03000000 00020000 "NVRAM"' 'mtd3: 01000000 00020000 "crashLog"' \
+			'mtd4: 00080000 00010000 "0:ART"' 'mtd5: 00010000 00010000 "0:APPSBLENV"' > "$S/proc_mtd"
+	fi
 	for i in 0 1 2 3 4 5; do mkdir -p "$S/sys/mtd/mtd$i"; echo 0x800 > "$S/sys/mtd/mtd$i/flags"; done
 	echo 0xc00 > "$S/sys/mtd/mtd0/flags"; echo 0xc00 > "$S/sys/mtd/mtd1/flags"
 	echo 0xc00 > "$S/sys/mtd/mtd5/flags"
@@ -256,7 +265,7 @@ make_bank() { # SLOT KERNEL ROOT
 	mkdir -p "$m"
 	printf 'kernel\n' > "$m/0.name"; echo $((40 * LEB)) > "$m/0.size"; printf '%s' "$2" > "$m/0.data"
 	printf 'rootfs\n' > "$m/1.name"; echo $((200 * LEB)) > "$m/1.size"; printf '%s' "$3" > "$m/1.data"
-	printf 'rootfs_data\n' > "$m/2.name"; echo $((470 * LEB)) > "$m/2.size"; : > "$m/2.data"
+	printf 'rootfs_data\n' > "$m/2.name"; echo $((120 * LEB)) > "$m/2.size"; : > "$m/2.data"
 	printf 'cambium_device_data\n' > "$m/3.name"; echo $((8 * LEB)) > "$m/3.size"; : > "$m/3.data"
 	echo "OPENWRT-BANK-$1" > "$S/dev/mtd$1"
 }
@@ -321,13 +330,18 @@ while read -r board fit; do
 	check "$board identity accepted in slot 0" 0 in_lib eval \
 		'jaguar_identity && [ "$JAGUAR_ACTIVE:$JAGUAR_TARGET:$JAGUAR_FIT" = "0:1:'"$fit"'" ]'
 done <<'EOF'
+cambiumnetworks,xv2-2 config@cp01-c1
 cambiumnetworks,xv2-2t0 config@cp01-c1-1
 cambiumnetworks,xv2-2t1 config@cp01-c1-2
 cambiumnetworks,xe3-4 config@cp01-c3-xv3-4
 cambiumnetworks,xe3-4tn config@cp01-c3-2
 EOF
-new_ap cambiumnetworks,xv2-2
-check "XV2-2 (128 MiB NAND, two 52 MiB slots) refused" 1 in_lib jaguar_identity
+new_ap cambiumnetworks,xv2-2; sed -i.bak 's/^mtd0: 03400000/mtd0: 06000000/' "$S/proc_mtd"
+check "XV2-2 with a 96 MiB bank refused" 1 in_lib jaguar_identity
+new_ap cambiumnetworks,xv2-2t1; sed -i.bak 's/^mtd1: 06000000/mtd1: 03400000/' "$S/proc_mtd"
+check "XV2-2T1 with a 52 MiB bank refused" 1 in_lib jaguar_identity
+new_ap cambiumnetworks,xv2-2; echo 0xc00 > "$S/sys/mtd/mtd3/flags"
+check "XV2-2 writable crashlog refused" 1 in_lib jaguar_identity
 new_ap cambiumnetworks,xv2-2t1 1 openwrt
 check "identity accepted in slot 1" 0 in_lib eval \
 	'jaguar_identity && [ "$JAGUAR_ACTIVE:$JAGUAR_TARGET:$JAGUAR_TARGET_PART" = "1:0:rootfs" ]'
@@ -420,7 +434,11 @@ new_ap cambiumnetworks,xv2-2t0; run_board_data >/dev/null 2>&1
 check "untested model needs --allow-untested" 1 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --yes
 new_ap
 new_ap cambiumnetworks,xv2-2; run_board_data >/dev/null 2>&1
-check "XV2-2 conversion refused even with --allow-untested" 1 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --allow-untested --yes
+check "XV2-2 conversion needs --allow-untested" 1 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --yes
+check "XV2-2 conversion with --allow-untested" 0 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --allow-untested --yes
+assert "XV2-2 slot 1 is a copy of slot 0" cmp -s "$S/flash/mtd1/1.data" "$S/flash/mtd0/1.data"
+assert "XV2-2 boot command uses its 52 MiB slot 1" [ "$(env_get jaguar_boot1)" = \
+	'nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x3400000@0x3400000(fs)" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1' ]
 new_ap
 check "conversion refuses an empty vault" 1 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --yes
 new_ap; run_board_data >/dev/null 2>&1; echo 0x800 > "$S/sys/mtd/mtd1/flags"
@@ -504,11 +522,12 @@ check "image for another board directory refused" 1 dispatch platform_check_imag
 converted_ap; echo "ART-of-another-unit" > "$S/dev/mtd4"
 check "vault mismatch refuses sysupgrade" 1 dispatch platform_check_image "$S/good.bin"
 
-for active in 0 1; do
+for case in cambiumnetworks,xv2-2t1:0 cambiumnetworks,xv2-2t1:1 cambiumnetworks,xv2-2:0 cambiumnetworks,xv2-2:1; do
+	board=${case%:*} active=${case#*:}
 	target=$((1 - active))
-	converted_ap cambiumnetworks,xv2-2t1 "$active"
+	converted_ap "$board" "$active"
 	active_before=$(bank_hash "$active")
-	check "upgrade slot $active -> $target" 0 dispatch platform_do_upgrade "$S/good.bin"
+	check "$board: upgrade slot $active -> $target" 0 dispatch platform_do_upgrade "$S/good.bin"
 	assert "slot $target kernel written" [ "$(cat "$S/flash/mtd$target/0.data")" = "$(tar -xOf "$S/good.bin" sysupgrade-cambiumnetworks_jaguar/kernel)" ]
 	assert "slot $target rootfs written" [ "$(cat "$S/flash/mtd$target/1.data")" = hsqs-new-root ]
 	assert "slot $target vault copied" cmp -s "$S/flash/mtd$target/3.data" "$S/flash/mtd$active/3.data"
@@ -518,8 +537,16 @@ for active in 0 1; do
 		"setenv bootcmd run jaguar_stable$active; setenv image $active; setenv jaguar_ab_state trial-started; saveenv; run jaguar_boot$target; run jaguar_boot$active" ]
 	assert "state armed, target $target" [ "$(env_get jaguar_ab_state):$(env_get jaguar_ab_target)" = "armed:$target" ]
 	assert "bootcmd is the last environment write" [ "$(grep setenv "$S/calls" | tail -n 1)" = 'setenv bootcmd' ]
-	check "a second upgrade waits for the trial" 1 dispatch platform_check_image "$S/good.bin"
+	check "$board: a second upgrade waits for the trial" 1 dispatch platform_check_image "$S/good.bin"
 done
+
+# An image that fits the XV2-2T1's 96 MiB bank but not the XV2-2's 52 MiB one.
+{ printf hsqs; head -c $((330 * LEB)) /dev/zero; } > "$S/root-mid"; make_image "$S/mid.bin" "" "$S/root-mid"
+converted_ap cambiumnetworks,xv2-2t1
+check "330-LEB root fits a 96 MiB bank" 0 dispatch platform_check_image "$S/mid.bin"
+converted_ap cambiumnetworks,xv2-2
+check "330-LEB root refused for a 52 MiB bank" 1 dispatch platform_check_image "$S/mid.bin"
+make_image "$S/good.bin"
 
 converted_ap
 UPGRADE_BACKUP=$S/sysupgrade.tgz dispatch platform_do_upgrade "$S/good.bin" >/dev/null 2>&1
@@ -605,6 +632,10 @@ assert "healthy confirmed boot writes nothing" never_wrote 'setenv|reboot'
 new_ap; healthy_ap; : > "$S/calls"
 check "legacy guard re-arms the OEM-fallback one-shot" 0 guard
 assert "legacy one-shot is the validated command" [ "$(env_get bootcmd)" = 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1-2; reset' ]
+new_ap cambiumnetworks,xv2-2; healthy_ap
+check "XV2-2 legacy guard re-arms" 0 guard
+assert "XV2-2 legacy one-shot boots its 52 MiB slot 0" [ "$(env_get bootcmd)" = 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x3400000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1; reset' ]
+new_ap; healthy_ap; : > "$S/calls"; guard >/dev/null 2>&1
 assert "legacy writes changing_bootcmd before bootcmd" [ "$(grep setenv "$S/calls" | tr '\n' ' ')" = 'setenv changing_bootcmd setenv bootcmd ' ]
 new_ap; healthy_ap; sed -i.bak 's/^bootcmd=.*/bootcmd=something-else/' "$S/env"; : > "$S/calls"
 check "legacy guard leaves a changed bootcmd alone" 1 guard

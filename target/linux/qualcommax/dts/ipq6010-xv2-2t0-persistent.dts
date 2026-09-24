@@ -1,3 +1,4 @@
 // SPDX-License-Identifier: (GPL-2.0+)
 #include "ipq6010-xv2-2t0-recovery.dts"
 #include "ipq6010-jaguar-persistent.dtsi"
+#include "ipq6010-jaguar-persistent-96m.dtsi"
