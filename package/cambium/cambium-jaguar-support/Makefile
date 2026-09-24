@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cambium-jaguar-support
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Phil Taylor <phil@m0vse.uk>
 
@@ -11,7 +11,7 @@ define Package/cambium-jaguar-support
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=Cambium Jaguar family access point support
-  DEPENDS:=@TARGET_qualcommax_ipq60xx +cambium-ab +cambium-board-data
+  DEPENDS:=@TARGET_qualcommax_ipq60xx +cambium-ab +cambium-board-data +cambium-openwisp-led
   PKGARCH:=all
 endef
 

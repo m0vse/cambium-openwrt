@@ -9,7 +9,6 @@ cambium_sage_board && [ "$SAGE_QUALIFIED" = 1 ] || exit 0
 uci -q set irqbalance.@irqbalance[0].enabled='1'
 uci -q commit irqbalance
 
-/etc/init.d/sage-openwisp-led enable
 /etc/init.d/sage-sysupgrade-mark-good enable
 
 exit 0
