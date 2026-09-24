@@ -126,6 +126,9 @@ jobs:
       - name: Test the Sage sysupgrade logic
         run: sh cambium/tests/sage-sysupgrade.sh
 
+      - name: Check the hardware report script is read-only
+        run: sh cambium/tests/cambium-report.sh
+
       - name: Watch for a new OpenWrt stable branch
         continue-on-error: true
         env:
