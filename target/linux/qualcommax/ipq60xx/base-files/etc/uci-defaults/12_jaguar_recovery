@@ -11,15 +11,12 @@ case "$(board_name)" in
 	*) exit 0 ;;
 esac
 
-# The RAM image joins the management LAN as a DHCP client. Never offer DHCP
-# or router advertisements to the site while testing an AP.
+# The AP joins the management LAN as a DHCP client. Never offer DHCP or
+# router advertisements to the site.
 uci -q set dhcp.lan.ignore='1'
 uci -q set dhcp.lan.dhcpv4='disabled'
 uci -q set dhcp.lan.dhcpv6='disabled'
 uci -q set dhcp.lan.ra='disabled'
 uci -q commit dhcp
-
-uci -q set system.@system[0].hostname='jaguar-recovery'
-uci -q commit system
 
 exit 0
