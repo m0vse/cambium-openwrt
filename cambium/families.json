@@ -304,16 +304,17 @@
           "sku": 20,
           "recovery": {
             "config": "config@cp01-c1",
-            "status": "untested",
-            "note": "RAM only. The XV2-2 has a 128 MiB NAND with two 52 MiB slots, unlike the two 96 MiB banks of the XV2-2T1; the Jaguar install steps assume the 96 MiB layout."
+            "status": "validated",
+            "note": "RAM boot validated 2026-09-24 from inactive slot 1: NAND (BCH4), both radios and wired LAN. 128 MiB NAND with two 52 MiB banks, slot 1 at 0x3400000."
           },
           "persistent": {
-            "status": "refused",
-            "note": "do not install: the XV2-2 has a 128 MiB NAND with two 52 MiB slots, and the 96 MiB rootfs partition of this image spans both stock firmware slots, so installing it erases both"
+            "config": "config@cp01-c1",
+            "status": "untested",
+            "note": "A/B image under hardware test; no persistent install has run on an XV2-2 yet"
           },
           "sysupgrade": {
-            "status": "none",
-            "note": "no persistent image for this flash layout yet"
+            "status": "untested",
+            "note": "A/B with automatic rollback, under hardware test; not published"
           }
         },
         {
@@ -328,8 +329,8 @@
             "status": "untested"
           },
           "sysupgrade": {
-            "status": "none",
-            "note": "no sysupgrade path yet; reinstall the persistent image"
+            "status": "untested",
+            "note": "A/B with automatic rollback, under hardware test; not published"
           }
         },
         {
@@ -341,11 +342,12 @@
           },
           "persistent": {
             "config": "config@cp01-c1-2",
-            "status": "validated"
+            "status": "untested",
+            "note": "The persistent image is now the A/B build (both banks writable, device-data vault) and is under hardware test; the earlier one-OEM persistent image was validated"
           },
           "sysupgrade": {
-            "status": "none",
-            "note": "no sysupgrade path yet; reinstall the persistent image"
+            "status": "untested",
+            "note": "A/B with automatic rollback, under hardware test; not published"
           }
         },
         {
@@ -360,8 +362,8 @@
             "status": "untested"
           },
           "sysupgrade": {
-            "status": "none",
-            "note": "no sysupgrade path yet; reinstall the persistent image"
+            "status": "untested",
+            "note": "A/B with automatic rollback, under hardware test; not published"
           }
         },
         {
@@ -376,8 +378,8 @@
             "status": "untested"
           },
           "sysupgrade": {
-            "status": "none",
-            "note": "no sysupgrade path yet; reinstall the persistent image"
+            "status": "untested",
+            "note": "A/B with automatic rollback, under hardware test; not published"
           }
         }
       ]

@@ -138,11 +138,11 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
       <tr><td class="fam">Lila<br><small>MIPS, Wi-Fi 5</small></td><td>4.2.3.3-r10</td><td>E425W, E505</td><td>17, 18</td><td colspan="3"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
       <tr><td class="fam" rowspan="2">Thor<br><small>IPQ8074, Wi-Fi 6</small></td><td rowspan="2">7.2-r1</td><td>XV3-8</td><td>19</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
       <tr><td>XE5-8</td><td>30</td><td><span class="pill untested">untested</span></td><td><span class="pill none">not built</span> flash layout not yet captured</td><td><span class="pill none">none yet</span> no persistent image yet</td></tr>
-      <tr><td class="fam" rowspan="5">Jaguar<br><small>IPQ6018, Wi-Fi 6/6E</small></td><td rowspan="5">7.2-r1</td><td>XV2-2T1</td><td>31</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
-      <tr><td>XV2-2</td><td>20</td><td><span class="pill untested">untested</span> RAM only</td><td><span class="pill none">do not install</span> 128&nbsp;MiB NAND with two 52&nbsp;MiB slots: this image would erase both stock slots</td><td><span class="pill none">none yet</span> no image for this layout</td></tr>
-      <tr><td>XV2-2T0</td><td>22</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
-      <tr><td>XE3-4</td><td>32</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
-      <tr><td>XE3-4TN</td><td>33</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
+      <tr><td class="fam" rowspan="5">Jaguar<br><small>IPQ6018, Wi-Fi 6/6E</small></td><td rowspan="5">7.2-r1</td><td>XV2-2T1</td><td>31</td><td><span class="pill ok">validated</span></td><td><span class="pill untested">under test</span> the persistent image is now the A/B build; the earlier one was validated</td><td><span class="pill untested">under test</span> A/B with rollback; not published yet</td></tr>
+      <tr><td>XV2-2</td><td>20</td><td><span class="pill ok">validated</span> 128&nbsp;MiB NAND, two 52&nbsp;MiB slots</td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">under test</span> A/B with rollback; not published yet</td></tr>
+      <tr><td>XV2-2T0</td><td>22</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">under test</span> A/B with rollback; not published yet</td></tr>
+      <tr><td>XE3-4</td><td>32</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">under test</span> A/B with rollback; not published yet</td></tr>
+      <tr><td>XE3-4TN</td><td>33</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">under test</span> A/B with rollback; not published yet</td></tr>
       <tr><td class="fam" rowspan="3">Cheetah<br><small>IPQ5018, Wi-Fi 6</small></td><td rowspan="3">7.2-r1</td><td>XV2-21X</td><td>35</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
       <tr><td>XV2-22H</td><td>34</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
       <tr><td>XV2-23T</td><td>36</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
@@ -463,13 +463,15 @@ fw_printenv changing_bootcmd bootcmd</pre>
 
   <details>
   <summary><strong>Jaguar</strong> &mdash; validated on the XV2-2T1 (stock firmware 7.2-r1)</summary>
-  <p><strong>Not for the XV2-2.</strong> These steps and the persistent image
-  assume two 96&nbsp;MiB firmware slots, as on the XV2-2T1. The XV2-2 has a
-  single 128&nbsp;MiB NAND with two 52&nbsp;MiB slots: the persistent image's
-  <code>rootfs</code> partition spans both of its stock slots, so installing
-  it would erase both. <code>select-config.sh</code> refuses it. The other
-  untested Jaguar models may differ too: stop unless the first check below
-  prints exactly two 96&nbsp;MiB slots.</p>
+  <p><strong>These steps are for the 96&nbsp;MiB-slot models.</strong> They
+  assume two 96&nbsp;MiB firmware slots, as on the XV2-2T1: stop unless the
+  first check below prints exactly two. The XV2-2 has a 128&nbsp;MiB NAND
+  with two 52&nbsp;MiB slots (slot 1 at <code>0x3400000</code>); the family
+  recovery image RAM-boots on it, but its staging commands are not
+  published yet, so <a href="#report">send a report</a> or open an issue to
+  trial one. The persistent image is now the A/B build and is under
+  hardware test on every model, so <code>select-config.sh</code> gives only
+  the recovery image until it is validated.</p>
   <p>The stock firmware runs from <code>rootfs_1</code>
   (<code>mtd2</code>, <code>image=1</code>); OpenWrt is installed into
   <code>rootfs</code> (<code>mtd1</code>), attached as UBI device 2:</p>
@@ -570,7 +572,7 @@ sync; reboot</pre>
     <tbody>
       <tr><td class="fam">Sage</td><td>E410 <code>config@5</code>, E600 <code>config@10</code>, E430W <code>config@13</code>, E700 <code>config@14</code>, E430H <code>config@15</code>, E510 <code>config@16</code>, E410B <code>config@5</code> / <code>config@ap.dk01.1-c2</code> (same as the E410)</td></tr>
       <tr><td class="fam">Thor</td><td>XV3-8 <code>config@hk02</code>, XE5-8 <code>config@hk01.c6</code> (recovery only)</td></tr>
-      <tr><td class="fam">Jaguar</td><td>XV2-2 <code>config@cp01-c1</code> (recovery only), XV2-2T0 <code>config@cp01-c1-1</code>, XV2-2T1 <code>config@cp01-c1-2</code>, XE3-4 <code>config@cp01-c3-xv3-4</code>, XE3-4TN <code>config@cp01-c3-2</code></td></tr>
+      <tr><td class="fam">Jaguar</td><td>XV2-2 <code>config@cp01-c1</code>, XV2-2T0 <code>config@cp01-c1-1</code>, XV2-2T1 <code>config@cp01-c1-2</code>, XE3-4 <code>config@cp01-c3-xv3-4</code>, XE3-4TN <code>config@cp01-c3-2</code></td></tr>
       <tr><td class="fam">Cheetah</td><td>XV2-21X <code>config@mp03.3-ocelot</code>, XV2-22H <code>config@mp03.3-cheetah</code>, XV2-23T <code>config@mp03.3-lynx</code></td></tr>
     </tbody>
   </table>
@@ -595,8 +597,11 @@ sync; reboot</pre>
     <code>sysupgrade.bin</code>. It rewrites OpenWrt's own
     <code>rootfs</code> slot in place; the stock firmware in
     <code>rootfs_1</code> is kept.</li>
-    <li><strong>Cheetah and Jaguar</strong> have no <code>sysupgrade</code>
-    path yet. Return to the stock firmware (below), then repeat the install
+    <li><strong>Jaguar</strong> A/B sysupgrade (write the inactive bank,
+    trial boot, automatic rollback) is under hardware test and its
+    <code>sysupgrade.bin</code> is not published yet.</li>
+    <li><strong>Cheetah and Jaguar</strong> have no published
+    <code>sysupgrade</code> path yet. Return to the stock firmware (below), then repeat the install
     steps with the new persistent image; they write <code>rootfs</code>
     again, never the stock firmware's <code>rootfs_1</code>.</li>
     <li>Kernel modules must come from the same snapshot as the running image.
