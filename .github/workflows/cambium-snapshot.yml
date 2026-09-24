@@ -119,6 +119,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: cambium/scripts/disable-upstream-workflows.sh
 
+      - name: Test the Sage sysupgrade logic
+        run: sh cambium/tests/sage-sysupgrade.sh
+
       - name: Watch for a new OpenWrt stable branch
         continue-on-error: true
         env:
