@@ -29,9 +29,12 @@ ideally in both slots, before installing. Gambit, Lila and Miami have no OpenWrt
 port yet; they are listed so the table covers every Cambium access point
 family.
 
-Untested models are included for controlled, locally recoverable trials:
-a model that RAM-boots the recovery image has a reasonable chance of
-running the persistent image, but neither has run on that hardware yet.
+**Untested models: RAM boot only.** On any model not marked validated, use
+only the recovery (RAM) image, then run `cambium-report.sh` (a release
+asset) in the booted image, and on the stock firmware, and attach the
+reports to a *Cambium hardware report* issue. Do not install the persistent
+image on these models: `select-config.sh` refuses it. The report script only
+reads, and masks MAC addresses and serial numbers.
 Keep a verified backup of every unit and never
 overwrite the bootloader, ART or U-Boot environment partitions. Models in a
 family do not always share a flash layout: the Jaguar persistent image
