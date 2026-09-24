@@ -138,6 +138,9 @@ jobs:
       - name: Test the shared A/B logic (every family module)
         run: sh cambium/tests/cambium-ab.sh
 
+      - name: Test the shared OpenWISP status LED
+        run: sh cambium/tests/cambium-openwisp-led.sh
+
       - name: Watch for a new OpenWrt stable branch
         continue-on-error: true
         env:
