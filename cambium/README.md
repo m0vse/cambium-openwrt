@@ -36,6 +36,22 @@ SKU from the retained, read-only OEM slot at boot, so no OEM board data is
 distributed. Per-device calibration still comes from `0:ART`. Neither the
 OEM slot nor ART is ever written; the importer refuses writable partitions.
 
+## Family data and release manifest
+
+`families.json` is the single source of truth for each family's models,
+board SKUs, FIT configurations and hardware status. From it:
+
+- `scripts/manifest.py` writes `cambium-manifest.json` into every build and
+  fails the build if a listed configuration is missing from the built FITs;
+  `publish.sh` combines the families into one release manifest.
+- `scripts/gen-select-config.py` generates `select-config.sh`, published with
+  each release and on the site. On the stock firmware it maps the board SKU
+  to the FIT configuration for a recovery, installer or persistent image,
+  and refuses unknown SKUs and images not built for the model.
+
+Update `families.json` (and the site's tables) when a model's status or
+configuration changes.
+
 ## Building
 
 ```sh
