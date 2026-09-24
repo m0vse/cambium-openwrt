@@ -248,13 +248,13 @@ for f in "$output/images/"*cambiumnetworks_thor-persistent-squashfs-factory.ubi 
 	python3 cambium/scripts/ubi-contents.py "$f" > "$f.contents" ||
 		fail "cannot read the kernel and rootfs content of ${f##*/}"
 done
-# A running Jaguar upgrades with its own scripts; publish the current ones so
-# cambium-install.sh update-upgrader can install them before a sysupgrade.
-if [ "$family" = jaguar ]; then
-	cp target/linux/qualcommax/ipq60xx/base-files/lib/functions/cambium-jaguar.sh \
-		"$output/images/cambium-jaguar-functions.sh"
-	cp target/linux/qualcommax/ipq60xx/base-files/lib/upgrade/cambium-jaguar.sh \
-		"$output/images/cambium-jaguar-upgrade.sh"
+# A running A/B system upgrades with its own scripts; publish the current
+# ones so cambium-install.sh update-upgrader can install them first.
+module=package/cambium/cambium-$family-support/files/cambium-ab-$family.sh
+if [ -f "$module" ]; then
+	cp package/cambium/cambium-ab/files/cambium-ab.sh "$output/images/cambium-ab.sh"
+	cp package/cambium/cambium-ab/files/cambium-ab-upgrade.sh "$output/images/cambium-ab-upgrade.sh"
+	cp "$module" "$output/images/cambium-ab-$family.sh"
 fi
 # A RAM build of the Jaguar persistent trees, for hardware tests of the A/B
 # trees, goes only to the CI artifact (test-only/), never to a release.
