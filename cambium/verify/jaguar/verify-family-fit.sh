@@ -61,17 +61,35 @@ for fdt in cp01-c1 cp01-c1-2T cp01-c1-2T1 cp01-c3-xv3-4 cp01-c3-2; do
 			"/soc@0/spi@78b5000/flash@0/partitions/partition@$partition" \
 			read-only >/dev/null
 	done
+	nand=/soc@0/nand-controller@79b0000/nand@0/partitions
+	# Per-model NAND layout and ECC. The XV2-2 has a 128 MiB Winbond NAND
+	# with 64-byte OOB: BCH4 and two 52 MiB banks, slot 1 at 0x3400000. The
+	# other trees keep the XV2-2T1's BCH8 (OEM 7.2 runs BCH8/516-byte
+	# codewords) and two 96 MiB banks, slot 1 at 0x6000000.
+	if [ "$fdt" = cp01-c1 ]; then
+		ecc=4; bank1=3400000; protected='6800000 7800000'
+		test "$(fdtget -t x "$dtb" "$nand/partition@0" reg)" = '0 3400000'
+		test "$(fdtget -t x "$dtb" "$nand/partition@3400000" reg)" = '3400000 3400000'
+		test "$(fdtget -t x "$dtb" "$nand/partition@6800000" reg)" = '6800000 1000000'
+		test "$(fdtget -t x "$dtb" "$nand/partition@7800000" reg)" = '7800000 800000'
+		for partition in 6000000 c000000 f000000; do
+			if fdtget "$dtb" "$nand/partition@$partition" reg >/dev/null 2>&1; then
+				echo "$fdt keeps a 256 MiB partition at $partition" >&2
+				exit 1
+			fi
+		done
+	else
+		ecc=8; bank1=6000000; protected='c000000 f000000'
+		test "$(fdtget -t x "$dtb" "$nand/partition@0" reg)" = '0 6000000'
+		test "$(fdtget -t x "$dtb" "$nand/partition@6000000" reg)" = '6000000 6000000'
+	fi
 	# NVRAM and crashLog are never firmware banks.
-	for partition in c000000 f000000; do
-		fdtget "$dtb" \
-			"/soc@0/nand-controller@79b0000/nand@0/partitions/partition@$partition" \
-			read-only >/dev/null
+	for partition in $protected; do
+		fdtget "$dtb" "$nand/partition@$partition" read-only >/dev/null
 	done
-	# The OEM 7.2 controller runs BCH8/516-byte codewords despite its
-	# running tree's 4-bit request. Keep diagnostic and future images aligned.
 	test "$(fdtget -t s "$dtb" /soc@0/nand-controller@79b0000 compatible)" = \
 		qcom,ipq6018-nand
-	test "$(fdtget -t x "$dtb" /soc@0/nand-controller@79b0000/nand@0 nand-ecc-strength)" = 8
+	test "$(fdtget -t x "$dtb" /soc@0/nand-controller@79b0000/nand@0 nand-ecc-strength)" = "$ecc"
 	if fdtget "$dtb" /soc@0/nand-controller@79b0000/nand@0 \
 		qcom,boot-partitions >/dev/null 2>&1; then
 		echo "$fdt unexpectedly enables NAND codeword fixup" >&2
@@ -81,10 +99,8 @@ for fdt in cp01-c1 cp01-c1-2T cp01-c1-2T1 cp01-c3-xv3-4 cp01-c3-2; do
 		fdtget "$dtb" \
 			/soc@0/spi@78b5000/flash@0/partitions/partition@6f0000 \
 			read-only >/dev/null
-		for partition in 0 6000000; do
-			fdtget "$dtb" \
-				"/soc@0/nand-controller@79b0000/nand@0/partitions/partition@$partition" \
-				read-only >/dev/null
+		for partition in 0 $bank1; do
+			fdtget "$dtb" "$nand/partition@$partition" read-only >/dev/null
 		done
 		if fdtget "$dtb" /chosen bootargs-append >/dev/null 2>&1; then
 			echo "$fdt unexpectedly carries a persistent-root bootargs-append" >&2
@@ -99,10 +115,8 @@ for fdt in cp01-c1 cp01-c1-2T cp01-c1-2T1 cp01-c3-xv3-4 cp01-c3-2; do
 		fi
 		# A/B: both firmware banks are writable and U-Boot selects the bank,
 		# so the tree must not append a fixed ubi.mtd= root.
-		for partition in 0 6000000; do
-			if fdtget "$dtb" \
-				"/soc@0/nand-controller@79b0000/nand@0/partitions/partition@$partition" \
-				read-only >/dev/null 2>&1; then
+		for partition in 0 $bank1; do
+			if fdtget "$dtb" "$nand/partition@$partition" read-only >/dev/null 2>&1; then
 				echo "$fdt keeps firmware bank $partition read-only" >&2
 				exit 1
 			fi
