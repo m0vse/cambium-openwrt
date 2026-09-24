@@ -113,6 +113,17 @@ jaguar_ubi_for_mtd() {
 	return 1
 }
 
+# Make sure /dev/$1 exists for a UBI device or volume (ubiN or ubiN_M).
+# Sysupgrade stage 2 runs without procd's hotplug handling, so a device
+# attached or a volume created there gets no node by itself (nand.sh's
+# ubi_mknod exists for the same reason).
+jaguar_ubi_node() {
+	local node=${JAGUAR_DEV:-/dev}/$1 devid
+	[ -e "$node" ] && return 0
+	devid=$(cat "${JAGUAR_UBI_SYS:-/sys/class/ubi}/$1/dev") || return 1
+	mknod "$node" c "${devid%%:*}" "${devid##*:}"
+}
+
 # The volume node (ubiN_M) named $2 on UBI device $1.
 jaguar_ubi_volume() {
 	local vol
