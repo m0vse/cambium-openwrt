@@ -12,7 +12,4 @@ uci -q set dhcp.lan.dhcpv6='disabled'
 uci -q set dhcp.lan.ra='disabled'
 uci -q commit dhcp
 
-uci -q set system.@system[0].hostname='xv3-8-recovery'
-uci -q commit system
-
 exit 0

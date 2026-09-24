@@ -1,0 +1,31 @@
+#!/bin/sh
+# Keep the stock firmware's hostname on Cambium APs: the model and the last
+# six hex digits of the U-Boot ethaddr, in upper case, e.g. E410-ABABAB or
+# XV2-21X-BEA5BE. Upstream images without the cambium-platform node are left
+# alone.
+
+R=${CAMBIUM_ROOT:-}
+[ -e "$R/proc/device-tree/cambium-platform" ] || exit 0
+. "${CAMBIUM_FUNCTIONS:-/lib/functions.sh}"
+. "${CAMBIUM_SYSTEM_FUNCTIONS:-/lib/functions/system.sh}"
+
+board=$(board_name)
+model=$(echo "${board#*,}" | tr 'a-z' 'A-Z')
+
+# The stock firmware uses U-Boot's ethaddr; fall back to the LAN's MAC.
+mac=
+idx=$(find_mtd_index 0:APPSBLENV)
+[ -n "$idx" ] && mac=$(tr '\000' '\n' < "$R/dev/mtd$idx" 2>/dev/null | sed -n 's/^ethaddr=//p' | head -n 1)
+[ -n "$mac" ] || mac=$(jsonfilter -i "$R/etc/board.json" -e '@.network.lan.macaddr' 2>/dev/null)
+if [ -z "$mac" ]; then
+	for dev in $(jsonfilter -i "$R/etc/board.json" -e '@.network.lan.ports[*]' -e '@.network.lan.device' 2>/dev/null) eth0; do
+		mac=$(cat "$R/sys/class/net/$dev/address" 2>/dev/null)
+		[ -n "$mac" ] && break
+	done
+fi
+hex=$(echo "$mac" | tr -dc '0-9a-fA-F' | tr 'a-f' 'A-F')
+[ "${#hex}" -eq 12 ] || exit 0
+
+uci -q set system.@system[0].hostname="$model-${hex#??????}"
+uci -q commit system
+exit 0
