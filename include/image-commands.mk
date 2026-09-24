@@ -467,10 +467,10 @@ define Build/fit
 	$(call Build/fit-image,$(1))
 endef
 
-# Jaguar A/B bank: kernel, rootfs, an autoresizing rootfs_data and a fixed
+# Cambium A/B bank: kernel, rootfs, an autoresizing rootfs_data and a fixed
 # 8-LEB cambium_device_data vault, with IDs fixed so the A/B writer and the
 # factory image agree.
-define Build/cambium-jaguar-ubi
+define Build/cambium-ab-ubi
 	printf '%s\n' \
 		'[kernel]' 'mode=ubi' 'vol_id=0' 'vol_type=dynamic' 'vol_name=kernel' \
 		'image=$(IMAGE_KERNEL)' \
