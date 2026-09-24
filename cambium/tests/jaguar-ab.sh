@@ -663,6 +663,12 @@ assert "legacy one-shot is the validated command" [ "$(env_get bootcmd)" = 'sete
 new_ap cambiumnetworks,xv2-2; healthy_ap
 check "XV2-2 legacy guard re-arms" 0 guard
 assert "XV2-2 legacy one-shot boots its 52 MiB slot 0" [ "$(env_get bootcmd)" = 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x3400000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1; reset' ]
+new_ap cambiumnetworks,xv2-2 1 oem; sed -i.bak 's/^image=.*/image=0/' "$S/env"; healthy_ap
+check "XV2-2 legacy guard re-arms OpenWrt in slot 1" 0 guard
+assert "slot-1 guarded one-shot uses the booted (fs) form" [ "$(env_get bootcmd)" = 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x3400000@0x3400000(fs)" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1; reset' ]
+new_ap cambiumnetworks,xv2-2 1 oem; healthy_ap; : > "$S/calls"
+check "slot-1 guard refuses when image is not the stock slot" 1 guard
+assert "wrong image: nothing written" never_wrote setenv
 new_ap; healthy_ap; : > "$S/calls"; guard >/dev/null 2>&1
 assert "legacy writes changing_bootcmd before bootcmd" [ "$(grep setenv "$S/calls" | tr '\n' ' ')" = 'setenv changing_bootcmd setenv bootcmd ' ]
 new_ap; healthy_ap; sed -i.bak 's/^bootcmd=.*/bootcmd=something-else/' "$S/env"; : > "$S/calls"

@@ -47,21 +47,26 @@ wait_healthy() {
 	return 1
 }
 
-# The validated one-OEM/one-OpenWrt guard, for slot 0 with OEM in slot 1.
+# The validated one-OEM/one-OpenWrt guard: OpenWrt in one slot, the stock
+# firmware (U-Boot image=) in the other. After a healthy start, re-arm the
+# one-shot that restores the stock default before booting OpenWrt again.
 legacy_guard() {
-	local bootcmd
-	bootcmd="setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$(jaguar_bank_hex)@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$JAGUAR_FIT; reset"
-	[ "$(jaguar_running_slot 2>/dev/null)" = 0 ] || return 0
+	local slot bootcmd
+	slot=$(jaguar_running_slot 2>/dev/null) || return 0
+	bootcmd=$(jaguar_guarded_command "$slot") || return 1
 
 	if wait_healthy legacy; then
 		[ "$(jaguar_getenv bootcmd)" = bootipq ] || {
 			log 'bootcmd changed independently; leaving it alone'
 			return 1
 		}
-		[ "$(jaguar_getenv image)" = 1 ] || return 1
+		[ "$(jaguar_getenv image)" = "$((1 - slot))" ] || {
+			log "U-Boot image is not the stock firmware's slot $((1 - slot)); leaving it alone"
+			return 1
+		}
 		jaguar_setenv changing_bootcmd 1 || return 1
 		jaguar_setenv bootcmd "$bootcmd" || return 1
-		log 'healthy; guarded OpenWrt boot rearmed'
+		log "healthy; guarded OpenWrt boot of slot $slot rearmed"
 		return 0
 	fi
 	log 'startup checks failed; rebooting to OEM'
