@@ -129,6 +129,9 @@ jobs:
       - name: Check the hardware report script is read-only
         run: sh cambium/tests/cambium-report.sh
 
+      - name: Test the installer against every family
+        run: sh cambium/tests/cambium-install.sh
+
       - name: Test the Jaguar A/B logic
         run: sh cambium/tests/jaguar-ab.sh
 
