@@ -1,55 +1,140 @@
 #!/bin/sh
-set -e
+# Jaguar boot guard.
+#
+# Before conversion (one OpenWrt slot, OEM firmware in the other): after a
+# healthy start, re-arm the guarded one-shot that restores the OEM default
+# before booting OpenWrt again, exactly as the validated guard did.
+#
+# After jaguar-ab-convert (two OpenWrt banks): commit a trial bank as the new
+# default only after its health checks pass; if the trial fails, or did not
+# come up, record the rollback and stay on (or return to) the old bank.
 
-. /lib/functions/system.sh
+. "${CAMBIUM_SYSTEM_FUNCTIONS:-/lib/functions/system.sh}"
+. "${CAMBIUM_JAGUAR_LIB:-/lib/functions/cambium-jaguar.sh}"
 
-case "$(board_name)" in
-	cambiumnetworks,xv2-2) config='config@cp01-c1' ;;
-	cambiumnetworks,xv2-2t0) config='config@cp01-c1-1' ;;
-	cambiumnetworks,xv2-2t1) config='config@cp01-c1-2' ;;
-	cambiumnetworks,xe3-4) config='config@cp01-c3-xv3-4' ;;
-	cambiumnetworks,xe3-4tn) config='config@cp01-c3-2' ;;
-	*) exit 0 ;;
-esac
-grep -q 'ubi.mtd=rootfs' /proc/cmdline || exit 0
+TRIES=${JAGUAR_GUARD_TRIES:-60}
+PAUSE=${JAGUAR_GUARD_PAUSE:-5}
+BOARD_DATA_STATUS=${CAMBIUM_BDF_STATUS:-/tmp/cambium-board-data.status}
 
-bootcmd="setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:0x6000000@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$config; reset"
-
-env_dev=$(awk '$4 == "\"0:APPSBLENV\"" { sub(":", "", $1); print "/dev/" $1 }' /proc/mtd)
-[ -n "$env_dev" ] || exit 1
-[ "$(cat "/sys/class/mtd/${env_dev#/dev/}/size")" = 65536 ] || exit 1
-env_config=/tmp/jaguar-fw_env.config
-printf '%s 0x0 0x00010000 0x00010000 1\n' "$env_dev" > "$env_config"
-fw_print() { fw_printenv -c "$env_config" "$@"; }
-fw_set() { fw_setenv -c "$env_config" "$@"; }
-
-healthy() {
-	rootfs_mtd=$(awk '$4 == "\"rootfs\"" { sub(/^mtd/, "", $1); sub(":", "", $1); print $1 }' /proc/mtd)
-	[ -n "$rootfs_mtd" ] || return 1
-	[ "$(cat /sys/class/ubi/ubi0/mtd_num 2>/dev/null)" = "$rootfs_mtd" ] || return 1
-	[ -e /dev/ubiblock0_1 ] || return 1
-	mount | grep -q ' on /overlay type ubifs (rw,' || return 1
-	ip -4 address show dev br-lan | grep -q 'inet ' || return 1
-	ip -4 route show default dev br-lan | grep -q '^default ' || return 1
+log() {
+	logger -t jaguar-bootguard "$*" 2>/dev/null
+	echo "jaguar-bootguard: $*" >&2
 }
 
-attempt=0
-while [ "$attempt" -lt 60 ]; do
-	if healthy; then
-		[ "$(fw_print -n bootcmd)" = bootipq ] || {
-			logger -t jaguar-bootguard 'bootcmd changed independently; leaving it alone'
-			exit 1
-		}
-		[ "$(fw_print -n image)" = 1 ] || exit 1
-		fw_set changing_bootcmd 1
-		fw_set bootcmd "$bootcmd"
-		[ "$(fw_print -n bootcmd)" = "$bootcmd" ] || exit 1
-		logger -t jaguar-bootguard 'healthy; guarded OpenWrt boot rearmed'
-		exit 0
-	fi
-	attempt=$((attempt + 1))
-	sleep 5
-done
+do_reboot() {
+	${JAGUAR_REBOOT:-reboot}
+}
 
-logger -t jaguar-bootguard 'startup checks failed; rebooting to OEM'
-reboot
+# Health of the slot this kernel runs from: its UBI device and root volume,
+# a writable overlay, wired DHCP with a default route and, on A/B, a valid
+# device-data vault. OpenWISP is deliberately not required.
+healthy() {
+	jaguar_identity >/dev/null 2>&1 || return 1
+	[ -e "${JAGUAR_DEV:-/dev}/ubiblock0_1" ] || return 1
+	grep -q ' /overlay ubifs rw' "${JAGUAR_PROC_MOUNTS:-/proc/mounts}" || return 1
+	ip -4 address show dev br-lan 2>/dev/null | grep -q 'inet ' || return 1
+	ip -4 route show default dev br-lan 2>/dev/null | grep -q '^default ' || return 1
+	[ "$1" != ab ] || [ "$(cat "$BOARD_DATA_STATUS" 2>/dev/null)" = vault ]
+}
+
+wait_healthy() {
+	local attempt=0
+	while [ "$attempt" -lt "$TRIES" ]; do
+		healthy "$1" && return 0
+		attempt=$((attempt + 1))
+		sleep "$PAUSE"
+	done
+	return 1
+}
+
+# The validated one-OEM/one-OpenWrt guard, for slot 0 with OEM in slot 1.
+legacy_guard() {
+	local bootcmd
+	bootcmd="setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:0x6000000@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$JAGUAR_FIT; reset"
+	[ "$(jaguar_running_slot 2>/dev/null)" = 0 ] || return 0
+
+	if wait_healthy legacy; then
+		[ "$(jaguar_getenv bootcmd)" = bootipq ] || {
+			log 'bootcmd changed independently; leaving it alone'
+			return 1
+		}
+		[ "$(jaguar_getenv image)" = 1 ] || return 1
+		jaguar_setenv changing_bootcmd 1 || return 1
+		jaguar_setenv bootcmd "$bootcmd" || return 1
+		log 'healthy; guarded OpenWrt boot rearmed'
+		return 0
+	fi
+	log 'startup checks failed; rebooting to OEM'
+	do_reboot
+}
+
+commit_trial() {
+	local slot="$1" batch=/tmp/jaguar-guard.$$ rc=0
+	printf 'jaguar_ab_confirmed %s\njaguar_ab_state confirmed\nimage %s\n' "$slot" "$slot" > "$batch"
+	echo jaguar_ab_target >> "$batch"
+	jaguar_setenv_batch "$batch" || rc=1
+	rm -f "$batch"
+	[ "$rc" = 0 ] && jaguar_setenv bootcmd "run jaguar_stable$slot" || {
+		log "could not commit slot $slot; the old bank stays the default"
+		return 1
+	}
+	log "slot $slot healthy; it is now the default, with slot $((1 - slot)) as fallback"
+}
+
+record_rollback() {
+	local batch=/tmp/jaguar-guard.$$
+	printf 'jaguar_ab_state rolled-back\njaguar_ab_last_failure %s\n' "$1" > "$batch"
+	echo jaguar_ab_target >> "$batch"
+	jaguar_setenv_batch "$batch"
+	rm -f "$batch"
+	log "rollback: $1"
+}
+
+ab_guard() {
+	local state target confirmed running
+	jaguar_identity || { log 'A/B identity check failed'; return 1; }
+	running=$JAGUAR_ACTIVE
+	state=$(jaguar_getenv jaguar_ab_state)
+	target=$(jaguar_getenv jaguar_ab_target)
+	confirmed=$(jaguar_getenv jaguar_ab_confirmed)
+
+	case "$state" in
+	trial-started)
+		if [ "$running" != "$target" ]; then
+			record_rollback "slot $target did not boot; slot $running kept"
+			return 1
+		fi
+		if wait_healthy ab; then
+			commit_trial "$running"
+			return
+		fi
+		# bootcmd already boots the old bank first: record, then return to it.
+		record_rollback "slot $running failed its health checks"
+		do_reboot
+		;;
+	armed)
+		log "slot $target is armed for a trial on the next boot"
+		;;
+	*)
+		if [ "$running" != "$confirmed" ] && [ "$state" != fallback ]; then
+			local batch=/tmp/jaguar-guard.$$
+			printf 'jaguar_ab_state fallback\njaguar_ab_last_failure %s\n' \
+				"confirmed slot $confirmed did not boot; running slot $running" > "$batch"
+			jaguar_setenv_batch "$batch"
+			rm -f "$batch"
+			log "confirmed slot $confirmed did not boot; running fallback slot $running"
+		fi
+		;;
+	esac
+}
+
+main() {
+	jaguar_family || return 0
+	if jaguar_ab_converted; then
+		ab_guard
+	else
+		legacy_guard
+	fi
+}
+
+[ -n "${JAGUAR_GUARD_SOURCE_ONLY:-}" ] || main
