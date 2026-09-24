@@ -90,7 +90,7 @@ jaguar_setenv image "$JAGUAR_ACTIVE" || die 'cannot write image'
 
 fail() {
 	batch=/tmp/jaguar-convert.$$
-	printf 'jaguar_ab_state convert-failed\njaguar_ab_last_failure %s\n' "$1" > "$batch"
+	printf 'jaguar_ab_state convert-failed\njaguar_ab_last_failure %s\n' "${JAGUAR_STEP_ERROR:-$1}" > "$batch"
 	jaguar_setenv_batch "$batch" >/dev/null 2>&1
 	rm -f "$batch"
 	die "$1 (slot $JAGUAR_ACTIVE still boots first; rerun with --resume)"
@@ -103,8 +103,8 @@ kernel_size=$(cat "${JAGUAR_UBI_SYS:-/sys/class/ubi}/${src_kernel##*/}/data_byte
 root_size=$(cat "${JAGUAR_UBI_SYS:-/sys/class/ubi}/${src_root##*/}/data_bytes")
 jaguar_prepare_bank "$kernel_size" "$root_size" || fail "cannot format slot $JAGUAR_TARGET"
 # A UBI volume's stat size is 0, so give ubiupdatevol each length.
-ubiupdatevol -s "$kernel_size" "$dev/${JAGUAR_TARGET_UBI}_0" "$src_kernel" &&
-	ubiupdatevol -s "$root_size" "$dev/${JAGUAR_TARGET_UBI}_1" "$src_root" ||
+jaguar_step "ubiupdatevol kernel" ubiupdatevol -s "$kernel_size" "$dev/${JAGUAR_TARGET_UBI}_0" "$src_kernel" &&
+	jaguar_step "ubiupdatevol rootfs" ubiupdatevol -s "$root_size" "$dev/${JAGUAR_TARGET_UBI}_1" "$src_root" ||
 	fail "cannot write slot $JAGUAR_TARGET"
 jaguar_verify_volume "$dev/${JAGUAR_TARGET_UBI}_0" "$src_kernel" "$kernel_size" &&
 	jaguar_verify_volume "$dev/${JAGUAR_TARGET_UBI}_1" "$src_root" "$root_size" ||
