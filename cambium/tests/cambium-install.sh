@@ -209,8 +209,9 @@ for f in "$W/rel/$p-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-squashf
 		printf '%s %s %s\n' "$v" "$(printf '%s-content' "$v" | wc -c | tr -d ' ')" "$(printf '%s-content' "$v" | sha256sum | cut -d' ' -f1)"
 	done > "$f.contents"
 done
-cp "$top/target/linux/qualcommax/ipq60xx/base-files/lib/functions/cambium-jaguar.sh" "$W/rel/jaguar-cambium-jaguar-functions.sh"
-cp "$top/target/linux/qualcommax/ipq60xx/base-files/lib/upgrade/cambium-jaguar.sh" "$W/rel/jaguar-cambium-jaguar-upgrade.sh"
+cp "$top/package/cambium/cambium-ab/files/cambium-ab.sh" "$W/rel/jaguar-cambium-ab.sh"
+cp "$top/package/cambium/cambium-ab/files/cambium-ab-upgrade.sh" "$W/rel/jaguar-cambium-ab-upgrade.sh"
+cp "$top/package/cambium/cambium-jaguar-support/files/cambium-ab-jaguar.sh" "$W/rel/jaguar-cambium-ab-jaguar.sh"
 (cd "$W/rel" && sha256sum -- openwrt-* jaguar-* > SHA256SUMS)
 mkdir -p "$W/rel-test"
 echo "image jaguar persistent ram" > "$W/rel-test/$p-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-initramfs-uImage.itb"
@@ -475,20 +476,24 @@ ap jaguar XV2-2 20 1 03400000
 mkdir -p "$RT/etc" "$RT/lib/functions" "$RT/lib/upgrade" "$RT/tmp/sysinfo"; : > "$RT/etc/openwrt_release"
 echo cambiumnetworks,xv2-2 > "$RT/tmp/sysinfo/board_name"
 echo 'console=ttyMSM0 ubi.mtd=rootfs_1 root=/dev/ubiblock0_1' > "$RT/proc/cmdline"
-echo '# old functions' > "$RT/lib/functions/cambium-jaguar.sh"; echo '# old upgrade' > "$RT/lib/upgrade/cambium-jaguar.sh"
+echo '# old jaguar upgrade' > "$RT/lib/upgrade/cambium-jaguar.sh"
+check "update-upgrader refuses an image before the shared scripts" 1 inst --from "$W/rel" --yes update-upgrader
+assert "the refusal says to sysupgrade instead" said 'predates the shared A/B scripts'
+rm -f "$RT/lib/upgrade/cambium-jaguar.sh"
+echo '# old core' > "$RT/lib/functions/cambium-ab.sh"; echo '# old upgrade' > "$RT/lib/upgrade/cambium-ab.sh"
+echo '# old module' > "$RT/lib/functions/cambium-ab-jaguar.sh"
 check "update-upgrader check run" 0 inst --from "$W/rel" update-upgrader
-assert "check run leaves the old scripts" [ "$(cat "$RT/lib/upgrade/cambium-jaguar.sh")" = '# old upgrade' ]
+assert "check run leaves the old scripts" [ "$(cat "$RT/lib/upgrade/cambium-ab.sh")" = '# old upgrade' ]
 check "update-upgrader" 0 inst --from "$W/rel" --yes update-upgrader
-assert "the release's upgrade scripts are installed" cmp -s "$RT/lib/upgrade/cambium-jaguar.sh" "$W/rel/jaguar-cambium-jaguar-upgrade.sh"
-assert "the release's functions are installed" cmp -s "$RT/lib/functions/cambium-jaguar.sh" "$W/rel/jaguar-cambium-jaguar-functions.sh"
-assert "the old copies are kept apart" [ "$(cat "$RT/tmp/cambium-install/upgrader-before/upgrade-cambium-jaguar.sh")" = '# old upgrade' ]
-assert "the installed upgrader creates UBI nodes" grep -q jaguar_ubi_node "$RT/lib/functions/cambium-jaguar.sh"
+assert "the release's writer is installed" cmp -s "$RT/lib/upgrade/cambium-ab.sh" "$W/rel/jaguar-cambium-ab-upgrade.sh"
+assert "the release's core is installed" cmp -s "$RT/lib/functions/cambium-ab.sh" "$W/rel/jaguar-cambium-ab.sh"
+assert "the release's Jaguar module is installed" cmp -s "$RT/lib/functions/cambium-ab-jaguar.sh" "$W/rel/jaguar-cambium-ab-jaguar.sh"
+assert "the old copies are kept" [ "$(cat "$RT/tmp/cambium-install/upgrader-before/cambium-ab-upgrade.sh")" = '# old upgrade' ]
 check "update-upgrader again: already current" 0 inst --from "$W/rel" --yes update-upgrader
-
 assert "already current is reported" said 'already the release'
 # OpenWrt's BusyBox has no od (the stock firmware does): the SKU must still read.
 mkdir -p "$W/no-od"; printf '#!/bin/sh\necho "sh: od: not found" >&2\nexit 127\n' > "$W/no-od/od"; chmod +x "$W/no-od/od"
-cp "$RT/lib/upgrade/cambium-jaguar.sh" "$W/up.keep"; echo '# old upgrade' > "$RT/lib/upgrade/cambium-jaguar.sh"
+echo '# old upgrade' > "$RT/lib/upgrade/cambium-ab.sh"
 check "update-upgrader on a firmware without od" 0 env PATH="$W/no-od:$PATH" sh "$installer" --from "$W/rel" --yes update-upgrader
 assert "without od the SKU is read with hexdump" said 'XV2-2 (SKU 20, jaguar)'
 
