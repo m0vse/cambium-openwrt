@@ -16,6 +16,10 @@
           },
           "persistent": {
             "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
           }
         },
         {
@@ -26,6 +30,10 @@
           },
           "persistent": {
             "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
           }
         },
         {
@@ -36,6 +44,10 @@
           },
           "persistent": {
             "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
           }
         },
         {
@@ -46,6 +58,10 @@
           },
           "persistent": {
             "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
           }
         }
       ]
@@ -73,6 +89,10 @@
             "config": "config@ap.dk01.1-c2",
             "status": "validated",
             "note": "E410 legacy boot alias of config@5, as used by the validated A/B boot commands"
+          },
+          "sysupgrade": {
+            "status": "validated",
+            "note": "A/B with automatic rollback"
           }
         },
         {
@@ -85,6 +105,10 @@
           "persistent": {
             "config": "config@10",
             "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "refused",
+            "note": "different NAND controller; layout not yet captured"
           }
         },
         {
@@ -97,6 +121,10 @@
           "persistent": {
             "config": "config@13",
             "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "refused",
+            "note": "different NAND controller; layout not yet captured"
           }
         },
         {
@@ -109,6 +137,10 @@
           "persistent": {
             "config": "config@14",
             "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "refused",
+            "note": "different NAND controller; layout not yet captured"
           }
         },
         {
@@ -121,6 +153,10 @@
           "persistent": {
             "config": "config@15",
             "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "refused",
+            "note": "different NAND controller; layout not yet captured"
           }
         },
         {
@@ -133,6 +169,10 @@
           "persistent": {
             "config": "config@16",
             "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "untested",
+            "note": "A/B with automatic rollback; same layout as the E410"
           }
         },
         {
@@ -147,6 +187,10 @@
             "config": "config@ap.dk01.1-c2",
             "status": "validated",
             "note": "Same hardware as the E410: boots the E410 configuration, as on the validated units. config@17 (the E410B tree) is built but not used, because the E410 upgrade and mark-good helpers match only cambium,e410."
+          },
+          "sysupgrade": {
+            "status": "validated",
+            "note": "A/B with automatic rollback"
           }
         }
       ]
@@ -166,6 +210,10 @@
           },
           "persistent": {
             "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
           }
         },
         {
@@ -176,6 +224,10 @@
           },
           "persistent": {
             "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
           }
         }
       ]
@@ -207,6 +259,10 @@
           "persistent": {
             "config": "config@hk02",
             "status": "validated"
+          },
+          "sysupgrade": {
+            "status": "validated",
+            "note": "in place; stock firmware kept in rootfs_1"
           }
         },
         {
@@ -223,6 +279,10 @@
           "persistent": {
             "status": "not-built",
             "note": "flash layout not yet captured"
+          },
+          "sysupgrade": {
+            "status": "none",
+            "note": "no persistent image yet"
           }
         }
       ]
@@ -249,6 +309,10 @@
           "persistent": {
             "config": "config@cp01-c1",
             "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "none",
+            "note": "no sysupgrade path yet; reinstall the persistent image"
           }
         },
         {
@@ -261,6 +325,10 @@
           "persistent": {
             "config": "config@cp01-c1-1",
             "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "none",
+            "note": "no sysupgrade path yet; reinstall the persistent image"
           }
         },
         {
@@ -273,6 +341,10 @@
           "persistent": {
             "config": "config@cp01-c1-2",
             "status": "validated"
+          },
+          "sysupgrade": {
+            "status": "none",
+            "note": "no sysupgrade path yet; reinstall the persistent image"
           }
         },
         {
@@ -285,6 +357,10 @@
           "persistent": {
             "config": "config@cp01-c3-xv3-4",
             "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "none",
+            "note": "no sysupgrade path yet; reinstall the persistent image"
           }
         },
         {
@@ -297,6 +373,10 @@
           "persistent": {
             "config": "config@cp01-c3-2",
             "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "none",
+            "note": "no sysupgrade path yet; reinstall the persistent image"
           }
         }
       ]
@@ -323,6 +403,10 @@
           "persistent": {
             "config": "config@mp03.3-cheetah",
             "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "none",
+            "note": "no sysupgrade path yet; reinstall the persistent image"
           }
         },
         {
@@ -335,6 +419,10 @@
           "persistent": {
             "config": "config@mp03.3-ocelot",
             "status": "validated"
+          },
+          "sysupgrade": {
+            "status": "none",
+            "note": "no sysupgrade path yet; reinstall the persistent image"
           }
         },
         {
@@ -347,6 +435,10 @@
           "persistent": {
             "config": "config@mp03.3-lynx",
             "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "none",
+            "note": "no sysupgrade path yet; reinstall the persistent image"
           }
         }
       ]
@@ -366,6 +458,10 @@
           },
           "persistent": {
             "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
           }
         },
         {
@@ -376,6 +472,10 @@
           },
           "persistent": {
             "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
           }
         },
         {
@@ -386,6 +486,10 @@
           },
           "persistent": {
             "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
           }
         },
         {
@@ -396,6 +500,10 @@
           },
           "persistent": {
             "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
           }
         }
       ]
