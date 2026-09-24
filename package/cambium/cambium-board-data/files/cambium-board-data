@@ -4,7 +4,7 @@
 # slot; nothing on the OEM slot or the ART partition is modified.
 # Per-device calibration continues to come from 0:ART via firmware hotplug.
 #
-# Jaguar A/B images also keep a device-data vault: a small
+# A/B families that keep a device-data vault (Jaguar) have a small
 # cambium_device_data UBI volume in each firmware bank holding this unit's
 # board files and a manifest bound to its board, SKU and ART. The vault is
 # preferred at boot, survives sysupgrade -n and factory reset, and is the
@@ -17,8 +17,8 @@
 
 . "${CAMBIUM_FUNCTIONS:-/lib/functions.sh}"
 . "${CAMBIUM_SYSTEM_FUNCTIONS:-/lib/functions/system.sh}"
-JAGUAR_LIB=${CAMBIUM_JAGUAR_LIB:-/lib/functions/cambium-jaguar.sh}
-[ -f "$JAGUAR_LIB" ] && . "$JAGUAR_LIB"
+AB_LIB=${CAMBIUM_AB_LIB:-/lib/functions/cambium-ab.sh}
+[ -f "$AB_LIB" ] && . "$AB_LIB"
 
 TAG=cambium-board-data
 FW_DIR=${CAMBIUM_BDF_FW_DIR:-/lib/firmware}
@@ -83,7 +83,7 @@ sha256() {
 
 ubi_dev_for_mtd() {
 	local dev
-	for dev in "${JAGUAR_UBI_SYS:-/sys/class/ubi}"/ubi[0-9]*; do
+	for dev in "${AB_UBI_SYS:-/sys/class/ubi}"/ubi[0-9]*; do
 		[ -f "$dev/mtd_num" ] || continue
 		[ "$(cat "$dev/mtd_num")" = "$1" ] && { echo "${dev##*/}"; return 0; }
 	done
@@ -92,11 +92,11 @@ ubi_dev_for_mtd() {
 
 mtd_writeable() {
 	# MTD_WRITEABLE is 0x400 in the MTD flags word.
-	[ $(( $(cat "${JAGUAR_MTD_SYS:-/sys/class/mtd}/mtd$1/flags") & 0x400 )) -ne 0 ]
+	[ $(( $(cat "${AB_MTD_SYS:-/sys/class/mtd}/mtd$1/flags") & 0x400 )) -ne 0 ]
 }
 
 running_part() {
-	sed -n 's/.*ubi\.mtd=\([^ ]*\).*/\1/p' "${JAGUAR_CMDLINE:-/proc/cmdline}"
+	sed -n 's/.*ubi\.mtd=\([^ ]*\).*/\1/p' "${AB_CMDLINE:-/proc/cmdline}"
 }
 
 # Candidate OEM slots: the rootfs partition which is not running OpenWrt.
@@ -144,7 +144,7 @@ install_from_dir() {
 }
 
 # Mount the OEM root filesystem of MTD $1 on $MNT. With $2=allow-writable a
-# Jaguar A/B image, whose device tree must leave both banks writable, may
+# A/B image, whose device tree must leave both banks writable, may
 # attach the OEM bank; it does so only to fill an empty vault.
 mount_oem_mtd() {
 	local mtd="$1" ubi vol
@@ -164,7 +164,7 @@ mount_oem_mtd() {
 		ubi=$(ubi_dev_for_mtd "$mtd") || return 1
 	fi
 
-	for vol in "${JAGUAR_UBI_SYS:-/sys/class/ubi}/$ubi"_*; do
+	for vol in "${AB_UBI_SYS:-/sys/class/ubi}/$ubi"_*; do
 		[ "$(cat "$vol/name" 2>/dev/null)" = ubi_rootfs ] || continue
 		BLOCK_VOL=${vol##*/}
 	done
@@ -185,31 +185,31 @@ mount_oem_mtd() {
 	}
 }
 
-# --- Jaguar device-data vault -------------------------------------------------
+# --- A/B device-data vault ----------------------------------------------------
 
 # Set VAULT_DEV to the running bank's vault volume, if this image has one.
 vault_locate() {
 	local mtd ubi vol
 	VAULT_DEV=
-	command -v jaguar_family >/dev/null 2>&1 && jaguar_family || return 1
+	command -v ab_family >/dev/null 2>&1 && ab_family && [ "$AB_VAULT" = 1 ] || return 1
 	mtd=$(find_mtd_index "$(running_part)")
 	[ -n "$mtd" ] || return 1
 	ubi=$(ubi_dev_for_mtd "$mtd") || return 1
-	vol=$(jaguar_ubi_volume "$ubi" "$VAULT_NAME") || return 1
-	VAULT_DEV=${JAGUAR_DEV:-/dev}/$vol
+	vol=$(ab_ubi_volume "$ubi" "$VAULT_NAME") || return 1
+	VAULT_DEV=${AB_DEV:-/dev}/$vol
 }
 
 art_hash() {
 	local idx
 	idx=$(find_mtd_index 0:ART)
 	[ -n "$idx" ] || return 1
-	sha256 "${JAGUAR_DEV:-/dev}/mtd$idx"
+	sha256 "${AB_DEV:-/dev}/mtd$idx"
 }
 
 nvram_hash() {
 	local idx
 	idx=$(find_mtd_index NVRAM)
-	[ -n "$idx" ] && sha256 "${JAGUAR_DEV:-/dev}/mtd$idx" || echo unknown
+	[ -n "$idx" ] && sha256 "${AB_DEV:-/dev}/mtd$idx" || echo unknown
 }
 
 # Unpack the vault into $1. Returns 1 when it holds no archive.
@@ -230,7 +230,7 @@ vault_check() {
 	[ -f "$dir/MANIFEST" ] || return 1
 	[ "$(manifest_value "$dir" format)" = "$VAULT_FORMAT" ] || return 1
 	[ "$(manifest_value "$dir" board)" = "$(board_name)" ] || return 2
-	[ "$(manifest_value "$dir" sku)" = "$(jaguar_dt_sku)" ] || return 2
+	[ "$(manifest_value "$dir" sku)" = "$(ab_dt_sku)" ] || return 2
 	art=$(art_hash) || return 1
 	[ "$(manifest_value "$dir" art_sha256)" = "$art" ] || return 2
 	board_files > "$dir.expected"
@@ -253,7 +253,7 @@ vault_write() {
 	{
 		echo "format $VAULT_FORMAT"
 		echo "board $(board_name)"
-		echo "sku $(jaguar_dt_sku)"
+		echo "sku $(ab_dt_sku)"
 		echo "art_sha256 $(art_hash)"
 		echo "nvram_sha256_at_capture $(nvram_hash)"
 		echo "source $origin"
