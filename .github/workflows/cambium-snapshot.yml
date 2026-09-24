@@ -142,15 +142,30 @@ jobs:
         id: result
         if: ${{ !cancelled() && steps.sync.outcome != 'failure' }}
         env:
+          GH_TOKEN: ${{ github.token }}
           REBASED: ${{ steps.sync.outputs.rebased }}
           FORCE: ${{ inputs.force }}
           FAMILIES: ${{ inputs.families || 'sage thor cheetah jaguar' }}
         run: |
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "upstream=$(git merge-base HEAD upstream/main 2>/dev/null || git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          built=$(git ls-remote --tags origin 'refs/tags/snapshot-*' | grep -c "^$(git rev-parse HEAD)" || true)
-          if [ "$REBASED" = true ] || [ "$FORCE" = true ] || [ "$built" -eq 0 ]; then
+          head=$(git rev-parse HEAD)
+          echo "sha=$head" >> "$GITHUB_OUTPUT"
+          echo "upstream=$(git merge-base HEAD upstream/main 2>/dev/null || echo "$head")" >> "$GITHUB_OUTPUT"
+          # A snapshot of this commit counts only for the families it actually
+          # contains, so a family that failed is built again on the next run.
+          tags=$(git ls-remote --tags origin 'refs/tags/snapshot-*' |
+            awk -v h="$head" '$1 == h { sub("refs/tags/", "", $2); print $2 }')
+          assets=$(for tag in $tags; do
+            gh release view "$tag" --json assets --jq '.assets[].name' 2>/dev/null || true
+          done)
+          missing=
+          for family in $FAMILIES; do
+            printf '%s\n' "$assets" | grep -q "cambiumnetworks_$family-persistent" ||
+              missing="$missing $family"
+          done
+          if [ "$REBASED" = true ] || [ "$FORCE" = true ] || [ -n "$missing" ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
+            [ -z "$missing" ] ||
+              echo "No snapshot of this commit contains:$missing" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "build=false" >> "$GITHUB_OUTPUT"
             echo "Nothing new to build." >> "$GITHUB_STEP_SUMMARY"
