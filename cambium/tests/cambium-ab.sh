@@ -1,13 +1,13 @@
 #!/bin/sh
-# Simulation tests for the Cambium Jaguar A/B code: the board table and
-# identity preflight (lib/functions/cambium-jaguar.sh), the inactive-bank
-# writer (lib/upgrade/cambium-jaguar.sh and its platform.sh dispatch), the
-# boot guard, the one-time conversion and the device-data vault in
-# cambium-board-data. The real scripts run against simulated MTD/UBI
+# Simulation tests for the shared Cambium A/B code (package cambium-ab) and
+# every family module (Jaguar, Cheetah): board tables and the identity
+# preflight, boot commands, the inactive-bank writer and its platform.sh
+# dispatch, the boot guard, the one-time conversion and the device-data vault
+# in cambium-board-data. The real scripts run against simulated MTD/UBI
 # devices, sysfs, device tree and U-Boot environment; fault injection covers
 # failed and interrupted writes. Nothing touches the host's flash.
 #
-# Usage: cambium/tests/jaguar-ab.sh   (exit status 0 when all pass)
+# Usage: cambium/tests/cambium-ab.sh   (exit status 0 when all pass)
 
 set -u
 
@@ -218,7 +218,11 @@ export PATH="$S/bin:$PATH" JAGUAR_SIM=$S
 export AB_PROC_MTD=$S/proc_mtd AB_CMDLINE=$S/cmdline AB_DT=$S/dt
 export AB_UBI_SYS=$S/sys/ubi AB_MTD_SYS=$S/sys/mtd AB_DEV=$S/dev
 export AB_ENV_CONFIG=$S/fw_env.config AB_PROC_MOUNTS=$S/mounts
-export CAMBIUM_AB_LIB=$ab_pkg/cambium-ab.sh CAMBIUM_AB_MODULES=$jaguar_module_dir
+mkdir -p "$S/modules"
+ln -s "$jaguar_module_dir/cambium-ab-jaguar.sh" "$S/modules/"
+ln -s "$top/package/cambium/cambium-cheetah-support/files/cambium-ab-cheetah.sh" "$S/modules/"
+export CAMBIUM_AB_LIB=$ab_pkg/cambium-ab.sh CAMBIUM_AB_MODULES=$S/modules
+export AB_SYS_NET=$S/net AB_SYS_IEEE80211=$S/ieee80211
 export CAMBIUM_AB_UPGRADE_LIB=${CAMBIUM_AB_UPGRADE_LIB:-$ab_pkg/cambium-ab-upgrade.sh}
 export CAMBIUM_FUNCTIONS=$S/functions.sh CAMBIUM_SYSTEM_FUNCTIONS=$S/system.sh
 export CAMBIUM_BDF_FW_DIR=$S/fw CAMBIUM_BDF_WORK=$S/bdwork CAMBIUM_BDF_STATUS=$S/bdstatus
@@ -232,7 +236,20 @@ sku_byte() {
 	case "$1" in
 	cambiumnetworks,xv2-2) echo 024 ;; cambiumnetworks,xv2-2t0) echo 026 ;;
 	cambiumnetworks,xv2-2t1) echo 037 ;; cambiumnetworks,xe3-4) echo 040 ;;
-	cambiumnetworks,xe3-4tn) echo 041 ;; *) echo 177 ;;
+	cambiumnetworks,xe3-4tn) echo 041 ;; cambiumnetworks,xv2-22h) echo 042 ;;
+	cambiumnetworks,xv2-21x) echo 043 ;; cambiumnetworks,xv2-23t) echo 044 ;; *) echo 177 ;;
+	esac
+}
+cheetah_board() {
+	case "$1" in cambiumnetworks,xv2-21x|cambiumnetworks,xv2-22h|cambiumnetworks,xv2-23t) ;; *) return 1 ;; esac
+}
+# The stock firmware's board files for BOARD, as PATH:SIZE (cambium-board-data).
+oem_bdfs() {
+	case "$1" in
+	cambiumnetworks,xv2-21x) echo lib/firmware/IPQ5018/WIFI_FW/bdwlan.b24-ocelot:131072 lib/firmware/IPQ5018/WIFI_FW/qcn6122/bdwlan.b60-ocelot:131072 ;;
+	cambiumnetworks,xv2-22h) echo lib/firmware/IPQ5018/WIFI_FW/bdwlan.b24-cheetah:131072 lib/firmware/IPQ5018/WIFI_FW/qcn6122/bdwlan.b50-cheetah:131072 ;;
+	cambiumnetworks,xv2-23t) echo lib/firmware/IPQ5018/WIFI_FW/bdwlan.b24-lynx:131072 lib/firmware/IPQ5018/WIFI_FW/qcn6122/bdwlan.b60.stock:131072 ;;
+	cambiumnetworks,xv2-2|cambiumnetworks,xv2-2t0|cambiumnetworks,xv2-2t1) echo "$BDF:65536" ;;
 	esac
 }
 set_sku() { printf "\\000\\000\\000\\$1" > "$S/dt/cambium-platform/board-sku"; }
@@ -240,7 +257,7 @@ set_sku() { printf "\\000\\000\\000\\$1" > "$S/dt/cambium-platform/board-sku"; }
 # new_ap [BOARD] [ACTIVE-SLOT] [oem|openwrt]: the other bank's contents.
 new_ap() {
 	local board=${1:-cambiumnetworks,xv2-2t1} active=${2:-0} other=${3:-oem} i
-	rm -rf "$S/sys" "$S/dev" "$S/flash" "$S/dt" "$S/fw" "$S/bdwork"* "$S/work" "$S/oem_root"
+	rm -rf "$S/sys" "$S/dev" "$S/flash" "$S/dt" "$S/fw" "$S/bdwork"* "$S/work" "$S/oem_root" "$S/net" "$S/ieee80211"
 	rm -f "$S/calls" "$S/opcount" "$S/fail_at" "$S/corrupt" "$S/bank_lebs" "$S/bdstatus" "$S/net_ok"
 	mkdir -p "$S/sys/ubi" "$S/dev" "$S/flash" "$S/dt/cambium-platform" "$S/fw"
 	touch "$S/calls"
@@ -253,13 +270,21 @@ new_ap() {
 			'mtd2: 01000000 00020000 "0:NVRAM"' 'mtd3: 00800000 00020000 "crashlog"' \
 			'mtd4: 00080000 00010000 "0:ART"' 'mtd5: 00010000 00010000 "0:APPSBLENV"' > "$S/proc_mtd"
 		echo 392 > "$S/bank_lebs"
+	elif cheetah_board "$board"; then
+		# Cheetah: 256 MiB NAND, two 96 MiB banks after 0:TRAINING.
+		printf '%s\n' 'dev:    size   erasesize  name' \
+			'mtd0: 06000000 00020000 "rootfs"' 'mtd1: 06000000 00020000 "rootfs_1"' \
+			'mtd2: 02f80000 00020000 "0:NVRAM"' 'mtd3: 01000000 00020000 "crashLog"' \
+			'mtd4: 00070000 00001000 "0:ART"' 'mtd5: 00010000 00001000 "0:APPSBLENV"' \
+			'mtd6: 00080000 00020000 "0:TRAINING"' > "$S/proc_mtd"
 	else
 		printf '%s\n' 'dev:    size   erasesize  name' \
 			'mtd0: 06000000 00020000 "rootfs"' 'mtd1: 06000000 00020000 "rootfs_1"' \
 			'mtd2: 03000000 00020000 "NVRAM"' 'mtd3: 01000000 00020000 "crashLog"' \
 			'mtd4: 00080000 00010000 "0:ART"' 'mtd5: 00010000 00010000 "0:APPSBLENV"' > "$S/proc_mtd"
 	fi
-	for i in 0 1 2 3 4 5; do mkdir -p "$S/sys/mtd/mtd$i"; echo 0x800 > "$S/sys/mtd/mtd$i/flags"; done
+	mkdir -p "$S/net" "$S/ieee80211"
+	for i in 0 1 2 3 4 5 6; do mkdir -p "$S/sys/mtd/mtd$i"; echo 0x800 > "$S/sys/mtd/mtd$i/flags"; done
 	echo 0xc00 > "$S/sys/mtd/mtd0/flags"; echo 0xc00 > "$S/sys/mtd/mtd1/flags"
 	echo 0xc00 > "$S/sys/mtd/mtd5/flags"
 	echo "ART-of-this-unit" > "$S/dev/mtd4"; echo NVRAM > "$S/dev/mtd2"
@@ -271,8 +296,10 @@ new_ap() {
 		echo $((200 * LEB)) > "$S/flash/mtd$((1 - active))/0.size"
 		echo oem-squashfs > "$S/flash/mtd$((1 - active))/0.data"
 		echo "OEM-7.2-BANK" > "$S/dev/mtd$((1 - active))"
-		mkdir -p "$S/oem_root/$(dirname "$BDF")"
-		head -c 65536 /dev/zero | tr '\000' 'B' > "$S/oem_root/$BDF"
+		for f in $(oem_bdfs "$board"); do
+			mkdir -p "$S/oem_root/$(dirname "${f%:*}")"
+			head -c "${f#*:}" /dev/zero | tr '\000' 'B' > "$S/oem_root/${f%:*}"
+		done
 	else
 		make_bank "$((1 - active))" "other-kernel" "other-root" detached
 	fi
@@ -687,6 +714,81 @@ assert "upstream XE3-4 untouched by the guard" never_wrote 'setenv|reboot'
 converted_ap; boot_slot 0; healthy_ap
 assert "status reports A/B mode" sh -c "sh '$ab_pkg/cambium-ab-status' | grep -qx 'mode=ab'"
 assert "status reports the confirmed slot" sh -c "sh '$ab_pkg/cambium-ab-status' | grep -qx 'confirmed=0'"
+
+# --- Cheetah (cambium-ab-cheetah.sh) --------------------------------------------
+C21=cambiumnetworks,xv2-21x
+while read -r board fit; do
+	new_ap "$board"
+	check "Cheetah $board identity" 0 in_lib eval \
+		'ab_identity && [ "$AB_FAMILY:$AB_ACTIVE:$AB_TARGET:$AB_FIT" = "cheetah:0:1:'"$fit"'" ]'
+done <<'EOF'
+cambiumnetworks,xv2-21x config@mp03.3-ocelot
+cambiumnetworks,xv2-22h config@mp03.3-cheetah
+cambiumnetworks,xv2-23t config@mp03.3-lynx
+EOF
+new_ap $C21; echo 0xc00 > "$S/sys/mtd/mtd6/flags"
+check "Cheetah writable 0:TRAINING refused" 1 in_lib ab_identity
+new_ap $C21; set_sku 042
+check "Cheetah SKU mismatch refused" 1 in_lib ab_identity
+new_ap $C21
+assert "Cheetah slot 0 boot command (bank at 0x80000, bootargs set)" [ "$(in_lib eval "ab_board $C21; ab_boot_command 0")" = \
+	'nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot' ]
+assert "Cheetah slot 1 boot command (bank at 0x6080000)" [ "$(in_lib eval "ab_board $C21; ab_boot_command 1")" = \
+	'nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x6080000(fs)"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot' ]
+assert "Cheetah trial uses the cheetah_ variables" [ "$(in_lib eval "ab_board $C21; ab_trial_command 0 1")" = \
+	'setenv bootcmd run cheetah_stable0; setenv image 0; setenv cheetah_ab_state trial-started; saveenv; run cheetah_boot1; run cheetah_boot0' ]
+
+new_ap $C21; oem_before=$(bank_hash 1)
+check "Cheetah first boot fills the vault with both board files" 0 run_board_data
+assert "Cheetah vault status" [ "$(cat "$S/bdstatus")" = vault ]
+assert "Cheetah IPQ5018 and QCN6122 board files installed" [ -s "$S/fw/ath11k/IPQ5018/hw1.0/board.bin" -a -s "$S/fw/ath11k/QCN6122/hw1.0/board.bin" ]
+assert "Cheetah OEM bank unchanged by the import" [ "$(bank_hash 1)" = "$oem_before" ]
+
+new_ap $C21; run_board_data >/dev/null 2>&1; : > "$S/calls"
+check "Cheetah conversion needs --allow-untested (A/B untested on hardware)" 1 sh "$ab_pkg/cambium-ab-convert" --oem-sha256 "$(oem_hash)" --yes
+check "Cheetah conversion" 0 sh "$ab_pkg/cambium-ab-convert" --oem-sha256 "$(oem_hash)" --allow-untested --yes
+assert "Cheetah converted: cheetah_ variables, slot 0 default" [ "$(env_get cheetah_ab_version):$(env_get cheetah_ab_confirmed):$(env_get bootcmd)" = '1:0:run cheetah_stable0' ]
+assert "Cheetah slot 1 boots rootfs_1 at 0x6080000" [ "$(env_get cheetah_boot1)" = \
+	'nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x6080000(fs)"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot' ]
+assert "Cheetah slot 1 holds the running rootfs and vault" cmp -s "$S/flash/mtd1/1.data" "$S/flash/mtd0/1.data"
+
+make_fit config@mp03.3-cheetah config@mp03.3-ocelot config@mp03.3-lynx > "$S/cheetah-fit"
+make_image "$S/cheetah.bin" "$S/cheetah-fit" "" sysupgrade-cambiumnetworks_cheetah
+check "a Jaguar image is refused on a Cheetah" 1 dispatch platform_check_image "$S/good.bin"
+for active in 0 1; do
+	target=$((1 - active))
+	converted_ap $C21 "$active"
+	active_before=$(bank_hash "$active")
+	check "Cheetah upgrade slot $active -> $target" 0 dispatch platform_do_upgrade "$S/cheetah.bin"
+	assert "Cheetah slot $target rootfs written" [ "$(cat "$S/flash/mtd$target/1.data")" = hsqs-new-root ]
+	assert "Cheetah slot $target vault copied" cmp -s "$S/flash/mtd$target/3.data" "$S/flash/mtd$active/3.data"
+	assert "Cheetah slot $active untouched" [ "$(bank_hash "$active")" = "$active_before" ]
+	assert "Cheetah trial of slot $target armed" [ "$(env_get bootcmd)" = \
+		"setenv bootcmd run cheetah_stable$active; setenv image $active; setenv cheetah_ab_state trial-started; saveenv; run cheetah_boot$target; run cheetah_boot$active" ]
+done
+
+cheetah_trial() {
+	local old=$(env_get cheetah_ab_confirmed)
+	sed -i.bak -e "s/^bootcmd=.*/bootcmd=run cheetah_stable$old/" -e "s/^image=.*/image=$old/" \
+		-e 's/^cheetah_ab_state=.*/cheetah_ab_state=trial-started/' "$S/env"
+}
+converted_ap $C21; dispatch platform_do_upgrade "$S/cheetah.bin" >/dev/null 2>&1
+cheetah_trial; boot_slot 1; healthy_ap; : > "$S/calls"
+check "Cheetah trial without its two radios is not committed" 0 guard
+assert "no radios: rolled back" [ "$(env_get cheetah_ab_state)" = rolled-back ]
+converted_ap $C21; dispatch platform_do_upgrade "$S/cheetah.bin" >/dev/null 2>&1
+cheetah_trial; boot_slot 1; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/net/br-lan.1"; : > "$S/calls"
+check "Cheetah healthy trial (two radios, br-lan.1) committed" 0 guard
+assert "Cheetah slot 1 confirmed" [ "$(env_get cheetah_ab_confirmed):$(env_get cheetah_ab_state):$(env_get bootcmd)" = '1:confirmed:run cheetah_stable1' ]
+
+new_ap $C21; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1"; : > "$S/calls"
+check "Cheetah legacy guard re-arms slot 0" 0 guard
+assert "Cheetah legacy one-shot is the validated command with bootargs" [ "$(env_get bootcmd)" = \
+	'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot; bootipq' ]
+new_ap cambiumnetworks,xv2-22h; healthy_ap; : > "$S/calls"
+check "XV2-22H needs no radios to re-arm" 0 guard
+assert "XV2-22H legacy one-shot" grep -q 'bootm 0x60000000#config@mp03.3-cheetah; bootipq$' "$S/env"
+assert "status names the Cheetah family" sh -c "sh '$ab_pkg/cambium-ab-status' | grep -qx 'family=cheetah'"
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]

@@ -181,7 +181,7 @@
 				read-only;
 			};
 
-			partition@6080000 {
+			rootfs_1: partition@6080000 {
 				label = "rootfs_1";
 				reg = <0x6080000 0x6000000>;
 				read-only;
