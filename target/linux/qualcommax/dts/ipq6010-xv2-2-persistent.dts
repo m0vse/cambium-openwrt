@@ -1,3 +1,8 @@
 // SPDX-License-Identifier: (GPL-2.0+)
 #include "ipq6010-xv2-2-recovery.dts"
 #include "ipq6010-jaguar-persistent.dtsi"
+
+/* Second 52 MiB firmware bank of the XV2-2's 128 MiB NAND. */
+&{/soc@0/nand-controller@79b0000/nand@0/partitions/partition@3400000} {
+	/delete-property/ read-only;
+};
