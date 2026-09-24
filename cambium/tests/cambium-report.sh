@@ -28,6 +28,10 @@ CAMBIUM_REPORT_OUT=$work/report.txt sh "$script" > "$work/stdout" 2>&1 || {
 	fail=1
 }
 [ -s "$work/report.txt" ] || { echo "FAIL: no report written"; fail=1; }
+# OpenWrt's BusyBox has no od: the report must still run without it.
+mkdir -p "$work/no-od"; printf '#!/bin/sh\necho "sh: od: not found" >&2\nexit 127\n' > "$work/no-od/od"; chmod +x "$work/no-od/od"
+PATH="$work/no-od:$PATH" CAMBIUM_REPORT_OUT=$work/report-no-od.txt sh "$script" > /dev/null 2>&1 &&
+	grep -q '^===== end =====$' "$work/report-no-od.txt" || { echo "FAIL: the report does not complete without od"; fail=1; }
 for s in 'cambium-report 1' identity 'flash: /proc/mtd' network 'kernel log (dmesg)' end; do
 	grep -q "^===== $s =====\$" "$work/report.txt" || { echo "FAIL: section $s missing"; fail=1; }
 done
