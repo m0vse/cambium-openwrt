@@ -438,7 +438,18 @@ define Device/cambiumnetworks_jaguar-persistent
 	PAGESIZE := 2048
 	NAND_SIZE := 256m
 	IMAGE_SIZE := 98304k
-	IMAGES := factory.ubi
+	# A/B banks: kernel (0), rootfs (1), rootfs_data (2) and the per-bank
+	# device-data vault (3), which the jaguar sysupgrade copies between banks.
+	IMAGES := factory.ubi sysupgrade.bin
+	IMAGE/factory.ubi := cambium-jaguar-ubi
+	IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+	BOARD_NAME := cambiumnetworks_jaguar
+	# Upstream's own cambiumnetworks,xe3-4 image shares the XE3-4 board name,
+	# so the family sysupgrade metadata leaves it out: upstream firmware would
+	# otherwise accept this image and write it with nand_do_upgrade. The XV2-2
+	# has a 128 MiB NAND with two 52 MiB slots, not this 96 MiB layout.
+	SUPPORTED_DEVICES := cambiumnetworks,xv2-2t0 cambiumnetworks,xv2-2t1 \
+		cambiumnetworks,xe3-4tn
 	DEVICE_PACKAGES := ipq-wifi-cambiumnetworks_xe34 ath11k-firmware-qcn9074 kmod-ath11k-pci uboot-envtools cambium-board-data cambium-jaguar-support
 endef
 TARGET_DEVICES += cambiumnetworks_jaguar-persistent
