@@ -155,9 +155,9 @@ linksys_mr_pre_upgrade() {
 }
 
 platform_check_image() {
-	# Cambium Jaguar family images must never reach a generic NAND path.
-	if jaguar_family; then
-		cambium_jaguar_check_image "$1"
+	# Cambium A/B family images must never reach a generic NAND path.
+	if command -v ab_family >/dev/null && ab_family; then
+		cambium_ab_check_image "$1"
 		return
 	fi
 	return 0;
@@ -226,8 +226,8 @@ platform_do_upgrade_mikrotik_nand() {
 }
 
 platform_do_upgrade() {
-	if jaguar_family; then
-		cambium_jaguar_do_upgrade "$1"
+	if command -v ab_family >/dev/null && ab_family; then
+		cambium_ab_do_upgrade "$1"
 		return
 	fi
 	case "$(board_name)" in

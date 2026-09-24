@@ -37,61 +37,75 @@ It copies the Wi-Fi board file that the AP's stock firmware selects for its
 SKU from the retained, read-only OEM slot at boot, so no OEM board data is
 distributed. Per-device calibration still comes from `0:ART`. Neither the
 OEM slot nor ART is ever written; the importer refuses writable partitions,
-except once on a Jaguar A/B image (below), whose OEM bank must be writable.
+except once on an A/B image (below), whose OEM bank must be writable.
 
-## Jaguar A/B sysupgrade
+## A/B firmware banks (`cambium-ab`)
 
-The Jaguar family has two OpenWrt banks with automatic rollback. The A/B
-persistent image and its family `sysupgrade.bin` are validated on the XV2-2
-and XV2-2T1 and untested on the XV2-2T0, XE3-4 and XE3-4TN, where
+Every family is moving to the same A/B design: two OpenWrt firmware banks,
+`sysupgrade` writing the inactive one, a one-shot trial boot and automatic
+rollback. The shared package `package/cambium/cambium-ab` holds everything
+common; each family adds a small module,
+`/lib/functions/cambium-ab-<family>.sh` (in its support package), with its
+board table (models, SKUs, FIT configurations, bank size and slot-1 offset,
+usable LEBs, protected partitions, the prefix of its U-Boot variables) and
+its U-Boot boot commands. Jaguar is the first family on it; Cheetah, Thor
+and Sage follow.
+
+Jaguar's A/B image and its family `sysupgrade.bin` are validated on the
+XV2-2 and XV2-2T1 and untested on the XV2-2T0, XE3-4 and XE3-4TN, where
 `select-config.sh` offers only the recovery image unless
 `CAMBIUM_HARDWARE_TRIAL=1` (the installer's `--trial`) is set. A RAM build
 of the persistent trees (`...jaguar-persistent-initramfs-uImage.itb`) is
 kept out of releases, in each build's `cambium-jaguar` Actions artifact under
 `test-only/`.
 
-- **Banks.** `rootfs` (slot 0) and `rootfs_1` (slot 1): 96 MiB banks (slot 1
-  at `0x6000000`) on the 256 MiB-NAND models, 52 MiB banks (slot 1 at
-  `0x3400000`) on the XV2-2. The board table in
-  `lib/functions/cambium-jaguar.sh` holds each model's bank size, offset,
-  usable LEBs and protected partition names; the identity preflight refuses
-  a unit whose partitions differ. Both banks are writable in the persistent
-  device trees; NVRAM, crashLog, ART and the
-  other NOR partitions stay read-only. Each bank holds UBI volumes `kernel`
-  (0), `rootfs` (1), `rootfs_data` (2) and `cambium_device_data` (3). U-Boot's
-  boot command selects the bank with `ubi.mtd=`; the trees append no root.
-- **Device-data vault.** Volume 3 holds this unit's Wi-Fi board file with a
-  manifest bound to its board, SKU and ART hash. `cambium-board-data` fills
-  it once from the OEM slot on the first A/B boot, prefers it on every later
-  boot, refuses one made for another unit, and every upgrade copies it to the
-  new bank, so it survives `sysupgrade -n`, factory reset and the loss of the
-  OEM slot.
-- **Conversion.** `jaguar-ab-convert --oem-sha256 HASH --yes` replaces the OEM
-  bank with a copy of the running bank. It refuses unless the live OEM bank
-  matches the hash of your off-device backup, the vault is valid and the
-  model is qualified (only the XV2-2T1; `--allow-untested` overrides). The
+- **Banks.** `rootfs` (slot 0) and `rootfs_1` (slot 1). Jaguar: 96 MiB banks
+  (slot 1 at `0x6000000`) on the 256 MiB-NAND models, 52 MiB banks (slot 1
+  at `0x3400000`) on the XV2-2. The identity preflight in
+  `lib/functions/cambium-ab.sh` refuses a unit whose partitions differ from
+  its module's table. Both banks are writable in the persistent device
+  trees; NVRAM, the crash log, ART and the other NOR partitions stay
+  read-only. Each bank holds UBI volumes `kernel` (0), `rootfs` (1),
+  `rootfs_data` (2) and, for a family with a vault, `cambium_device_data`
+  (3). U-Boot's boot command selects the bank with `ubi.mtd=`.
+- **Device-data vault** (ath11k families). Volume 3 holds this unit's Wi-Fi
+  board file with a manifest bound to its board, SKU and ART hash.
+  `cambium-board-data` fills it once from the OEM slot, prefers it on every
+  later boot, refuses one made for another unit, and every upgrade copies it
+  to the new bank, so it survives `sysupgrade -n`, factory reset and the
+  loss of the OEM slot.
+- **Conversion.** `cambium-ab-convert --oem-sha256 HASH --yes` replaces the
+  OEM bank with a copy of the running bank. It refuses unless the live OEM
+  bank matches the hash of your off-device backup, the vault (if any) is
+  valid and the model is qualified (`--allow-untested` overrides). The
   running bank's stable boot command is saved before the OEM bank is erased,
   and `--resume` finishes an interrupted conversion.
-- **Upgrades.** `platform.sh` sends every Jaguar family image (identified by
-  its `cambium-platform` node) to `lib/upgrade/cambium-jaguar.sh`, never to
-  a generic NAND path. It refuses until conversion, writes only the inactive
-  bank, reads back and hashes the kernel, rootfs and vault, carries settings
-  through `rootfs_data` (unless `-n`), and arms a one-shot trial as its last
-  write. The trial's first step restores the old bank as the default, so a
-  hung kernel returns to it on the next power cycle. Upstream's own
-  `cambiumnetworks,xe3-4` image keeps its upgrade path, and the family
-  `sysupgrade.bin` leaves that board name out of its metadata. Stage 2 runs
-  without hotplug, so the writer creates the UBI device and volume nodes it
-  needs, and each step records its failing command, exit status and error
-  in `jaguar_ab_last_failure`. Sysupgrade uses the *running* system's
-  scripts, so an installed AP gets writer fixes only through a new image
-  or `cambium-install.sh update-upgrader`, which installs the release's
-  copies (published as `jaguar-cambium-jaguar-{functions,upgrade}.sh`).
-- **Boot guard.** `jaguar-bootguard` commits a trial bank only after the
-  slot, overlay, wired DHCP and vault checks pass; otherwise it records the
-  rollback and reboots to the old bank. `jaguar-ab-status` prints the running,
-  confirmed and target slots, the state and the last failure. Before
-  conversion the guard keeps the validated OEM-fallback behaviour.
+- **Upgrades.** `platform.sh` sends every image of a family with an A/B
+  module (identified by its `cambium-platform` node) to
+  `lib/upgrade/cambium-ab.sh`, never to a generic NAND path. It refuses until
+  conversion, writes only the inactive bank, reads back and hashes the
+  kernel, rootfs and vault, carries settings through `rootfs_data` (unless
+  `-n`), and arms a one-shot trial as its last write. The trial's first step
+  restores the old bank as the default, so a hung kernel returns to it on
+  the next power cycle. Stage 2 runs without hotplug, so the writer creates
+  the UBI device and volume nodes it needs, and each step records its
+  failing command, exit status and error in `<prefix>_ab_last_failure`.
+  Sysupgrade uses the *running* system's scripts, so an installed AP gets
+  writer fixes only through a new image or `cambium-install.sh
+  update-upgrader`, which installs the release's copies (published as
+  `<family>-cambium-ab.sh`, `<family>-cambium-ab-upgrade.sh` and
+  `<family>-cambium-ab-<family>.sh`). Upstream's own
+  `cambiumnetworks,xe3-4` image keeps its upgrade path, and the Jaguar
+  `sysupgrade.bin` leaves that board name out of its metadata.
+- **Boot guard.** `cambium-ab-guard` commits a trial bank only after the
+  slot, overlay, wired DHCP and (if any) vault checks pass; otherwise it
+  records the rollback and reboots to the old bank. `cambium-ab-status`
+  prints the family, model, running, confirmed and target slots, the state
+  and the last failure. Before conversion the guard keeps the family's
+  validated OEM-fallback boot. Images built before the shared core named
+  these `jaguar-bootguard`, `jaguar-ab-convert` and `jaguar-ab-status`; the
+  U-Boot variables keep the family prefix (`jaguar_boot0`, ...), so
+  installed units carry on across the change.
 
 `tests/jaguar-ab.sh` exercises all of this against simulated flash, sysfs and
 U-Boot environment, including an interruption at every write and environment
