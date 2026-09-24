@@ -8,19 +8,20 @@ Each family has one recovery image and one persistent image; each image
 holds every model's device tree and boots the one matching the AP's board
 SKU. Hardware status per model:
 
-| Family | Stock firmware | Model | Recovery (RAM) | Persistent |
-| --- | --- | --- | --- | --- |
-| Gambit (Wi-Fi 5, MIPS) | 4.2.3.3-r10 | E400, E500, E501S, E502S | no build yet | no build yet |
-| Sage (IPQ4019) | 4.2.3.3-r10 | E410, E410B | validated | validated (A/B install and upgrades) |
-| | | E430H, E430W, E510, E600, E700 | untested | untested |
-| Lila (Wi-Fi 5, MIPS) | 4.2.3.3-r10 | E425W, E505 | no build yet | no build yet |
-| Thor (IPQ8074) | 7.2-r1 | XV3-8 | validated | validated |
-| | | XE5-8 | untested | not built: flash layout not yet captured |
-| Jaguar (IPQ6018) | 7.2-r1 | XV2-2T1 | validated | validated |
-| | | XV2-2, XV2-2T0, XE3-4, XE3-4TN | untested | untested |
-| Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | validated |
-| | | XV2-22H, XV2-23T | untested | untested |
-| Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X, X7-53X, X7-55X, X7-56X | no build yet | no build yet |
+| Family | Stock firmware | Model | Recovery (RAM) | Persistent | Sysupgrade |
+| --- | --- | --- | --- | --- | --- |
+| Gambit (Wi-Fi 5, MIPS) | 4.2.3.3-r10 | E400, E500, E501S, E502S | no build yet | no build yet | no build yet |
+| Sage (IPQ4019) | 4.2.3.3-r10 | E410, E410B | validated | validated (A/B install and upgrades) | A/B, validated |
+| | | E510 | untested | untested | A/B, untested (same layout as the E410) |
+| | | E430H, E430W, E600, E700 | untested | untested | refused: layout not yet captured |
+| Lila (Wi-Fi 5, MIPS) | 4.2.3.3-r10 | E425W, E505 | no build yet | no build yet | no build yet |
+| Thor (IPQ8074) | 7.2-r1 | XV3-8 | validated | validated | in place, validated |
+| | | XE5-8 | untested | not built: flash layout not yet captured | none |
+| Jaguar (IPQ6018) | 7.2-r1 | XV2-2T1 | validated | validated | none yet: reinstall |
+| | | XV2-2, XV2-2T0, XE3-4, XE3-4TN | untested | untested | none yet: reinstall |
+| Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | validated | none yet: reinstall |
+| | | XV2-22H, XV2-23T | untested | untested | none yet: reinstall |
+| Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X, X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
 
 Families are listed oldest first. Run the listed (latest) stock firmware,
 ideally in both slots, before installing. Gambit, Lila and Miami have no OpenWrt
@@ -43,8 +44,9 @@ untested or unported model, please open an issue on this repository.
   board file its own stock firmware uses from the retained, read-only OEM
   slot; the OEM slot and calibration (ART) are never modified. If that slot
   is gone or unreadable, the radios stay down and wired operation continues.
-- Cheetah persistent builds ship only `factory.ubi`: there is no generic
-  sysupgrade path for that family yet.
+- Sysupgrade works on the Sage E410-layout models (A/B with automatic
+  rollback) and on the Thor XV3-8 (in place). Cheetah and Jaguar have no
+  sysupgrade path yet: upgrade by reinstalling the persistent image.
 - Kernel modules must come from the same snapshot as the image. The package
   feed for each snapshot is configured in the image and kept for the two
   most recent snapshots only.
