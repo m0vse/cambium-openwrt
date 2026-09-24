@@ -39,16 +39,16 @@ distributed. Per-device calibration still comes from `0:ART`. Neither the
 OEM slot nor ART is ever written; the importer refuses writable partitions,
 except once on a Jaguar A/B image (below), whose OEM bank must be writable.
 
-## Jaguar A/B sysupgrade (under hardware test)
+## Jaguar A/B sysupgrade
 
-The Jaguar family has two OpenWrt banks with automatic rollback. It is under
-hardware test: the published persistent image is the A/B build (marked
-untested, so `select-config.sh` offers only the recovery image), and the
-family `sysupgrade.bin` and a RAM build of the persistent trees
-(`...jaguar-persistent-initramfs-uImage.itb`) are kept out of releases. They
-are in each build's `cambium-jaguar` Actions artifact under `test-only/`.
-For a hardware trial, `CAMBIUM_HARDWARE_TRIAL=1 sh select-config.sh
-persistent` selects the persistent configuration of an untested model.
+The Jaguar family has two OpenWrt banks with automatic rollback. The A/B
+persistent image and its family `sysupgrade.bin` are validated on the XV2-2
+and XV2-2T1 and untested on the XV2-2T0, XE3-4 and XE3-4TN, where
+`select-config.sh` offers only the recovery image unless
+`CAMBIUM_HARDWARE_TRIAL=1` (the installer's `--trial`) is set. A RAM build
+of the persistent trees (`...jaguar-persistent-initramfs-uImage.itb`) is
+kept out of releases, in each build's `cambium-jaguar` Actions artifact under
+`test-only/`.
 
 - **Banks.** `rootfs` (slot 0) and `rootfs_1` (slot 1): 96 MiB banks (slot 1
   at `0x6000000`) on the 256 MiB-NAND models, 52 MiB banks (slot 1 at
@@ -100,27 +100,12 @@ step of the upgrade and the conversion.
 The family image must fit the XV2-2's smaller bank; `build.sh` fails the
 build if it does not.
 
-Hardware gates, in order, on the XV2-2T1 and the XV2-2, with PoE power
-control at hand. `cambium-install.sh` runs the flash-writing steps, and the
-site's Jaguar section (https://m0vse.github.io/cambium-openwrt/#jaguar)
-gives the exact commands for each. So far one XV2-2 has passed gates 2 and 3
-(installed into slot 1 and converted). Its first sysupgrade failed in stage
-2 on the missing UBI device node; after the fix and `update-upgrader`, a
-`sysupgrade -n` switched it to slot 0 and committed. Gate 4's rollback,
-reverse upgrade and settings carry-over remain:
-
-1. RAM-boot the persistent trees (`ram --persistent-test --trial`) and
-   confirm both banks' MTD flags and that ART, NVRAM and the crash log are
-   read-only. Its banks are writable: run nothing that writes flash from it.
-2. Install the A/B `factory.ubi` into the inactive slot (`install --trial`,
-   either direction); confirm `cambium-board-data` reports `vault` and the
-   radios start.
-3. Refresh and verify the off-device backup of the stock bank, then run
-   `jaguar-ab-convert`.
-4. Run `update-upgrader`, then `sysupgrade` to the other bank; power-cycle
-   during one trial (it must return to the old bank), then let a trial
-   commit; upgrade back; repeat with and without `-n`, checking settings and
-   the vault.
+Hardware history: one XV2-2 was installed into slot 1 and converted; its
+first sysupgrade failed in stage 2 on the missing UBI device node, and after
+the fix and `update-upgrader` a `sysupgrade -n` switched it to slot 0. One
+XV2-2T1 was installed into slot 0 with the installer. The site's Jaguar
+section (https://m0vse.github.io/cambium-openwrt/#jaguar) gives the exact
+commands for install, conversion, sysupgrade and a rollback check.
 
 ## Family data and release manifest
 
@@ -136,7 +121,9 @@ board SKUs, FIT configurations and hardware status. From it:
   and refuses unknown SKUs, images not built for the model, and any
   persistent or installer image for a model that is not validated.
 
-`site/cambium-install.sh`, also a release asset, runs the install
+`site/cambium-serve.py` (also a release asset) serves the release files to
+the access point and receives the backups the installer uploads, since the
+stock firmware's root login needs the challenge/response. `site/cambium-install.sh`, also a release asset, runs the install
 procedures (RAM boot, persistent install, and Thor's installer stages) for
 every family from the stock firmware, with layout, slot, environment and
 checksum checks, backups and read-back; `tests/cambium-install.sh`
