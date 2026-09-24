@@ -15,7 +15,7 @@ SKU. Hardware status per model:
 | | | E510 | untested | untested | A/B, untested (same layout as the E410) |
 | | | E430H, E430W, E600, E700 | untested | untested | refused: layout not yet captured |
 | Lila (Wi-Fi 5, MIPS) | 4.2.3.3-r10 | E425W, E505 | no build yet | no build yet | no build yet |
-| Thor (IPQ8074) | 7.2-r1 | XV3-8 | validated | validated | in place, validated |
+| Thor (IPQ8074) | 7.2-r1 | XV3-8 | validated | untested: now the A/B build (single-bank image validated) | A/B, untested |
 | | | XE5-8 | untested | not built: flash layout not yet captured | none |
 | Jaguar (IPQ6018) | 7.2-r1 | XV2-2T1 | validated | validated (A/B build) | A/B, validated |
 | | | XV2-2 (128 MiB NAND, 52 MiB slots) | validated | validated (A/B build) | A/B, validated |
@@ -55,9 +55,11 @@ untested or unported model, please open an issue on this repository.
   slot; the OEM slot and calibration (ART) are never modified. If that slot
   is gone or unreadable, the radios stay down and wired operation continues.
 - Sysupgrade works on the Sage E410-layout models (A/B with automatic
-  rollback) and on the Thor XV3-8 (in place). Jaguar and Cheetah have A/B
-  sysupgrade with automatic rollback after conversion (validated on the
-  Jaguar XV2-2 and XV2-2T1, untested on Cheetah).
+  rollback). Thor, Jaguar and Cheetah have A/B sysupgrade with automatic
+  rollback after conversion (validated on the Jaguar XV2-2 and XV2-2T1,
+  untested on Thor and Cheetah). An XV3-8 on the earlier single-bank image
+  sysupgrades in place to this image, then reinstalls once
+  (`cambium-install.sh stock`, then `install`) to move to A/B.
 - Kernel modules must come from the same snapshot as the image. The package
   feed for each snapshot is configured in the image and kept for the two
   most recent snapshots only.
