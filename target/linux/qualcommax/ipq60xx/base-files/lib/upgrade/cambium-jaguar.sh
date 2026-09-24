@@ -10,10 +10,7 @@
 . "${CAMBIUM_JAGUAR_LIB:-/lib/functions/cambium-jaguar.sh}"
 
 JAGUAR_IMAGE_DIR=sysupgrade-cambiumnetworks_jaguar
-JAGUAR_LEB=126976
-# 768 PEBs per bank, less UBI's bad-block reserve for the 2048-PEB NAND
-# (20 per 1024) and 4 PEBs for the volume table and wear levelling.
-JAGUAR_BANK_LEBS=724
+# The bank's usable LEBs (JAGUAR_BANK_LEBS) come from the board table.
 JAGUAR_VAULT_LEBS=8
 # Smallest writable overlay a new bank may get (8 MiB).
 JAGUAR_MIN_DATA_LEBS=67
@@ -47,7 +44,7 @@ jaguar_image_extract() {
 	JAGUAR_ROOT_SIZE=$(wc -c < "$JAGUAR_ROOT")
 	[ $(( $(jaguar_lebs "$JAGUAR_KERNEL_SIZE") + $(jaguar_lebs "$JAGUAR_ROOT_SIZE") + \
 		JAGUAR_VAULT_LEBS + JAGUAR_MIN_DATA_LEBS )) -le "$JAGUAR_BANK_LEBS" ] ||
-		jaguar_fail "image does not fit a 96 MiB bank with the vault and overlay" || return 1
+		jaguar_fail "image does not fit this $JAGUAR_MODEL bank ($JAGUAR_BANK_LEBS LEBs) with the vault and overlay" || return 1
 }
 
 # Everything a normal A/B upgrade requires of the running system.

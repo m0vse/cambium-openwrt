@@ -50,7 +50,7 @@ wait_healthy() {
 # The validated one-OEM/one-OpenWrt guard, for slot 0 with OEM in slot 1.
 legacy_guard() {
 	local bootcmd
-	bootcmd="setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:0x6000000@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$JAGUAR_FIT; reset"
+	bootcmd="setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$(jaguar_bank_hex)@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$JAGUAR_FIT; reset"
 	[ "$(jaguar_running_slot 2>/dev/null)" = 0 ] || return 0
 
 	if wait_healthy legacy; then
