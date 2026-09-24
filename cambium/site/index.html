@@ -132,7 +132,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
       <tr><td class="fam" rowspan="2">Thor<br><small>IPQ8074, Wi-Fi 6</small></td><td rowspan="2">7.2-r1</td><td>XV3-8</td><td>19</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
       <tr><td>XE5-8</td><td>30</td><td><span class="pill untested">untested</span></td><td><span class="pill none">not built</span> flash layout not yet captured</td><td><span class="pill none">none yet</span> no persistent image yet</td></tr>
       <tr><td class="fam" rowspan="5">Jaguar<br><small>IPQ6018, Wi-Fi 6/6E</small></td><td rowspan="5">7.2-r1</td><td>XV2-2T1</td><td>31</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
-      <tr><td>XV2-2</td><td>20</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
+      <tr><td>XV2-2</td><td>20</td><td><span class="pill untested">untested</span> RAM only</td><td><span class="pill none">do not install</span> 128&nbsp;MiB NAND with two 52&nbsp;MiB slots: this image would erase both stock slots</td><td><span class="pill none">none yet</span> no image for this layout</td></tr>
       <tr><td>XV2-2T0</td><td>22</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
       <tr><td>XE3-4</td><td>32</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
       <tr><td>XE3-4TN</td><td>33</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td><td><span class="pill none">none yet</span> no sysupgrade path yet</td></tr>
@@ -420,10 +420,18 @@ fw_printenv changing_bootcmd bootcmd</pre>
 
   <details>
   <summary><strong>Jaguar</strong> &mdash; validated on the XV2-2T1 (stock firmware 7.2-r1)</summary>
+  <p><strong>Not for the XV2-2.</strong> These steps and the persistent image
+  assume two 96&nbsp;MiB firmware slots, as on the XV2-2T1. The XV2-2 has a
+  single 128&nbsp;MiB NAND with two 52&nbsp;MiB slots: the persistent image's
+  <code>rootfs</code> partition spans both of its stock slots, so installing
+  it would erase both. <code>select-config.sh</code> refuses it. The other
+  untested Jaguar models may differ too: stop unless the first check below
+  prints exactly two 96&nbsp;MiB slots.</p>
   <p>The stock firmware runs from <code>rootfs_1</code>
   (<code>mtd2</code>, <code>image=1</code>); OpenWrt is installed into
   <code>rootfs</code> (<code>mtd1</code>), attached as UBI device 2:</p>
 <pre>grep -E '^mtd[12]:' /proc/mtd      # mtd1 "rootfs", mtd2 "rootfs_1", 06000000 bytes each
+grep -cE '^mtd[12]: 06000000 00020000 "rootfs(_1)?"$' /proc/mtd   # must print 2; otherwise stop
 ubiattach -m 1
 cat /sys/class/ubi/ubi2/mtd_num    # must be 1
 dd if=/dev/mtd1ro of=/tmp/oem-rootfs.bin bs=131072   # copy off the AP with APPSBLENV and ART backups</pre>
@@ -442,8 +450,8 @@ sync; reboot</pre>
   <p><strong>Install</strong> <code>...jaguar-persistent-squashfs-factory.ubi</code>
   into the inactive slot (this replaces everything in <code>mtd1</code>; the
   running <code>mtd2</code> is not touched) and check the new volumes:</p>
-<pre>ubidetach -m 1
-ubiformat /dev/mtd1 -y -f /tmp/FACTORY.ubi
+<pre>CONFIG=; eval "$(sh /tmp/select-config.sh persistent)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
+[ -n "$CONFIG" ] &amp;&amp; [ "$(grep -cE '^mtd[12]: 06000000 00020000 "rootfs(_1)?"$' /proc/mtd)" = 2 ] &amp;&amp; ubidetach -m 1 &amp;&amp; ubiformat /dev/mtd1 -y -f /tmp/FACTORY.ubi
 ubiattach -m 1
 cat /sys/class/ubi/ubi2_0/name /sys/class/ubi/ubi2_1/name /sys/class/ubi/ubi2_2/name   # kernel rootfs rootfs_data</pre>
   <p><strong>First boot.</strong> Arm the guarded boot. After a healthy
@@ -517,7 +525,7 @@ sync; reboot</pre>
     <tbody>
       <tr><td class="fam">Sage</td><td>E410 <code>config@5</code>, E600 <code>config@10</code>, E430W <code>config@13</code>, E700 <code>config@14</code>, E430H <code>config@15</code>, E510 <code>config@16</code>, E410B <code>config@5</code> / <code>config@ap.dk01.1-c2</code> (same as the E410)</td></tr>
       <tr><td class="fam">Thor</td><td>XV3-8 <code>config@hk02</code>, XE5-8 <code>config@hk01.c6</code> (recovery only)</td></tr>
-      <tr><td class="fam">Jaguar</td><td>XV2-2 <code>config@cp01-c1</code>, XV2-2T0 <code>config@cp01-c1-1</code>, XV2-2T1 <code>config@cp01-c1-2</code>, XE3-4 <code>config@cp01-c3-xv3-4</code>, XE3-4TN <code>config@cp01-c3-2</code></td></tr>
+      <tr><td class="fam">Jaguar</td><td>XV2-2 <code>config@cp01-c1</code> (recovery only), XV2-2T0 <code>config@cp01-c1-1</code>, XV2-2T1 <code>config@cp01-c1-2</code>, XE3-4 <code>config@cp01-c3-xv3-4</code>, XE3-4TN <code>config@cp01-c3-2</code></td></tr>
       <tr><td class="fam">Cheetah</td><td>XV2-21X <code>config@mp03.3-ocelot</code>, XV2-22H <code>config@mp03.3-cheetah</code>, XV2-23T <code>config@mp03.3-lynx</code></td></tr>
     </tbody>
   </table>
