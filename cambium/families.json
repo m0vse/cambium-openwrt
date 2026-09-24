@@ -309,12 +309,12 @@
           },
           "persistent": {
             "config": "config@cp01-c1",
-            "status": "untested",
-            "note": "A/B image under hardware test: installed into slot 1 and converted on one unit (2026-09-24); after update-upgrader, a sysupgrade -n from slot 1 to slot 0 wrote, trial-booted and committed slot 0 with the vault intact. Rollback, reverse upgrade and settings carry-over remain to be tested"
+            "status": "validated",
+            "note": "A/B image installed into slot 1 and converted to two OpenWrt banks on one unit (2026-09-24); a sysupgrade -n then switched it to slot 0 with its device-data vault intact"
           },
           "sysupgrade": {
-            "status": "untested",
-            "note": "A/B with automatic rollback, under hardware test (one successful switch on an XV2-2); run cambium-install.sh update-upgrader on an installed AP first; not published"
+            "status": "validated",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks (a bank switch has run on the XV2-2)"
           }
         },
         {
@@ -330,7 +330,7 @@
           },
           "sysupgrade": {
             "status": "untested",
-            "note": "A/B with automatic rollback, under hardware test; not published"
+            "note": "A/B with automatic rollback; untested on this model"
           }
         },
         {
@@ -342,12 +342,12 @@
           },
           "persistent": {
             "config": "config@cp01-c1-2",
-            "status": "untested",
-            "note": "The persistent image is now the A/B build (both banks writable, device-data vault) and is under hardware test; the earlier one-OEM persistent image was validated on this model"
+            "status": "validated",
+            "note": "A/B image installed into slot 0 with cambium-install.sh (2026-09-24): factory image read back, device-data vault filled, guarded boot re-armed"
           },
           "sysupgrade": {
-            "status": "untested",
-            "note": "A/B with automatic rollback, under hardware test; not published"
+            "status": "validated",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks (a bank switch has run on the XV2-2)"
           }
         },
         {
@@ -363,7 +363,7 @@
           },
           "sysupgrade": {
             "status": "untested",
-            "note": "A/B with automatic rollback, under hardware test; not published"
+            "note": "A/B with automatic rollback; untested on this model"
           }
         },
         {
@@ -379,7 +379,7 @@
           },
           "sysupgrade": {
             "status": "untested",
-            "note": "A/B with automatic rollback, under hardware test; not published"
+            "note": "A/B with automatic rollback; untested on this model"
           }
         }
       ]
