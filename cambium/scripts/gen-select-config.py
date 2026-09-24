@@ -83,14 +83,18 @@ fi
 # Until a model is validated only its recovery (RAM) image may be used; the
 # report from that boot is what validation starts from.
 if [ "$status" != validated ]; then
-	if [ "$flavour" != recovery ]; then
+	if [ "$flavour" = recovery ]; then
+		echo "Warning: $model has not been validated. RAM boot only; in the booted image run" >&2
+		echo "cambium-report.sh and attach the report to an issue." >&2
+	elif [ "${CAMBIUM_HARDWARE_TRIAL:-}" = 1 ]; then
+		echo "Warning: $model $flavour image is $status; CAMBIUM_HARDWARE_TRIAL=1 overrides" >&2
+		echo "the RAM-only rule for a hardware trial on a unit you can recover." >&2
+	else
 		echo "$model (SKU $sku, $family): the $flavour image is $status on this model." >&2
 		echo "Only the recovery (RAM) image may be used until the model is validated:" >&2
 		echo "RAM-boot it, run cambium-report.sh and open an issue with the report." >&2
 		exit 1
 	fi
-	echo "Warning: $model has not been validated. RAM boot only; in the booted image run" >&2
-	echo "cambium-report.sh and attach the report to an issue." >&2
 fi
 printf "FAMILY='%s'\\nMODEL='%s'\\nSKU='%s'\\nCONFIG='%s'\\nSTATUS='%s'\\n" \\
 	"$family" "$model" "$sku" "$config" "$status"
