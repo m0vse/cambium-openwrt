@@ -196,14 +196,14 @@ for f in \
 	qualcommax-ipq807x-cambiumnetworks_thor-recovery-initramfs-uImage.itb \
 	qualcommax-ipq807x-cambiumnetworks_thor-installer-initramfs-uImage.itb \
 	qualcommax-ipq50xx-cambiumnetworks_cheetah-recovery-initramfs-uImage.itb \
-	qualcommax-ipq50xx-cambiumnetworks_cheetah-persistent-squashfs-kernel.itb \
-	qualcommax-ipq50xx-cambiumnetworks_cheetah-persistent-squashfs-rootfs.squashfs \
 	qualcommax-ipq60xx-cambiumnetworks_jaguar-recovery-initramfs-uImage.itb; do
 	echo "image $f" > "$W/rel/$p-$f"
 done
 echo "UBI-FACTORY kernel rootfs rootfs_data cambium_device_data" > "$W/rel/$p-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-squashfs-factory.ubi"
 echo "UBI-FACTORY kernel rootfs rootfs_data" > "$W/rel/$p-qualcommax-ipq807x-cambiumnetworks_thor-persistent-squashfs-factory.ubi"
-for f in "$W/rel/$p-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-squashfs-factory.ubi" \
+echo "UBI-FACTORY kernel rootfs rootfs_data cambium_device_data" > "$W/rel/$p-qualcommax-ipq50xx-cambiumnetworks_cheetah-persistent-squashfs-factory.ubi"
+for f in "$W/rel/$p-qualcommax-ipq50xx-cambiumnetworks_cheetah-persistent-squashfs-factory.ubi" \
+	"$W/rel/$p-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-squashfs-factory.ubi" \
 	"$W/rel/$p-qualcommax-ipq807x-cambiumnetworks_thor-persistent-squashfs-factory.ubi"; do
 	for v in kernel rootfs; do
 		printf '%s %s %s\n' "$v" "$(printf '%s-content' "$v" | wc -c | tr -d ' ')" "$(printf '%s-content' "$v" | sha256sum | cut -d' ' -f1)"
@@ -402,18 +402,22 @@ check "Cheetah RAM boot" 0 inst --from "$W/rel" --yes --backed-up ram
 assert "Cheetah one-shot is the validated command" [ "$(env_get bootcmd)" = \
 	'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 openwrt && bootm 0x60000000#config@mp03.3-ocelot; reset' ]
 ap cheetah XV2-21X 35 1
-check "Cheetah install" 0 inst --from "$W/rel" --yes --backed-up install
-assert "Cheetah first boot is the validated command" [ "$(env_get bootcmd)" = \
-	'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 kernel && bootm 0x60000000#config@mp03.3-ocelot; bootipq' ]
-assert "Cheetah replaced only rootfs volumes" [ -z "$(grep -E '(format|mkvol|rmvol|update) mtd3' "$W/calls")" ]
+check "Cheetah install (--trial: the A/B build is untested)" 0 inst --from "$W/rel" --yes --backed-up --trial install
+cheetah_first_boot=$(board_name() { echo cambiumnetworks,xv2-21x; }
+	CAMBIUM_AB_MODULES=$top/package/cambium/cambium-cheetah-support/files . "$top/package/cambium/cambium-ab/files/cambium-ab.sh"
+	ab_board cambiumnetworks,xv2-21x && ab_guarded_command 0)
+assert "Cheetah first boot is the module's guarded command" [ "$(env_get bootcmd)" = "$cheetah_first_boot" ]
+assert "Cheetah first boot sets bootargs for rootfs" [ "$(env_get bootcmd)" = \
+	'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot; bootipq' ]
+assert "Cheetah install hashed the kernel and rootfs back" said 'kernel volume reads back as built'
+assert "Cheetah wrote only rootfs" [ -z "$(grep -E '(format|mkvol|rmvol|update) mtd3' "$W/calls")" ]
 ap cheetah XV2-21X 35 1; touch "$W/fail_mkvol"
-check "Cheetah install with a failing ubimkvol stops" 1 inst --from "$W/rel" --yes --backed-up install
-assert "the failure names the step, status and error" said 'FAILED: ubimkvol kernel (exit 255: ubimkvol: error!: cannot UBI create volume)'
+check "a failing ubimkvol stops the RAM staging" 1 inst --from "$W/rel" --yes --backed-up ram
+assert "the failure names the step, status and error" said 'FAILED: ubimkvol openwrt (.*) on ubi1 (exit 255: ubimkvol: error!: cannot UBI create volume)'
 assert "nothing armed after the failure" [ "$(env_get bootcmd)" = bootipq ]
-ap cheetah XV2-21X 35 1; echo ubi1_0 > "$W/corrupt"
-check "Cheetah readback mismatch stops" 1 inst --from "$W/rel" --yes --backed-up install
-assert "mismatch reported" said 'kernel volume does not read back correctly'
-assert "mismatch: not armed" [ "$(env_get bootcmd)" = bootipq ]
+ap cheetah XV2-21X 35 1; touch "$W/bad_format"
+check "Cheetah factory write that reads back wrong stops" 1 inst --from "$W/rel" --yes --backed-up --trial install
+assert "Cheetah bad read-back: nothing armed" [ "$(env_get bootcmd)" = bootipq ]
 
 # --- Sage -----------------------------------------------------------------------------------
 ap sage E410 10 0
