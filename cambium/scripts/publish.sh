@@ -56,6 +56,19 @@ for family in $built; do
 		esac
 	done
 done
+# One release manifest for all families, and the SKU-based configuration
+# selector for installs.
+python3 - "$stage/assets/cambium-manifest.json" "$BUILD_ID" "$SHA" "$UPSTREAM" \
+	"$in"/cambium-*/images/cambium-manifest.json <<'PY'
+import json, sys
+out, build_id, sha, upstream, *parts = sys.argv[1:]
+families = [json.load(open(p)) for p in parts]
+json.dump({"schema": 1, "build_id": build_id, "source_commit": sha,
+           "upstream_commit": upstream, "families": families},
+          open(out, "w"), indent=2)
+PY
+python3 "$(dirname "$0")/gen-select-config.py" "$(dirname "$0")/../families.json" \
+	> "$stage/assets/select-config.sh"
 (cd "$stage/assets" && sha256sum -- * > SHA256SUMS)
 
 {
