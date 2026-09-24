@@ -26,15 +26,28 @@ do_reboot() {
 }
 
 # Health of the slot this kernel runs from: its UBI device and root volume,
-# a writable overlay, wired DHCP with a default route and, on A/B for a
-# family that keeps one, a valid device-data vault. OpenWISP is deliberately
-# not required.
+# a writable overlay, wired DHCP with a default route, the family's required
+# radios and, on A/B for a family that keeps one, a valid device-data vault.
+# OpenWISP is deliberately not required.
+# The LAN interface to check: the first of the module's AB_LAN candidates
+# that exists (e.g. the XV2-21X's VLAN bridge br-lan.1), else the last.
+lan_interface() {
+	local lan
+	for lan in $AB_LAN; do
+		[ -d "${AB_SYS_NET:-/sys/class/net}/$lan" ] && break
+	done
+	echo "$lan"
+}
+
 healthy() {
+	local lan
 	ab_identity >/dev/null 2>&1 || return 1
 	[ -e "${AB_DEV:-/dev}/ubiblock0_1" ] || return 1
 	grep -q ' /overlay ubifs rw' "${AB_PROC_MOUNTS:-/proc/mounts}" || return 1
-	ip -4 address show dev br-lan 2>/dev/null | grep -q 'inet ' || return 1
-	ip -4 route show default dev br-lan 2>/dev/null | grep -q '^default ' || return 1
+	lan=$(lan_interface)
+	ip -4 address show dev "$lan" 2>/dev/null | grep -q 'inet ' || return 1
+	ip -4 route show default dev "$lan" 2>/dev/null | grep -q '^default ' || return 1
+	[ "$(ls -d "${AB_SYS_IEEE80211:-/sys/class/ieee80211}"/phy* 2>/dev/null | wc -l)" -ge "$AB_RADIOS" ] || return 1
 	[ "$1" != ab ] || [ "$AB_VAULT" != 1 ] || [ "$(cat "$BOARD_DATA_STATUS" 2>/dev/null)" = vault ]
 }
 
