@@ -76,7 +76,8 @@ legacy_guard() {
 commit_trial() {
 	local slot="$1" batch=/tmp/jaguar-guard.$$ rc=0
 	printf 'jaguar_ab_confirmed %s\njaguar_ab_state confirmed\nimage %s\n' "$slot" "$slot" > "$batch"
-	echo jaguar_ab_target >> "$batch"
+	# A committed switch supersedes any earlier failure.
+	printf 'jaguar_ab_target\njaguar_ab_last_failure\n' >> "$batch"
 	jaguar_setenv_batch "$batch" || rc=1
 	rm -f "$batch"
 	[ "$rc" = 0 ] && jaguar_setenv bootcmd "run jaguar_stable$slot" || {
