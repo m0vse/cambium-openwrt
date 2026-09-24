@@ -1,5 +1,5 @@
 {
-  "_comment": "Source of truth for Cambium families, models, board SKUs and FIT configurations. Used by build.sh (per-release manifest and FIT cross-check), select-config.sh and the project site. status values: validated, untested, not-built, no-build.",
+  "_comment": "Source of truth for Cambium families, models, board SKUs and FIT configurations. Used by build.sh (per-release manifest and FIT cross-check), select-config.sh and the project site. status values: validated, untested, not-built, no-build, refused (built, but must not be installed on this model).",
   "families": [
     {
       "family": "gambit",
@@ -304,15 +304,16 @@
           "sku": 20,
           "recovery": {
             "config": "config@cp01-c1",
-            "status": "untested"
+            "status": "untested",
+            "note": "RAM only. The XV2-2 has a 128 MiB NAND with two 52 MiB slots, unlike the two 96 MiB banks of the XV2-2T1; the Jaguar install steps assume the 96 MiB layout."
           },
           "persistent": {
-            "config": "config@cp01-c1",
-            "status": "untested"
+            "status": "refused",
+            "note": "do not install: the XV2-2 has a 128 MiB NAND with two 52 MiB slots, and the 96 MiB rootfs partition of this image spans both stock firmware slots, so installing it erases both"
           },
           "sysupgrade": {
             "status": "none",
-            "note": "no sysupgrade path yet; reinstall the persistent image"
+            "note": "no persistent image for this flash layout yet"
           }
         },
         {
