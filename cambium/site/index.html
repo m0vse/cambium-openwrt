@@ -119,7 +119,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
     <tbody>
       <tr><td class="fam">Gambit<br><small>MIPS, Wi-Fi 5</small></td><td>4.2.3.3-r10</td><td>E400, E500, E501S, E502S</td><td>6, 7, 9, 12</td><td colspan="2"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
       <tr><td class="fam" rowspan="7">Sage<br><small>IPQ4019, Wi-Fi 5</small></td><td rowspan="7">4.2.3.3-r10</td><td>E410</td><td>10</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
-      <tr><td>E410B</td><td>21</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
+      <tr><td>E410B</td><td>21</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> same hardware as the E410; uses the E410 configuration</td></tr>
       <tr><td>E430H</td><td>15</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
       <tr><td>E430W</td><td>13</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
       <tr><td>E510</td><td>16</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">untested</span></td></tr>
@@ -506,7 +506,7 @@ sync; reboot</pre>
   <table>
     <thead><tr><th>Family</th><th>Model &rarr; configuration</th></tr></thead>
     <tbody>
-      <tr><td class="fam">Sage</td><td>E410 <code>config@5</code>, E600 <code>config@10</code>, E430W <code>config@13</code>, E700 <code>config@14</code>, E430H <code>config@15</code>, E510 <code>config@16</code>, E410B <code>config@17</code></td></tr>
+      <tr><td class="fam">Sage</td><td>E410 <code>config@5</code>, E600 <code>config@10</code>, E430W <code>config@13</code>, E700 <code>config@14</code>, E430H <code>config@15</code>, E510 <code>config@16</code>, E410B <code>config@5</code> / <code>config@ap.dk01.1-c2</code> (same as the E410)</td></tr>
       <tr><td class="fam">Thor</td><td>XV3-8 <code>config@hk02</code>, XE5-8 <code>config@hk01.c6</code> (recovery only)</td></tr>
       <tr><td class="fam">Jaguar</td><td>XV2-2 <code>config@cp01-c1</code>, XV2-2T0 <code>config@cp01-c1-1</code>, XV2-2T1 <code>config@cp01-c1-2</code>, XE3-4 <code>config@cp01-c3-xv3-4</code>, XE3-4TN <code>config@cp01-c3-2</code></td></tr>
       <tr><td class="fam">Cheetah</td><td>XV2-21X <code>config@mp03.3-ocelot</code>, XV2-22H <code>config@mp03.3-cheetah</code>, XV2-23T <code>config@mp03.3-lynx</code></td></tr>
