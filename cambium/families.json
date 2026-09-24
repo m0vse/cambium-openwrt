@@ -408,8 +408,8 @@
             "status": "untested"
           },
           "sysupgrade": {
-            "status": "none",
-            "note": "no sysupgrade path yet; reinstall the persistent image"
+            "status": "untested",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks; not yet run on hardware"
           }
         },
         {
@@ -421,11 +421,12 @@
           },
           "persistent": {
             "config": "config@mp03.3-ocelot",
-            "status": "validated"
+            "status": "untested",
+            "note": "The persistent image is now the A/B build (both banks writable, device-data vault, bootargs set by the boot command), not yet run on hardware; the earlier one-OEM persistent image was validated"
           },
           "sysupgrade": {
-            "status": "none",
-            "note": "no sysupgrade path yet; reinstall the persistent image"
+            "status": "untested",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks; not yet run on hardware"
           }
         },
         {
@@ -440,8 +441,8 @@
             "status": "untested"
           },
           "sysupgrade": {
-            "status": "none",
-            "note": "no sysupgrade path yet; reinstall the persistent image"
+            "status": "untested",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks; not yet run on hardware"
           }
         }
       ]
