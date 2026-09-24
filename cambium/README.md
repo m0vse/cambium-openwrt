@@ -104,9 +104,10 @@ Hardware gates, in order, on the XV2-2T1 and the XV2-2, with PoE power
 control at hand. `cambium-install.sh` runs the flash-writing steps, and the
 site's Jaguar section (https://m0vse.github.io/cambium-openwrt/#jaguar)
 gives the exact commands for each. So far one XV2-2 has passed gates 2 and 3
-(installed into slot 1 and converted); its first sysupgrade failed in
-stage 2 on the missing UBI device node, now fixed, and is to be retried
-after `update-upgrader`:
+(installed into slot 1 and converted). Its first sysupgrade failed in stage
+2 on the missing UBI device node; after the fix and `update-upgrader`, a
+`sysupgrade -n` switched it to slot 0 and committed. Gate 4's rollback,
+reverse upgrade and settings carry-over remain:
 
 1. RAM-boot the persistent trees (`ram --persistent-test --trial`) and
    confirm both banks' MTD flags and that ART, NVRAM and the crash log are

@@ -310,11 +310,11 @@
           "persistent": {
             "config": "config@cp01-c1",
             "status": "untested",
-            "note": "A/B image under hardware test: installed into slot 1 and converted on one unit (2026-09-24); its first A/B sysupgrade failed in stage 2 (missing UBI device nodes, since fixed) and is being retried"
+            "note": "A/B image under hardware test: installed into slot 1 and converted on one unit (2026-09-24); after update-upgrader, a sysupgrade -n from slot 1 to slot 0 wrote, trial-booted and committed slot 0 with the vault intact. Rollback, reverse upgrade and settings carry-over remain to be tested"
           },
           "sysupgrade": {
             "status": "untested",
-            "note": "A/B with automatic rollback, under hardware test; run cambium-install.sh update-upgrader before a sysupgrade; not published"
+            "note": "A/B with automatic rollback, under hardware test (one successful switch on an XV2-2); run cambium-install.sh update-upgrader on an installed AP first; not published"
           }
         },
         {
