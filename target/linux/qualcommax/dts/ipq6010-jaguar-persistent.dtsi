@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: (GPL-2.0+)
 
-/* The active OEM rootfs_1 and all unrelated partitions stay read-only. */
-&{/chosen} {
-	bootargs-append = " ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait";
+/*
+ * A/B: both 96 MiB firmware banks are writable, and U-Boot's boot command
+ * selects the bank with ubi.mtd=rootfs or ubi.mtd=rootfs_1, so no root
+ * arguments are appended here. The U-Boot environment is writable for the
+ * boot guard; ART, NVRAM, crashLog and every other NOR partition stay
+ * read-only.
+ */
+&{/soc@0/nand-controller@79b0000/nand@0/partitions/partition@0} {
+	/delete-property/ read-only;
 };
 
-&{/soc@0/nand-controller@79b0000/nand@0/partitions/partition@0} {
+&{/soc@0/nand-controller@79b0000/nand@0/partitions/partition@6000000} {
 	/delete-property/ read-only;
 };
 
