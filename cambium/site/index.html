@@ -94,7 +94,10 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
 <section id="downloads">
   <h2>Downloads</h2>
   <p>Each snapshot is a GitHub release with one recovery and one persistent
-  image per family, the family ImageBuilder and checksums. The matching
+  image per family, the family ImageBuilder and checksums, plus
+  <code>select-config.sh</code> and <code>cambium-manifest.json</code>: a
+  machine-readable list of every model, SKU, FIT configuration, validation
+  status and image (with SHA-256) in that snapshot. The matching
   package feed (kernel modules and Cambium packages) is served from this site
   and is already configured in each image.</p>
   <div id="builds" class="table-scroll"><p>Loading the latest snapshots&hellip;
@@ -255,9 +258,19 @@ cat /sys/class/ubi/ubi0/mtd_num           # the MTD of the running slot</pre>
   switches it to <code>rootfs_1</code>, and check again. If the partition
   numbers or names differ from the table, stop and
   <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>.</p>
-  <p>The commands below name the <em>validated</em> model's FIT
-  configuration. For another model in the same family, use its
-  configuration from the <a href="#bootconfigs">table below</a>.</p>
+  <h3>Selecting the FIT configuration</h3>
+  <p>Each boot command must name the FIT configuration for the exact model.
+  Rather than choosing it by hand, copy <code>select-config.sh</code> (from
+  the release, or <a href="select-config.sh">this site</a>) to
+  <code>/tmp</code> on the access point. It reads the board SKU and prints
+  the model and configuration for the image you are about to boot, warns if
+  that model is untested, and prints nothing (so the boot commands below
+  write nothing) for an unknown SKU or an image that is not built for the
+  model:</p>
+<pre>sh /tmp/select-config.sh recovery     # or installer, persistent</pre>
+  <p>The command blocks below run it for you. <strong>Check the printed
+  <code>MODEL</code> is your access point before rebooting.</strong> The
+  <a href="#bootconfigs">table at the end</a> lists every configuration.</p>
 
   <details open>
   <summary><strong>Sage</strong> &mdash; validated on the E410 (stock firmware 4.2.3.3)</summary>
@@ -277,9 +290,10 @@ sha256sum /tmp/*.bin    # copy all four files off the AP</pre>
   TFTP. Put <code>...sage-recovery-initramfs-zImage.itb</code> on your TFTP
   server as <code>sage-recovery.itb</code>. The command restores the stock
   <code>bootcmd</code> before trying anything:</p>
-<pre>fw_setenv ipaddr AP_IP
+<pre>CONFIG=; eval "$(sh /tmp/select-config.sh recovery)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
+fw_setenv ipaddr AP_IP
 fw_setenv serverip SERVER_IP
-fw_setenv bootcmd 'setenv bootcmd bootipq; saveenv; tftpboot 0x84000000 sage-recovery.itb &amp;&amp; bootm 0x84000000#config@5; bootipq'
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; saveenv; tftpboot 0x84000000 sage-recovery.itb &amp;&amp; bootm 0x84000000#'"$CONFIG"'; bootipq'
 fw_printenv bootcmd
 sync; reboot</pre>
   <p><strong>Install.</strong> Copy <code>...sage-persistent-squashfs-kernel.itb</code>
@@ -294,7 +308,8 @@ fw_setenv owrt_trial_slot 1
 fw_setenv owrt_fallback_slot 0</pre>
   <p>Arm a one-shot trial of slot 1 that saves the stock slot as the
   default first:</p>
-<pre>fw_setenv bootcmd 'setenv bootcmd bootipq; setenv image 0; setenv bootcount 0; saveenv; setenv image 1; setenv bootargs "mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs${image} rootfstype=ubifs rootwait"; nand device 1 &amp;&amp; setenv mtdids nand1=nand1 &amp;&amp; setenv mtdparts "mtdparts=nand1:0x8000000@0x0(fs)" &amp;&amp; ubi part fs &amp;&amp; ubi read 0x84000000 linux${image} &amp;&amp; bootm 0x84000000#config@ap.dk01.1-c2; setenv image 0; bootipq'
+<pre>CONFIG=; eval "$(sh /tmp/select-config.sh persistent)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; setenv image 0; setenv bootcount 0; saveenv; setenv image 1; setenv bootargs "mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs${image} rootfstype=ubifs rootwait"; nand device 1 &amp;&amp; setenv mtdids nand1=nand1 &amp;&amp; setenv mtdparts "mtdparts=nand1:0x8000000@0x0(fs)" &amp;&amp; ubi part fs &amp;&amp; ubi read 0x84000000 linux${image} &amp;&amp; bootm 0x84000000#'"$CONFIG"'; setenv image 0; bootipq'
 fw_setenv image 0
 fw_setenv bootcount 0
 fw_printenv bootcmd
@@ -357,9 +372,10 @@ echo VERIFIED
   whole <code>bootcmd</code> reads back before rebooting. On boot it restores
   and saves the stock command before loading OpenWrt, so any later reset
   returns to the stock firmware:</p>
-<pre>fw_setenv changing_bootcmd 1
+<pre>CONFIG=; eval "$(sh /tmp/select-config.sh installer)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv changing_bootcmd 1
 fw_printenv changing_bootcmd
-fw_setenv bootcmd 'setenv changing_bootcmd; setenv bootcmd "aq_load_fw&amp;&amp;bootipq"; saveenv; aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)"; ubi part rootfs; ubi read 0x60000000 openwrt; bootm 0x60000000#config@hk02; bootipq'
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv changing_bootcmd; setenv bootcmd "aq_load_fw&amp;&amp;bootipq"; saveenv; aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)"; ubi part rootfs; ubi read 0x60000000 openwrt; bootm 0x60000000#'"$CONFIG"'; bootipq'
 fw_printenv changing_bootcmd bootcmd
 reboot</pre>
   <p>The same staging and command RAM-boot the <code>thor-recovery</code>
@@ -376,9 +392,10 @@ reboot                                  # returns to the stock firmware</pre>
   firmware. <em>This command is the one-shot above reading the installed
   <code>kernel</code> volume instead of <code>openwrt</code>; that exact
   string has not itself been recorded on hardware.</em></p>
-<pre>fw_setenv changing_bootcmd 1
+<pre>CONFIG=; eval "$(sh /tmp/select-config.sh persistent)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv changing_bootcmd 1
 fw_printenv changing_bootcmd
-fw_setenv bootcmd 'setenv changing_bootcmd; setenv bootcmd "aq_load_fw&amp;&amp;bootipq"; saveenv; aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)"; ubi part rootfs; ubi read 0x60000000 kernel; bootm 0x60000000#config@hk02; bootipq'
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv changing_bootcmd; setenv bootcmd "aq_load_fw&amp;&amp;bootipq"; saveenv; aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)"; ubi part rootfs; ubi read 0x60000000 kernel; bootm 0x60000000#'"$CONFIG"'; bootipq'
 fw_printenv changing_bootcmd bootcmd
 reboot</pre>
   <p><strong>Make it permanent</strong> once OpenWrt, its LAN and radios are
@@ -404,12 +421,13 @@ dd if=/dev/mtd1ro of=/tmp/oem-rootfs.bin bs=131072   # copy off the AP with APPS
   <p><strong>RAM boot.</strong> Stage
   <code>...jaguar-recovery-initramfs-uImage.itb</code> in a new
   <code>openwrt</code> volume in the inactive slot, then arm the one-shot:</p>
-<pre>ubimkvol /dev/ubi2 -N openwrt -s "$(wc -c &lt; /tmp/RECOVERY.itb)"
+<pre>CONFIG=; eval "$(sh /tmp/select-config.sh recovery)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
+ubimkvol /dev/ubi2 -N openwrt -s "$(wc -c &lt; /tmp/RECOVERY.itb)"
 ubiupdatevol /dev/ubi2_2 /tmp/RECOVERY.itb
 head -c "$(wc -c &lt; /tmp/RECOVERY.itb)" /dev/ubi2_2 | sha256sum
 fw_setenv changing_bootcmd 1
 fw_printenv changing_bootcmd
-fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 &amp;&amp; setenv mtdids nand0=nand0 &amp;&amp; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" &amp;&amp; ubi part rootfs &amp;&amp; ubi read 0x60000000 openwrt &amp;&amp; bootm 0x60000000#config@cp01-c1-2; reset'
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 &amp;&amp; setenv mtdids nand0=nand0 &amp;&amp; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" &amp;&amp; ubi part rootfs &amp;&amp; ubi read 0x60000000 openwrt &amp;&amp; bootm 0x60000000#'"$CONFIG"'; reset'
 fw_printenv changing_bootcmd bootcmd
 sync; reboot</pre>
   <p><strong>Install</strong> <code>...jaguar-persistent-squashfs-factory.ubi</code>
@@ -422,9 +440,10 @@ cat /sys/class/ubi/ubi2_0/name /sys/class/ubi/ubi2_1/name /sys/class/ubi/ubi2_2/
   <p><strong>First boot.</strong> Arm the guarded boot. After a healthy
   start, OpenWrt re-arms it on every boot; an unhealthy start returns to the
   stock firmware:</p>
-<pre>fw_setenv changing_bootcmd 1
+<pre>CONFIG=; eval "$(sh /tmp/select-config.sh persistent)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv changing_bootcmd 1
 fw_printenv changing_bootcmd
-fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 &amp;&amp; setenv mtdids nand0=nand0 &amp;&amp; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" &amp;&amp; ubi part rootfs &amp;&amp; ubi read 0x60000000 kernel &amp;&amp; setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" &amp;&amp; bootm 0x60000000#config@cp01-c1-2; reset'
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 &amp;&amp; setenv mtdids nand0=nand0 &amp;&amp; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" &amp;&amp; ubi part rootfs &amp;&amp; ubi read 0x60000000 kernel &amp;&amp; setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" &amp;&amp; bootm 0x60000000#'"$CONFIG"'; reset'
 fw_printenv changing_bootcmd bootcmd
 sync; reboot</pre>
   </details>
@@ -441,12 +460,13 @@ dd if=/dev/mtd2ro of=/tmp/oem-rootfs.bin bs=131072   # copy off the AP with APPS
   <p><strong>RAM boot.</strong> Stage
   <code>...cheetah-recovery-initramfs-uImage.itb</code> and arm the
   one-shot:</p>
-<pre>ubimkvol /dev/ubi2 -N openwrt -s "$(wc -c &lt; /tmp/RECOVERY.itb)"
+<pre>CONFIG=; eval "$(sh /tmp/select-config.sh recovery)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
+ubimkvol /dev/ubi2 -N openwrt -s "$(wc -c &lt; /tmp/RECOVERY.itb)"
 ubiupdatevol /dev/ubi2_2 /tmp/RECOVERY.itb
 head -c "$(wc -c &lt; /tmp/RECOVERY.itb)" /dev/ubi2_2 | sha256sum
 fw_setenv changing_bootcmd 1
 fw_printenv changing_bootcmd
-fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs &amp;&amp; ubi read 0x60000000 openwrt &amp;&amp; bootm 0x60000000#config@mp03.3-ocelot; reset'
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs &amp;&amp; ubi read 0x60000000 openwrt &amp;&amp; bootm 0x60000000#'"$CONFIG"'; reset'
 fw_printenv changing_bootcmd bootcmd image
 sync; reboot</pre>
   <p><strong>Install</strong> <code>...cheetah-persistent-squashfs-kernel.itb</code>
@@ -464,9 +484,10 @@ head -c "$(wc -c &lt; /tmp/KERNEL.itb)" /dev/ubi2_0 | sha256sum
 head -c "$(wc -c &lt; /tmp/ROOTFS.squashfs)" /dev/ubi2_1 | sha256sum</pre>
   <p><strong>First boot.</strong> Arm the guarded boot; OpenWrt re-arms it
   after each healthy start:</p>
-<pre>fw_setenv changing_bootcmd 1
+<pre>CONFIG=; eval "$(sh /tmp/select-config.sh persistent)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv changing_bootcmd 1
 fw_printenv changing_bootcmd
-fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs &amp;&amp; ubi read 0x60000000 kernel &amp;&amp; bootm 0x60000000#config@mp03.3-ocelot; bootipq'
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs &amp;&amp; ubi read 0x60000000 kernel &amp;&amp; bootm 0x60000000#'"$CONFIG"'; bootipq'
 fw_printenv changing_bootcmd bootcmd
 sync; reboot</pre>
   </details>
