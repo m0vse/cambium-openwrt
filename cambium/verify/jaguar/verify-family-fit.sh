@@ -61,7 +61,8 @@ for fdt in cp01-c1 cp01-c1-2T cp01-c1-2T1 cp01-c3-xv3-4 cp01-c3-2; do
 			"/soc@0/spi@78b5000/flash@0/partitions/partition@$partition" \
 			read-only >/dev/null
 	done
-	for partition in 6000000 c000000 f000000; do
+	# NVRAM and crashLog are never firmware banks.
+	for partition in c000000 f000000; do
 		fdtget "$dtb" \
 			"/soc@0/nand-controller@79b0000/nand@0/partitions/partition@$partition" \
 			read-only >/dev/null
@@ -80,9 +81,11 @@ for fdt in cp01-c1 cp01-c1-2T cp01-c1-2T1 cp01-c3-xv3-4 cp01-c3-2; do
 		fdtget "$dtb" \
 			/soc@0/spi@78b5000/flash@0/partitions/partition@6f0000 \
 			read-only >/dev/null
-		fdtget "$dtb" \
-			/soc@0/nand-controller@79b0000/nand@0/partitions/partition@0 \
-			read-only >/dev/null
+		for partition in 0 6000000; do
+			fdtget "$dtb" \
+				"/soc@0/nand-controller@79b0000/nand@0/partitions/partition@$partition" \
+				read-only >/dev/null
+		done
 		if fdtget "$dtb" /chosen bootargs-append >/dev/null 2>&1; then
 			echo "$fdt unexpectedly carries a persistent-root bootargs-append" >&2
 			exit 1
@@ -94,17 +97,20 @@ for fdt in cp01-c1 cp01-c1-2T cp01-c1-2T1 cp01-c3-xv3-4 cp01-c3-2; do
 			echo "$fdt keeps the boot environment read-only" >&2
 			exit 1
 		fi
-		if fdtget "$dtb" \
-			/soc@0/nand-controller@79b0000/nand@0/partitions/partition@0 \
-			read-only >/dev/null 2>&1; then
-			echo "$fdt keeps the OpenWrt slot read-only" >&2
+		# A/B: both firmware banks are writable and U-Boot selects the bank,
+		# so the tree must not append a fixed ubi.mtd= root.
+		for partition in 0 6000000; do
+			if fdtget "$dtb" \
+				"/soc@0/nand-controller@79b0000/nand@0/partitions/partition@$partition" \
+				read-only >/dev/null 2>&1; then
+				echo "$fdt keeps firmware bank $partition read-only" >&2
+				exit 1
+			fi
+		done
+		if fdtget "$dtb" /chosen bootargs-append >/dev/null 2>&1; then
+			echo "$fdt appends fixed root arguments; U-Boot must select the bank" >&2
 			exit 1
 		fi
-		bootargs=$(fdtget -t s "$dtb" /chosen bootargs-append)
-		case "$bootargs" in
-			*'ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait'*) ;;
-			*) echo "$fdt has wrong persistent root arguments" >&2; exit 1 ;;
-		esac
 	fi
 	test "$(fdtget -t x "$dtb" /keys/reset linux,code)" = 198
 	test "$(fdtget -t x "$dtb" /keys/reset debounce-interval)" = 3c

@@ -192,7 +192,15 @@ jaguar)
 	JAGUAR_FLAVOR=persistent sh "$verify" "$kernel"
 	fits="recovery=$(image '*cambiumnetworks_jaguar-recovery-initramfs-uImage.itb')
 persistent=$kernel"
-	image '*cambiumnetworks_jaguar-persistent-squashfs-factory.ubi' >/dev/null
+	factory=$(image '*cambiumnetworks_jaguar-persistent-squashfs-factory.ubi')
+	grep -aq cambium_device_data "$factory" ||
+		fail "Jaguar factory image lacks the device-data vault volume"
+	sysupgrade=$(image '*cambiumnetworks_jaguar-persistent-squashfs-sysupgrade.bin')
+	tar -tf "$sysupgrade" | grep -qx 'sysupgrade-cambiumnetworks_jaguar/kernel' ||
+		fail "Jaguar sysupgrade lacks the family kernel"
+	tar -xOf "$sysupgrade" sysupgrade-cambiumnetworks_jaguar/kernel > "$work/jaguar-kernel.itb"
+	cmp -s "$work/jaguar-kernel.itb" "$kernel" ||
+		fail "Jaguar sysupgrade kernel differs from the verified persistent FIT"
 	;;
 esac
 
