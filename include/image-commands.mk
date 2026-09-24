@@ -467,6 +467,26 @@ define Build/fit
 	$(call Build/fit-image,$(1))
 endef
 
+# Jaguar A/B bank: kernel, rootfs, an autoresizing rootfs_data and a fixed
+# 8-LEB cambium_device_data vault, with IDs fixed so the A/B writer and the
+# factory image agree.
+define Build/cambium-jaguar-ubi
+	printf '%s\n' \
+		'[kernel]' 'mode=ubi' 'vol_id=0' 'vol_type=dynamic' 'vol_name=kernel' \
+		'image=$(IMAGE_KERNEL)' \
+		'[rootfs]' 'mode=ubi' 'vol_id=1' 'vol_type=dynamic' 'vol_name=rootfs' \
+		'image=$(IMAGE_ROOTFS)' \
+		'[rootfs_data]' 'mode=ubi' 'vol_id=2' 'vol_type=dynamic' \
+		'vol_name=rootfs_data' 'vol_size=1MiB' 'vol_flags=autoresize' \
+		'[cambium_device_data]' 'mode=ubi' 'vol_id=3' 'vol_type=dynamic' \
+		'vol_name=cambium_device_data' 'vol_size=1015808' \
+		> $@.ini
+	$(STAGING_DIR_HOST)/bin/ubinize \
+		$(if $(SOURCE_DATE_EPOCH),-Q $(SOURCE_DATE_EPOCH)) \
+		-o $@ -p $(BLOCKSIZE:%k=%KiB) -m $(PAGESIZE) $@.ini
+	rm -f $@.ini
+endef
+
 # Build a FIT holding one kernel and the device trees of several boards.
 # CAMBIUM_FIT_BOARDS lists config:fdt-node:dts triples; DEVICE_DTS_CONFIG
 # selects the default configuration.
