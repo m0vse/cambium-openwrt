@@ -1,15 +1,28 @@
 #!/bin/sh
-. /lib/functions/system.sh
+# Show OpenWISP management on the status LED of every Cambium family: blue
+# while the controller answers this device's checksum request, green
+# otherwise. Families name the LEDs differently (blue:status / green:status
+# on Sage, Thor and Cheetah; jaguar:status:blue / jaguar:status:green on
+# Jaguar); boards without a blue and green status LED are left alone.
 set -u
 
-blue_led=${CHEETAH_OPENWISP_BLUE_LED_PATH:-/sys/class/leds/blue:status}
-green_led=${CHEETAH_OPENWISP_GREEN_LED_PATH:-/sys/class/leds/green:status}
-state=${CHEETAH_OPENWISP_LED_STATE:-/tmp/cheetah-openwisp-managed}
-interval=${CHEETAH_OPENWISP_LED_INTERVAL:-60}
-once=${CHEETAH_OPENWISP_LED_ONCE:-0}
+leds=${CAMBIUM_OPENWISP_LEDS:-/sys/class/leds}
+state=${CAMBIUM_OPENWISP_LED_STATE:-/tmp/cambium-openwisp-managed}
+interval=${CAMBIUM_OPENWISP_LED_INTERVAL:-60}
+once=${CAMBIUM_OPENWISP_LED_ONCE:-0}
+
+# The first existing LED named $1 under $leds.
+find_led() {
+	local name
+	for name in $1; do
+		[ -d "$leds/$name" ] && { echo "$leds/$name"; return 0; }
+	done
+	return 1
+}
+blue_led=$(find_led 'blue:status jaguar:status:blue') || exit 0
+green_led=$(find_led 'green:status jaguar:status:green') || exit 0
 
 set_managed() {
-	[ -d "$blue_led" ] && [ -d "$green_led" ] || return 0
 	printf '%s\n' none >"$blue_led/trigger"
 	printf '%s\n' none >"$green_led/trigger"
 	if [ "$1" = 1 ]; then
@@ -41,7 +54,7 @@ managed() {
 	printf '%s' "$management_ip" | grep -Eq '^[0-9A-Fa-f:.]+$' || return 1
 
 	umask 077
-	work=/tmp/cheetah-openwisp-led.$$
+	work=/tmp/cambium-openwisp-led.$$
 	config=$work.curl
 	headers=$work.headers
 	printf 'url = "%s/controller/checksum/%s/?key=%s&management_ip=%s"\n' \
@@ -59,11 +72,6 @@ managed() {
 	rm -f "$config" "$headers"
 	return 1
 }
-
-case "$(board_name 2>/dev/null)" in
-	cambiumnetworks,xv2-21x) ;;
-	*) exit 0 ;;
-esac
 
 case "$interval" in
 	''|*[!0-9]*) interval=60 ;;
