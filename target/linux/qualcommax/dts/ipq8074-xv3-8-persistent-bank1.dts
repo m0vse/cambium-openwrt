@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/* Thor A/B persistent tree for bank 1 (config@hk02-bank1). */
+#include "ipq8074-xv3-8-persistent.dts"
+
+/ {
+	chosen {
+		bootargs-append = " ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait";
+	};
+};

@@ -686,25 +686,37 @@ define Device/cambiumnetworks_thor-persistent
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
 	# Thor U-Boot 2016.01 on this unit loads an uncompressed FIT reliably.
-	KERNEL = kernel-bin | fit none $$(KDIR)/image-$$(DEVICE_DTS).dtb
+	# One configuration per firmware bank: config@hk02 is rooted in rootfs
+	# (bank 0, as the single-bank installs expect) and config@hk02-bank1 in
+	# rootfs_1.
+	KERNEL = kernel-bin | cambium-family-fit none
+	CAMBIUM_FIT_BOARDS := hk02:hk02:ipq8074-xv3-8-persistent \
+		hk02-bank1:hk02-bank1:ipq8074-xv3-8-persistent-bank1
 	DEVICE_VENDOR := Cambium Networks
 	DEVICE_MODEL := Thor family
 	DEVICE_VARIANT := persistent
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
-	DEVICE_DTS := ipq8074-xv3-8-persistent
+	DEVICE_DTS := ipq8074-xv3-8-persistent ipq8074-xv3-8-persistent-bank1
 	DEVICE_DTS_CONFIG := config@hk02
 	# XV3-8 only: the XE5-8 flash layout has not been captured yet.
 	SUPPORTED_DEVICES := cambiumnetworks,xv3-8
 	# Keep the sysupgrade layout the installed XV3-8 images expect.
 	BOARD_NAME := cambiumnetworks_xv3-8
 	SOC := ipq8074
+	IMAGE_SIZE := 98304k
+	# A/B banks: kernel (0), rootfs (1), rootfs_data (2) and the per-bank
+	# device-data vault (3); the cambium-ab sysupgrade writes the inactive one.
+	IMAGES := factory.ubi sysupgrade.bin
+	IMAGE/factory.ubi := cambium-ab-ubi
+	IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
 	DEVICE_PACKAGES := uboot-envtools cambium-board-data cambium-thor-support
 endef
 TARGET_DEVICES += cambiumnetworks_thor-persistent
 
-# RAM image with the persistent device tree: only the inactive OpenWrt slot
-# is writable, so the factory image can be installed from it with ubiformat.
+# RAM installer for a stock firmware without ubiformat: only rootfs and the
+# U-Boot environment are writable, so it can write the factory image into
+# rootfs and arm its guarded first boot.
 define Device/cambiumnetworks_thor-installer
 	$(call Device/FitImage)
 	KERNEL = kernel-bin | fit none $$(KDIR)/image-$$(DEVICE_DTS).dtb
@@ -713,12 +725,12 @@ define Device/cambiumnetworks_thor-installer
 	DEVICE_VARIANT := RAM installer
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
-	DEVICE_DTS := ipq8074-xv3-8-persistent
+	DEVICE_DTS := ipq8074-xv3-8-installer
 	DEVICE_DTS_CONFIG := config@hk02
 	SUPPORTED_DEVICES := cambiumnetworks,xv3-8
 	SOC := ipq8074
 	IMAGES :=
-	DEVICE_PACKAGES := cambium-board-data ubi-utils
+	DEVICE_PACKAGES := cambium-board-data ubi-utils uboot-envtools
 endef
 TARGET_DEVICES += cambiumnetworks_thor-installer
 
