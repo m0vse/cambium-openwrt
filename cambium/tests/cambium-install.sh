@@ -24,6 +24,10 @@ log() { echo "$*" >> "$W/calls"; }
 mtd_of() { cat "$RT/sys/class/ubi/$1/mtd_num"; }
 refresh() { # UBI MTD
 	rm -rf "$RT/sys/class/ubi/$1"_*; rm -f "$RT/dev/$1"_*
+	used=0
+	for f in "$W/flash/mtd$2"/*.size; do [ -f "$f" ] && used=$((used + ($(cat "$f") + 126975) / 126976)); done
+	echo 126976 > "$RT/sys/class/ubi/$1/eraseblock_size"
+	echo $(( $(cat "$W/flash/mtd$2.lebs" 2>/dev/null || echo 700) - used )) > "$RT/sys/class/ubi/$1/avail_eraseblocks"
 	for n in "$W/flash/mtd$2"/*.name; do
 		[ -f "$n" ] || continue
 		v=$(basename "$n" .name)
@@ -56,11 +60,20 @@ EOF
 tool ubiformat <<'EOF'
 #!/bin/sh
 . "$(dirname "$0")/_sim"
-m=${1##*/mtd}; img=$4
-rm -rf "$W/flash/mtd$m"; mkdir -p "$W/flash/mtd$m"; i=0
-for v in $(sed -n 's/^UBI-FACTORY //p' "$img"); do
-	echo "$v" > "$W/flash/mtd$m/$i.name"; echo $((10 * 126976)) > "$W/flash/mtd$m/$i.size"; : > "$W/flash/mtd$m/$i.data"; i=$((i + 1))
+m=${1##*/mtd}; img=${4:-}
+for d in "$RT"/sys/class/ubi/ubi[0-9]*; do
+	case "${d##*/}" in *_*) continue ;; esac
+	[ -f "$d/mtd_num" ] && [ "$(cat "$d/mtd_num")" = "$m" ] && { echo "ubiformat: error!: please, first detach mtd$m" >&2; exit 1; }
 done
+rm -rf "$W/flash/mtd$m"; mkdir -p "$W/flash/mtd$m"; i=0
+if [ -n "$img" ]; then
+	for v in $(sed -n 's/^UBI-FACTORY //p' "$img"); do
+		echo "$v" > "$W/flash/mtd$m/$i.name"; echo $((10 * 126976)) > "$W/flash/mtd$m/$i.size"
+		printf '%s-content' "$v" > "$W/flash/mtd$m/$i.data"
+		[ -f "$W/bad_format" ] && [ "$v" = kernel ] && printf 'kernel-contenX' > "$W/flash/mtd$m/$i.data"
+		i=$((i + 1))
+	done
+fi
 log "format mtd$m ${img##*/}"
 EOF
 tool ubimkvol <<'EOF'
@@ -157,7 +170,15 @@ for f in \
 done
 echo "UBI-FACTORY kernel rootfs rootfs_data cambium_device_data" > "$W/rel/$p-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-squashfs-factory.ubi"
 echo "UBI-FACTORY kernel rootfs rootfs_data" > "$W/rel/$p-qualcommax-ipq807x-cambiumnetworks_thor-persistent-squashfs-factory.ubi"
-(cd "$W/rel" && sha256sum -- openwrt-* > SHA256SUMS)
+for f in "$W/rel/$p-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-squashfs-factory.ubi" \
+	"$W/rel/$p-qualcommax-ipq807x-cambiumnetworks_thor-persistent-squashfs-factory.ubi"; do
+	for v in kernel rootfs; do
+		printf '%s %s %s\n' "$v" "$(printf '%s-content' "$v" | wc -c | tr -d ' ')" "$(printf '%s-content' "$v" | sha256sum | cut -d' ' -f1)"
+	done > "$f.contents"
+done
+cp "$top/target/linux/qualcommax/ipq60xx/base-files/lib/functions/cambium-jaguar.sh" "$W/rel/jaguar-cambium-jaguar-functions.sh"
+cp "$top/target/linux/qualcommax/ipq60xx/base-files/lib/upgrade/cambium-jaguar.sh" "$W/rel/jaguar-cambium-jaguar-upgrade.sh"
+(cd "$W/rel" && sha256sum -- openwrt-* jaguar-* > SHA256SUMS)
 mkdir -p "$W/rel-test"
 echo "image jaguar persistent ram" > "$W/rel-test/$p-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-initramfs-uImage.itb"
 (cd "$W/rel-test" && sha256sum -- openwrt-* > test-only-SHA256SUMS)
@@ -171,7 +192,7 @@ RT=$W/root
 # ap FAMILY MODEL SKU RUNNING-SLOT(0|1) [bank-hex]
 ap() {
 	local fam=$1 sku=$3 run=$4 bank=${5:-06000000} i
-	rm -rf "$RT" "$W/flash" "$W/calls" "$W/env" "$W/corrupt" "$W/fail_mkvol" "$W/tftp_readonly"
+	rm -rf "$RT" "$W/flash" "$W/calls" "$W/env" "$W/corrupt" "$W/fail_mkvol" "$W/tftp_readonly" "$W/bad_format"
 	mkdir -p "$RT/proc" "$RT/sys/class/ubi" "$RT/sys/class/mtd" "$RT/dev" "$RT/tmp" "$W/flash"
 	touch "$W/calls"
 	printf "\\000\\000\\000\\$(printf '%03o' "$sku")" > "$RT/sku"
@@ -255,8 +276,17 @@ assert "stock bank untouched" [ "$(cat "$W/flash/mtd2/0.data")" = oem-slot-mtd2 
 
 ap jaguar XV2-2 20 0 03400000
 check "Jaguar XV2-2 RAM boot (stock on slot 0)" 0 inst --from "$W/rel" --yes --backed-up ram
-assert "XV2-2 stages in rootfs_1 at 0x3400000" [ "$(env_get bootcmd)" = "$(jaguar_ram 0x3400000 0x3400000 rootfs_1 config@cp01-c1)" ]
+assert "XV2-2 slot 1 uses the (fs) command that booted it" [ "$(env_get bootcmd)" = "$(jaguar_ram 0x3400000 0x3400000 fs config@cp01-c1)" ]
 assert "XV2-2 wrote only mtd2" [ "$(writes)" = 'attach(plain) mtd2;mkvol mtd2 openwrt;update mtd2 openwrt;setenv changing_bootcmd;setenv bootcmd;reboot;' ]
+
+ap jaguar XV2-2 20 0 03400000; echo 100 > "$W/flash/mtd2.lebs"; (. "$W/bin/_sim"; refresh ubi0 1)
+check "XV2-2 with a full inactive bank refused" 1 inst --from "$W/rel" --yes --backed-up ram
+assert "the refusal gives the free and needed eraseblocks" said 'has 0 free UBI eraseblocks but the RAM image needs 1'
+assert "full bank: only attach was done" [ "$(writes)" = 'attach(plain) mtd2;' ]
+ap jaguar XV2-2 20 0 03400000; echo 100 > "$W/flash/mtd2.lebs"
+check "XV2-2 --format-inactive" 0 inst --from "$W/rel" --yes --backed-up --format-inactive ram
+assert "--format-inactive erases the inactive slot, then stages" [ "$(writes)" = 'attach(plain) mtd2;detach mtd2;format mtd2 ;attach(plain) mtd2;mkvol mtd2 openwrt;update mtd2 openwrt;setenv changing_bootcmd;setenv bootcmd;reboot;' ]
+assert "--format-inactive leaves the running slot" [ "$(cat "$W/flash/mtd1/0.data")" = oem-slot-mtd1 ]
 
 ap jaguar XV2-2 20 1 06000000
 check "XV2-2 with 96 MiB slots refused" 1 inst --from "$W/rel" --yes --backed-up ram
@@ -276,9 +306,16 @@ check "Jaguar persistent install (--trial)" 0 inst --from "$W/rel" --yes --backe
 assert "Jaguar first boot is the validated guarded command" [ "$(env_get bootcmd)" = \
 	'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1-2; reset' ]
 assert "Jaguar install formatted only rootfs" [ "$(writes)" = "format mtd1 $p-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-squashfs-factory.ubi;attach(plain) mtd1;setenv changing_bootcmd;setenv bootcmd;reboot;" ]
+assert "Jaguar install hashed the kernel and rootfs back" said 'kernel volume reads back as built'
 ap jaguar XV2-2 20 0 03400000
-check "Jaguar install refused with stock on rootfs" 1 inst --from "$W/rel" --yes --backed-up --trial install
-assert "refusal explains the stock slot" said 'upgrade the stock firmware once more'
+check "XV2-2 install into slot 1 (stock on slot 0)" 0 inst --from "$W/rel" --yes --backed-up --trial install
+assert "slot-1 guarded first boot" [ "$(env_get bootcmd)" = \
+	'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x3400000@0x3400000(fs)" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1; reset' ]
+assert "slot-1 install wrote only mtd2" [ -z "$(grep -E '(format|mkvol|update) mtd1' "$W/calls")" ]
+ap jaguar XV2-2T1 31 1; touch "$W/bad_format"
+check "a factory write that reads back wrong stops" 1 inst --from "$W/rel" --yes --backed-up --trial install
+assert "the read-back failure is named" said 'the kernel volume does not read back as built'
+assert "bad read-back: nothing armed" [ "$(env_get bootcmd)" = bootipq ]
 
 ap jaguar XV2-2T1 31 1; printf '%s\n' 'bootcmd=run jaguar_stable0' 'image=1' > "$W/env"
 check "armed bootcmd refused" 1 inst --from "$W/rel" --yes --backed-up ram
@@ -367,6 +404,22 @@ ap jaguar XV2-2T1 31 1; touch "$W/tftp_readonly"
 check "backup upload refused by the server stops" 1 inst --from "$W/rel" --tftp 192.0.2.5 --yes ram
 assert "upload failure is named" said 'upload .* (exit 1: tftp: server error: (2) Access violation)'
 assert "upload failure: nothing written to flash" [ -z "$(grep -E '^(attach|mkvol|update|setenv)' "$W/calls")" ]
+
+# --- update-upgrader (converted Jaguar OpenWrt) -------------------------------------------------
+ap jaguar XV2-2 20 1 03400000
+mkdir -p "$RT/etc" "$RT/lib/functions" "$RT/lib/upgrade" "$RT/tmp/sysinfo"; : > "$RT/etc/openwrt_release"
+echo cambiumnetworks,xv2-2 > "$RT/tmp/sysinfo/board_name"
+echo 'console=ttyMSM0 ubi.mtd=rootfs_1 root=/dev/ubiblock0_1' > "$RT/proc/cmdline"
+echo '# old functions' > "$RT/lib/functions/cambium-jaguar.sh"; echo '# old upgrade' > "$RT/lib/upgrade/cambium-jaguar.sh"
+check "update-upgrader check run" 0 inst --from "$W/rel" update-upgrader
+assert "check run leaves the old scripts" [ "$(cat "$RT/lib/upgrade/cambium-jaguar.sh")" = '# old upgrade' ]
+check "update-upgrader" 0 inst --from "$W/rel" --yes update-upgrader
+assert "the release's upgrade scripts are installed" cmp -s "$RT/lib/upgrade/cambium-jaguar.sh" "$W/rel/jaguar-cambium-jaguar-upgrade.sh"
+assert "the release's functions are installed" cmp -s "$RT/lib/functions/cambium-jaguar.sh" "$W/rel/jaguar-cambium-jaguar-functions.sh"
+assert "the old copies are kept apart" [ "$(cat "$RT/tmp/cambium-install/upgrader-before/upgrade-cambium-jaguar.sh")" = '# old upgrade' ]
+assert "the installed upgrader creates UBI nodes" grep -q jaguar_ubi_node "$RT/lib/functions/cambium-jaguar.sh"
+check "update-upgrader again: already current" 0 inst --from "$W/rel" --yes update-upgrader
+assert "already current is reported" said 'already the release'
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]

@@ -80,7 +80,13 @@ persistent` selects the persistent configuration of an untested model.
   write. The trial's first step restores the old bank as the default, so a
   hung kernel returns to it on the next power cycle. Upstream's own
   `cambiumnetworks,xe3-4` image keeps its upgrade path, and the family
-  `sysupgrade.bin` leaves that board name out of its metadata.
+  `sysupgrade.bin` leaves that board name out of its metadata. Stage 2 runs
+  without hotplug, so the writer creates the UBI device and volume nodes it
+  needs, and each step records its failing command, exit status and error
+  in `jaguar_ab_last_failure`. Sysupgrade uses the *running* system's
+  scripts, so an installed AP gets writer fixes only through a new image
+  or `cambium-install.sh update-upgrader`, which installs the release's
+  copies (published as `jaguar-cambium-jaguar-{functions,upgrade}.sh`).
 - **Boot guard.** `jaguar-bootguard` commits a trial bank only after the
   slot, overlay, wired DHCP and vault checks pass; otherwise it records the
   rollback and reboots to the old bank. `jaguar-ab-status` prints the running,
@@ -94,22 +100,26 @@ step of the upgrade and the conversion.
 The family image must fit the XV2-2's smaller bank; `build.sh` fails the
 build if it does not.
 
-Hardware gates, in order, on the XV2-2T1 and then the XV2-2, with PoE power
-control at hand. The site's Jaguar section
-(https://m0vse.github.io/cambium-openwrt/#jaguar) gives the exact commands
-for each, for both bank layouts:
+Hardware gates, in order, on the XV2-2T1 and the XV2-2, with PoE power
+control at hand. `cambium-install.sh` runs the flash-writing steps, and the
+site's Jaguar section (https://m0vse.github.io/cambium-openwrt/#jaguar)
+gives the exact commands for each. So far one XV2-2 has passed gates 2 and 3
+(installed into slot 1 and converted); its first sysupgrade failed in
+stage 2 on the missing UBI device node, now fixed, and is to be retried
+after `update-upgrader`:
 
-1. RAM-boot `...jaguar-persistent-initramfs-uImage.itb` (the persistent
-   trees with a RAM root, staged like the recovery image) and confirm both
-   banks' MTD flags and that ART, NVRAM and crashLog are read-only. Its
-   banks are writable: run nothing that writes flash from it.
-2. Install the A/B `factory.ubi` into slot 0 with the published install
-   procedure; confirm `cambium-board-data` reports `vault` and the radios
-   start.
-3. Refresh and verify the off-device backups, then run `jaguar-ab-convert`.
-4. `sysupgrade` to slot 1, power-cycle during the trial once (it must return
-   to slot 0), then let a trial commit; upgrade back to slot 0; repeat with
-   and without `-n`, checking settings and the vault.
+1. RAM-boot the persistent trees (`ram --persistent-test --trial`) and
+   confirm both banks' MTD flags and that ART, NVRAM and the crash log are
+   read-only. Its banks are writable: run nothing that writes flash from it.
+2. Install the A/B `factory.ubi` into the inactive slot (`install --trial`,
+   either direction); confirm `cambium-board-data` reports `vault` and the
+   radios start.
+3. Refresh and verify the off-device backup of the stock bank, then run
+   `jaguar-ab-convert`.
+4. Run `update-upgrader`, then `sysupgrade` to the other bank; power-cycle
+   during one trial (it must return to the old bank), then let a trial
+   commit; upgrade back; repeat with and without `-n`, checking settings and
+   the vault.
 
 ## Family data and release manifest
 

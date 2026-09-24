@@ -206,17 +206,16 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
 
   <h3>Overview</h3>
   <ol class="steps">
-    <li><strong>Use <a href="#installer">the installer</a></strong> for the
-    steps after the root shell: one command each, with every check below
-    built in.</li>
     <li><strong>Get a root shell on the stock firmware.</strong> Cambium's
     firmware protects its root shell with a per-device challenge and unlock
     code. The tool that answers it is <strong>not published</strong>; please
     <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>
     to ask about access. Every later step runs in this root shell.</li>
+    <li><strong>Use <a href="#installer">the installer</a></strong> for the
+    steps below: one command each, with every check built in.</li>
     <li><strong>Check the model and slot.</strong> Confirm the board SKU and
-    that the stock firmware runs from its usual slot (below). Stop if either
-    differs.</li>
+    which slot the stock firmware runs from (below). Stop if either is not
+    what your family expects.</li>
     <li><strong>Back up</strong> the inactive firmware slot, the U-Boot
     environment and the ART partition, and copy the backups off the access
     point.</li>
@@ -264,6 +263,8 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram      # checks ever
       <tr><td><code>install</code></td><td>Installs the persistent image on a validated model and arms its guarded first boot (Sage: a one-shot trial, then <code>sage-migration-mark-good --confirm</code> in OpenWrt). Thor: RAM-boots the installer; run <code>install</code> again inside it, then <code>boot</code> from the stock firmware, then <code>commit</code> in OpenWrt.</td></tr>
       <tr><td><code>--trial</code></td><td>Hardware trial of a persistent image not yet validated on the model, e.g. the Jaguar A/B build.</td></tr>
       <tr><td><code>--persistent-test</code></td><td>Jaguar: RAM-boot the A/B persistent trees (the test-only image) with no bank attached.</td></tr>
+      <tr><td><code>--format-inactive</code></td><td>Lets <code>ram</code> erase the inactive slot (after backing it up) when its stock firmware copy leaves too little free space for the RAM image, as on a stock XV2-2.</td></tr>
+      <tr><td><code>update-upgrader</code></td><td>Jaguar, in the installed OpenWrt: installs the release's A/B upgrade scripts on the running system, which is what <code>sysupgrade</code> uses. Run it before an A/B sysupgrade.</td></tr>
     </tbody>
   </table>
   </div>
@@ -301,17 +302,18 @@ cat /sys/class/ubi/ubi0/mtd_num           # the MTD of the running slot</pre>
     <tbody>
       <tr><td class="fam">Sage</td><td><code>root=ubi0:rootfs0</code> or <code>rootfs1</code>; <code>image</code> matches</td><td>either slot</td><td>the other UBI volume pair (<code>linuxN</code>/<code>rootfsN</code>)</td></tr>
       <tr><td class="fam">Thor</td><td><code>ubi.mtd=rootfs_1</code>; <code>ubi0</code> on <code>mtd2</code></td><td><code>rootfs_1</code> (<code>mtd2</code>)</td><td><code>rootfs</code> (<code>mtd1</code>)</td></tr>
-      <tr><td class="fam">Jaguar</td><td><code>ubi.mtd=rootfs_1</code>; <code>ubi0</code> on <code>mtd2</code> (the XV2-2 usually runs from <code>rootfs</code>: see its steps)</td><td><code>rootfs_1</code> (<code>mtd2</code>)</td><td><code>rootfs</code> (<code>mtd1</code>)</td></tr>
+      <tr><td class="fam">Jaguar</td><td><code>ubi.mtd=rootfs</code> or <code>rootfs_1</code>; <code>ubi0</code> on its MTD</td><td>either slot (XV2-2: usually <code>rootfs</code>; XV2-2T1: <code>rootfs_1</code>)</td><td>the other slot</td></tr>
       <tr><td class="fam">Cheetah</td><td><code>ubi.mtd=rootfs_1</code>; <code>ubi0</code> on <code>mtd3</code></td><td><code>rootfs_1</code> (<code>mtd3</code>)</td><td><code>rootfs</code> (<code>mtd2</code>)</td></tr>
     </tbody>
   </table>
   </div>
-  <p>Thor, Jaguar and Cheetah images always run OpenWrt from
-  <code>rootfs</code> and keep <code>rootfs_1</code> read-only for the stock
-  firmware. If the stock firmware is running from <code>rootfs</code> on one
-  of these, do not install: that would overwrite the running copy of the
-  stock firmware. Upgrade the stock firmware once more instead, which
-  switches it to <code>rootfs_1</code>, and check again. If the partition
+  <p>Thor and Cheetah images always run OpenWrt from <code>rootfs</code>
+  and keep <code>rootfs_1</code> read-only for the stock firmware. If the
+  stock firmware is running from <code>rootfs</code> on one of these, do not
+  install: that would overwrite the running copy of the stock firmware.
+  Upgrade the stock firmware once more instead, which switches it to
+  <code>rootfs_1</code>, and check again. Jaguar installs into whichever
+  slot is inactive. If the partition
   numbers or names differ from the table, stop and
   <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>.</p>
   <h3>Selecting the FIT configuration</h3>
@@ -507,147 +509,106 @@ fw_printenv changing_bootcmd bootcmd</pre>
   <details id="jaguar">
   <summary><strong>Jaguar</strong> &mdash; recovery validated on the XV2-2T1 and XV2-2; A/B persistent build under hardware test</summary>
   <div class="note danger"><strong>Hardware trial.</strong> The Jaguar
-  persistent image is now the A/B build (two OpenWrt banks with automatic
-  rollback). It has not been validated on any model, so
-  <code>select-config.sh</code> offers only the recovery image unless you set
-  <code>CAMBIUM_HARDWARE_TRIAL=1</code>, as the trial steps below do. Only
-  trial a unit you can recover, with PoE power control at hand. The
-  <code>sysupgrade.bin</code> and the persistent RAM test image are not in
-  the release: take them from the build's <code>cambium-jaguar</code>
-  Actions artifact (<code>test-only/</code>).</div>
+  persistent image is the A/B build (two OpenWrt banks with automatic
+  rollback). It has been installed and converted on one XV2-2, whose
+  first A/B sysupgrade failed (since fixed, see below); sysupgrade, rollback
+  and reverse switching are still under test, so it is not validated on
+  any model and needs <code>--trial</code>. Only trial a unit you can recover, with PoE power
+  control at hand. The <code>sysupgrade.bin</code> and the persistent RAM
+  test image are not in the release: take them from the build's
+  <code>cambium-jaguar</code> Actions artifact (<code>test-only/</code>),
+  with its <code>test-only-SHA256SUMS</code>, and put them in the folder you
+  serve.</div>
+  <p>Jaguar models differ: the XV2-2 has a 128&nbsp;MiB NAND with two
+  52&nbsp;MiB banks (slot 1 at <code>0x3400000</code>), the others two
+  96&nbsp;MiB banks (slot 1 at <code>0x6000000</code>). The installer checks
+  the layout against the model and works in whichever slot the stock
+  firmware is <em>not</em> running from, in either direction: the XV2-2
+  usually runs its stock firmware from <code>rootfs</code>, the XV2-2T1 from
+  <code>rootfs_1</code>. Use the <a href="#installer">installer</a> for every
+  step below that writes flash.</p>
 
-  <p><strong>Layout check</strong> (stock firmware root shell, with
-  <code>select-config.sh</code> in <code>/tmp</code>). Jaguar models differ:
-  the XV2-2 has two 52&nbsp;MiB banks (slot 1 at <code>0x3400000</code>),
-  the others two 96&nbsp;MiB banks (slot 1 at <code>0x6000000</code>). These
-  variables are used by every step below; stop unless it prints
-  <code>LAYOUT_OK=1</code>:</p>
-<pre>R0=$(sed -n 's/^mtd\([0-9]*\): [0-9a-f]* 00020000 "rootfs"$/\1/p' /proc/mtd)
-R1=$(sed -n 's/^mtd\([0-9]*\): [0-9a-f]* 00020000 "rootfs_1"$/\1/p' /proc/mtd)
-S0=$(sed -n 's/^mtd[0-9]*: \([0-9a-f]*\) 00020000 "rootfs"$/\1/p' /proc/mtd)
-S1=$(sed -n 's/^mtd[0-9]*: \([0-9a-f]*\) 00020000 "rootfs_1"$/\1/p' /proc/mtd)
-BANK=$(printf '0x%x' "0x$S0"); RUN=$(cat /sys/class/ubi/ubi0/mtd_num)
-MODEL=; eval "$(sh /tmp/select-config.sh recovery)"
-LAYOUT_OK=; case "$MODEL:$S0:$S1" in
-XV2-2:03400000:03400000|XV2-2T0:06000000:06000000|XV2-2T1:06000000:06000000|\
-XE3-4:06000000:06000000|XE3-4TN:06000000:06000000) LAYOUT_OK=1 ;; esac
-echo "MODEL=$MODEL rootfs=mtd$R0 rootfs_1=mtd$R1 bank=$BANK stock-on=mtd$RUN LAYOUT_OK=$LAYOUT_OK"</pre>
-  <p><strong>Back up</strong> the inactive firmware slot (staging and the
-  install write only that one), the U-Boot environment and ART, copy them
-  off the access point and check the hashes there. The running slot is
-  backed up later, from OpenWrt, before any conversion:</p>
-<pre>I=$R0; [ "$RUN" = "$R0" ] &amp;&amp; I=$R1; echo "inactive slot: mtd$I"
-dd if=/dev/mtd"$I"ro of=/tmp/inactive-slot.bin bs=131072
-for n in 0:APPSBLENV 0:ART; do i=$(sed -n "s/^mtd\([0-9]*\): .* \"$n\"$/\\1/p" /proc/mtd); dd if=/dev/mtd"$i"ro of="/tmp/${n#0:}.bin"; done
-sha256sum /tmp/*.bin    # copy every file off the AP (tftp -p) and check the hashes there, then rm /tmp/*.bin</pre>
-
-  <h4>RAM boot (any Jaguar model)</h4>
-  <p>Copy <code>...jaguar-recovery-initramfs-uImage.itb</code> to
-  <code>/tmp/RAM.itb</code> and stage it in a new <code>openwrt</code>
-  volume in the slot the stock firmware is <em>not</em> running from:</p>
-<pre>if [ "$RUN" = "$R1" ]; then T=$R0 TPART=rootfs OFF=0x0; else T=$R1 TPART=rootfs_1 OFF=$BANK; fi
-echo "staging in $TPART (mtd$T) at $OFF"
-grep -qx "$T" /sys/class/ubi/ubi*/mtd_num || ubiattach -m "$T"
-U=$(grep -lx "$T" /sys/class/ubi/ubi*/mtd_num | cut -d/ -f5)
-ubirmvol /dev/$U -N openwrt 2&gt;/dev/null
-ubimkvol /dev/$U -N openwrt -s "$(wc -c &lt; /tmp/RAM.itb)"
-V=$(grep -lx openwrt /sys/class/ubi/${U}_*/name | cut -d/ -f5)
-ubiupdatevol /dev/$V /tmp/RAM.itb
-head -c "$(wc -c &lt; /tmp/RAM.itb)" /dev/$V | sha256sum; sha256sum /tmp/RAM.itb   # must match</pre>
-  <p>Arm the one-shot. Its first action restores the stock
-  <code>bootcmd</code>, so any reboot or power cycle afterwards returns to
-  the stock firmware:</p>
-<pre>CONFIG=; eval "$(sh /tmp/select-config.sh recovery)"; [ "$LAYOUT_OK" = 1 ] || CONFIG=; echo "MODEL=$MODEL CONFIG=$CONFIG"
-fw_setenv changing_bootcmd 1
-fw_printenv changing_bootcmd
-[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 &amp;&amp; setenv mtdids nand0=nand0 &amp;&amp; setenv mtdparts "mtdparts=nand0:'"$BANK@$OFF($TPART)"'" &amp;&amp; ubi part '"$TPART"' &amp;&amp; ubi read 0x60000000 openwrt &amp;&amp; bootm 0x60000000#'"$CONFIG"'; reset'
-fw_printenv changing_bootcmd bootcmd
-sync; reboot</pre>
+  <h4>RAM boot</h4>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram                              # check run: layout, slot, image hashes; backs up; writes nothing
+scp -O 'root@AP_IP:/tmp/cambium-install/backup/*' .    # from your computer
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --backed-up --yes ram</pre>
+  <p>On a stock XV2-2 the inactive slot's firmware copy leaves too little free
+  space for the RAM image (23 free eraseblocks on the tested unit). The check
+  run then says how many are free and needed; to erase that slot (it is
+  backed up) and stage the image there, add <code>--format-inactive</code>:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --backed-up --format-inactive --yes ram</pre>
   <p>In the booted image (DHCP on the LAN port, <code>root</code> without a
-  password), <a href="#report">run the hardware report</a>.</p>
+  password), <a href="#report">run the hardware report</a>. Any reboot or
+  power cycle returns to the stock firmware.</p>
 
-  <p><strong>Persistent RAM test</strong> (the A/B trees in RAM, gate 1 of
-  the trial). Stage <code>test-only/...jaguar-persistent-initramfs-uImage.itb</code>
-  as <code>/tmp/RAM.itb</code> with the same staging commands, then arm it.
-  Its trees leave both firmware banks writable, so this one-shot sets its
-  own kernel arguments without <code>ubi.mtd=</code> and no bank is
-  attached. Run nothing that writes flash in it:</p>
-<pre>CONFIG=; eval "$(CAMBIUM_HARDWARE_TRIAL=1 sh /tmp/select-config.sh persistent)"; [ "$LAYOUT_OK" = 1 ] || CONFIG=; echo "MODEL=$MODEL CONFIG=$CONFIG"
-fw_setenv changing_bootcmd 1
-fw_printenv changing_bootcmd
-[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 &amp;&amp; setenv mtdids nand0=nand0 &amp;&amp; setenv mtdparts "mtdparts=nand0:'"$BANK@$OFF($TPART)"'" &amp;&amp; ubi part '"$TPART"' &amp;&amp; ubi read 0x60000000 openwrt &amp;&amp; setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab swiotlb=1" &amp;&amp; bootm 0x60000000#'"$CONFIG"'; reset'
-fw_printenv changing_bootcmd bootcmd
-sync; reboot</pre>
-  <p>In it, confirm the model, that both banks show the writable flag
-  (<code>0x400</code> set) and that NVRAM, crash log and ART do not:</p>
+  <h4>Persistent RAM test</h4>
+  <p>The A/B trees in RAM, with no firmware bank attached (put the test-only
+  <code>...jaguar-persistent-initramfs-uImage.itb</code> in the served
+  folder):</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --backed-up --trial --persistent-test --yes ram</pre>
+  <p>In it, confirm the model, that both firmware banks show the writable
+  flag (<code>0x400</code> set) and that NVRAM, crash log and ART do not. Run
+  nothing that writes flash in it:</p>
 <pre>cat /tmp/sysinfo/board_name /proc/cmdline         # the model; no ubi.mtd= on the command line
-grep -E '"(rootfs|rootfs_1|NVRAM|0:NVRAM|crashLog|crashlog|0:ART)"' /proc/mtd
 for i in $(sed -n 's/^mtd\([0-9]*\):.*"\(rootfs\|rootfs_1\|NVRAM\|0:NVRAM\|crashLog\|crashlog\|0:ART\)"$/\1/p' /proc/mtd); do
   echo "mtd$i $(cat /sys/class/mtd/mtd$i/name) flags=$(cat /sys/class/mtd/mtd$i/flags)"; done
 ls /sys/class/ubi    # nothing attached</pre>
 
   <h4>Persistent install (hardware trial)</h4>
-  <p>OpenWrt goes into <code>rootfs</code>; the stock firmware must be
-  running from <code>rootfs_1</code>. If it runs from <code>rootfs</code>
-  (usual on the XV2-2, <code>image=0</code>), upgrade the stock firmware
-  once more first, then redo the layout check. Copy
-  <code>...jaguar-persistent-squashfs-factory.ubi</code> to
-  <code>/tmp/FACTORY.ubi</code> and write it over <code>rootfs</code>; the
-  running <code>rootfs_1</code> is not touched:</p>
-<pre>CONFIG=; eval "$(CAMBIUM_HARDWARE_TRIAL=1 sh /tmp/select-config.sh persistent)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
-[ "$RUN" = "$R1" ] || { echo "STOP: the stock firmware must run from rootfs_1"; CONFIG=; }
-[ "$LAYOUT_OK" = 1 ] || CONFIG=
-[ -n "$CONFIG" ] &amp;&amp; { ! grep -qx "$R0" /sys/class/ubi/ubi*/mtd_num || ubidetach -m "$R0"; } &amp;&amp;
-ubiformat /dev/mtd"$R0" -y -f /tmp/FACTORY.ubi &amp;&amp;
-ubiattach -m "$R0" &amp;&amp;
-U=$(grep -lx "$R0" /sys/class/ubi/ubi*/mtd_num | cut -d/ -f5) &amp;&amp;
-for v in /sys/class/ubi/${U}_*; do echo "${v##*/} $(cat $v/name)"; done   # kernel, rootfs, rootfs_data, cambium_device_data</pre>
-  <p><strong>First boot.</strong> Arm the guarded boot. Until conversion,
-  every boot first restores the stock <code>bootcmd</code>; OpenWrt re-arms
-  its boot after each healthy start, and an unhealthy start returns to the
-  stock firmware:</p>
-<pre>[ -n "$CONFIG" ] &amp;&amp; fw_setenv changing_bootcmd 1
-fw_printenv changing_bootcmd image     # image=1: the stock firmware's slot stays the default
-[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 &amp;&amp; setenv mtdids nand0=nand0 &amp;&amp; setenv mtdparts "mtdparts=nand0:'"$BANK"'@0x0(rootfs)" &amp;&amp; ubi part rootfs &amp;&amp; ubi read 0x60000000 kernel &amp;&amp; setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" &amp;&amp; bootm 0x60000000#'"$CONFIG"'; reset'
-fw_printenv changing_bootcmd bootcmd
-sync; reboot</pre>
+  <p>Writes <code>factory.ubi</code> over the inactive slot, hashes its kernel
+  and root filesystem back, and arms the guarded first boot. Until
+  conversion, every boot first restores the stock <code>bootcmd</code>;
+  OpenWrt re-arms its boot after each healthy start, and an unhealthy start
+  returns to the stock firmware:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --trial install                              # check run
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --backed-up --trial --yes install</pre>
   <p>In OpenWrt, set a root password and check the device-data vault, the
   guard and the radios. On this first boot the board file is copied from
   the stock firmware's slot into this bank's vault:</p>
 <pre>passwd
 cat /etc/cambium-openwrt-release
 cat /tmp/cambium-board-data.status      # vault: board file copied into this bank's vault
-jaguar-ab-status                        # mode=oem-fallback running=0
-logread -e jaguar-bootguard             # "healthy; guarded OpenWrt boot rearmed" within 5 minutes
+jaguar-ab-status                        # mode=oem-fallback, running = the slot OpenWrt was installed in
+logread -e jaguar-bootguard             # "healthy; guarded OpenWrt boot of slot N rearmed" within 5 minutes
 iw dev</pre>
 
   <h4>Convert to two OpenWrt banks (hardware trial)</h4>
-  <p>This replaces the stock firmware in <code>rootfs_1</code> with a copy of
-  the running OpenWrt bank, after which the access point has no stock
-  firmware on flash. Returning to stock then means writing your backup back,
-  which has not been tested yet: only convert a unit you can recover, and
-  open an issue first if unsure. From your computer, back up the stock
-  bank as OpenWrt sees it now (it is not attached, so it does not change):</p>
-<pre>N=$(ssh root@AP_IP "sed -n 's/^mtd\([0-9]*\):.*\"rootfs_1\"\$/\1/p' /proc/mtd"); echo "rootfs_1 is mtd$N"
-ssh root@AP_IP "ls /sys/class/ubi; cat /sys/class/ubi/ubi*/mtd_num"   # mtd$N must not be listed
-ssh root@AP_IP "cat /dev/mtd$N" &gt; jaguar-oem-rootfs_1.bin
-sha256sum jaguar-oem-rootfs_1.bin
-ssh root@AP_IP "sha256sum /dev/mtd$N"   # must match; keep the file safe</pre>
+  <p>This replaces the stock firmware in the other bank with a copy of the
+  running OpenWrt bank, after which the access point has no stock firmware
+  on flash. Returning to stock then means writing your backup back, which
+  has not been tested yet: only convert a unit you can recover, and open an
+  issue first if unsure. From your computer, back up the stock bank as
+  OpenWrt sees it now (it is not attached, so it does not change):</p>
+<pre>ssh root@AP_IP 'grep -q "ubi.mtd=rootfs_1" /proc/cmdline &amp;&amp; S=rootfs || S=rootfs_1; sed -n "s/^mtd\([0-9]*\):.*\"$S\"\$/\1/p" /proc/mtd' &gt; stock-mtd
+N=$(cat stock-mtd); echo "stock firmware bank: mtd$N"
+ssh root@AP_IP "cat /sys/class/ubi/ubi*/mtd_num"   # mtd$N must not be listed
+ssh root@AP_IP "cat /dev/mtd$N" &gt; jaguar-oem-bank.bin
+sha256sum jaguar-oem-bank.bin
+ssh root@AP_IP "sha256sum /dev/mtd$N"            # must match; keep the file safe</pre>
   <p>Then, in OpenWrt, convert with that hash:</p>
 <pre>jaguar-ab-convert --oem-sha256 HASH --yes          # add --allow-untested on any model but the XV2-2T1
-jaguar-ab-status                                   # mode=ab running=0 confirmed=0 state=confirmed
-fw_printenv bootcmd jaguar_boot0 jaguar_boot1      # bootcmd=run jaguar_stable0
-reboot                                             # must come back on slot 0</pre>
+jaguar-ab-status                                   # mode=ab, confirmed = the running slot
+reboot                                             # must come back on the same slot</pre>
 
   <h4>A/B sysupgrade (hardware trial)</h4>
-  <p>After conversion, <code>sysupgrade</code> writes the inactive bank,
-  reads it back, and arms a one-shot trial of it. The old bank stays the
-  default until the new one passes its checks (slot, overlay, DHCP on the
-  LAN, device-data vault), within about five minutes of booting. Use
-  <code>test-only/...jaguar-persistent-squashfs-sysupgrade.bin</code>:</p>
+  <p><code>sysupgrade</code> runs the upgrade scripts of the <em>running</em>
+  system, not those in the new image. So first install the current release's
+  Jaguar upgrade scripts on the running OpenWrt; they carry the fix for the
+  first XV2-2 trial, which formatted the inactive bank and then stopped. The
+  command checks, keeps the old copies and verifies the new ones load:</p>
+<pre>wget -O /tmp/cambium-install.sh http://COMPUTER_IP:8000/cambium-install.sh
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 update-upgrader                  # check run
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes update-upgrader</pre>
+  <p>Then upgrade. It writes the inactive bank, reads it back, and arms a
+  one-shot trial of it; the old bank stays the default until the new one
+  passes its checks (slot, overlay, DHCP on the LAN, device-data vault),
+  within about five minutes of booting. If a step fails,
+  <code>jaguar-ab-status</code> shows the failing command, its exit status
+  and its error in <code>last_failure</code>:</p>
 <pre>scp -O openwrt-...-jaguar-persistent-squashfs-sysupgrade.bin root@AP_IP:/tmp/sysupgrade.bin
+ssh root@AP_IP sysupgrade -T /tmp/sysupgrade.bin     # the image check alone
 ssh root@AP_IP sysupgrade -v /tmp/sysupgrade.bin     # keeps settings; add -n to reset them
-ssh root@AP_IP jaguar-ab-status                      # a few minutes later: running=1 confirmed=1 state=confirmed</pre>
+ssh root@AP_IP jaguar-ab-status                      # a few minutes later: running = confirmed = the new slot</pre>
   <p><strong>Rollback test.</strong> Upgrade again and make the trial fail:
   cut the power while the new bank is booting, before
   <code>jaguar-ab-status</code> would show it confirmed, or keep it from
@@ -712,7 +673,8 @@ sync; reboot</pre>
   <h3>After the first boot (all families)</h3>
   <p>Set a root password with <code>passwd</code>, then check
   <code>cat /tmp/cambium-board-data.status</code> (should be
-  <code>imported</code> or <code>present</code> on Thor, Cheetah and Jaguar),
+  <code>imported</code> or <code>present</code> on Thor and Cheetah,
+  <code>vault</code> on Jaguar),
   <code>cat /etc/cambium-openwrt-release</code> and the radios with
   <code>iw dev</code>. Configure the network or OpenWISP as required.</p>
 
@@ -754,17 +716,18 @@ sync; reboot</pre>
     trial boot, automatic rollback) is under hardware test; its
     <code>sysupgrade.bin</code> is only in the build artifact. See the
     <a href="#jaguar">Jaguar steps</a> for the trial.</li>
-    <li><strong>Cheetah and Jaguar</strong> have no published
-    <code>sysupgrade</code> path yet. Return to the stock firmware (below), then repeat the install
-    steps with the new persistent image; they write <code>rootfs</code>
-    again, never the stock firmware's <code>rootfs_1</code>.</li>
+    <li><strong>Cheetah</strong> has no <code>sysupgrade</code> path yet.
+    Return to the stock firmware (below), then repeat the install with the
+    new persistent image; it writes <code>rootfs</code> again, never the stock
+    firmware's <code>rootfs_1</code>. The same applies to a Jaguar that has
+    not been converted to two OpenWrt banks.</li>
     <li>Kernel modules must come from the same snapshot as the running image.
     The feed for each snapshot is configured in the image; feeds for the two
     most recent snapshots are kept online.</li>
   </ul>
   <h3>Going back to the stock firmware</h3>
-  <p>Until a Sage upgrade has replaced it, the stock firmware is still in
-  its slot. From OpenWrt:</p>
+  <p>Until a Sage upgrade or a Jaguar conversion has replaced it, the stock
+  firmware is still in its slot. From OpenWrt:</p>
 <pre># Sage (after migration, before any sysupgrade)
 sage-migration-rollback-oem --confirm-oem
 
@@ -772,7 +735,7 @@ sage-migration-rollback-oem --confirm-oem
 fw_setenv bootcmd 'aq_load_fw&amp;&amp;bootipq'
 fw_setenv changing_bootcmd
 
-# Cheetah and Jaguar: restore the stock boot command
+# Cheetah, and Jaguar before conversion: restore the stock boot command
 fw_setenv bootcmd bootipq
 fw_setenv changing_bootcmd</pre>
   <p>The install never changes the U-Boot <code>image</code> variable, so

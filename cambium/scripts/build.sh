@@ -240,6 +240,22 @@ find "$bin_dir" -maxdepth 1 -type f \( -name '*cambiumnetworks_*' -o -name 'prof
 cp -R "$bin_dir/packages" "$output/feed/targets/$target/$subtarget/"
 cp -R "bin/packages/$arch/base" "$output/feed/packages/$arch/"
 cp files/etc/cambium-openwrt-release "$output/images/cambium-openwrt-release"
+# The kernel and rootfs content of each factory image the installer writes
+# with ubiformat, so it can hash them back after writing.
+for f in "$output/images/"*cambiumnetworks_thor-persistent-squashfs-factory.ubi \
+	"$output/images/"*cambiumnetworks_jaguar-persistent-squashfs-factory.ubi; do
+	[ -f "$f" ] || continue
+	python3 cambium/scripts/ubi-contents.py "$f" > "$f.contents" ||
+		fail "cannot read the kernel and rootfs content of ${f##*/}"
+done
+# A running Jaguar upgrades with its own scripts; publish the current ones so
+# cambium-install.sh update-upgrader can install them before a sysupgrade.
+if [ "$family" = jaguar ]; then
+	cp target/linux/qualcommax/ipq60xx/base-files/lib/functions/cambium-jaguar.sh \
+		"$output/images/cambium-jaguar-functions.sh"
+	cp target/linux/qualcommax/ipq60xx/base-files/lib/upgrade/cambium-jaguar.sh \
+		"$output/images/cambium-jaguar-upgrade.sh"
+fi
 # Jaguar A/B is under hardware test: its sysupgrade image and a RAM build of
 # the persistent trees go only to the CI artifact (test-only/), never to a
 # release, until trial boot, rollback and reverse switching are validated.
