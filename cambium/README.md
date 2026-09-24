@@ -37,7 +37,66 @@ The ath11k families (Thor, Cheetah, Jaguar) install `cambium-board-data`.
 It copies the Wi-Fi board file that the AP's stock firmware selects for its
 SKU from the retained, read-only OEM slot at boot, so no OEM board data is
 distributed. Per-device calibration still comes from `0:ART`. Neither the
-OEM slot nor ART is ever written; the importer refuses writable partitions.
+OEM slot nor ART is ever written; the importer refuses writable partitions,
+except once on a Jaguar A/B image (below), whose OEM bank must be writable.
+
+## Jaguar A/B sysupgrade (not yet qualified)
+
+This branch gives the Jaguar family two OpenWrt banks with automatic
+rollback. It must not be merged, published or advertised until the XV2-2T1
+hardware trial below passes; until then `families.json` and the site keep
+Jaguar's sysupgrade status at none.
+
+- **Banks.** `rootfs` (slot 0) and `rootfs_1` (slot 1) are 96 MiB NAND banks,
+  both writable in the persistent device trees; NVRAM, crashLog, ART and the
+  other NOR partitions stay read-only. Each bank holds UBI volumes `kernel`
+  (0), `rootfs` (1), `rootfs_data` (2) and `cambium_device_data` (3). U-Boot's
+  boot command selects the bank with `ubi.mtd=`; the trees append no root.
+- **Device-data vault.** Volume 3 holds this unit's Wi-Fi board file with a
+  manifest bound to its board, SKU and ART hash. `cambium-board-data` fills
+  it once from the OEM slot on the first A/B boot, prefers it on every later
+  boot, refuses one made for another unit, and every upgrade copies it to the
+  new bank, so it survives `sysupgrade -n`, factory reset and the loss of the
+  OEM slot.
+- **Conversion.** `jaguar-ab-convert --oem-sha256 HASH --yes` replaces the OEM
+  bank with a copy of the running bank. It refuses unless the live OEM bank
+  matches the hash of your off-device backup, the vault is valid and the
+  model is qualified (only the XV2-2T1; `--allow-untested` overrides). The
+  XV2-2 is always refused: it has a 128 MiB NAND with two 52 MiB slots. The
+  running bank's stable boot command is saved before the OEM bank is erased,
+  and `--resume` finishes an interrupted conversion.
+- **Upgrades.** `platform.sh` sends every Jaguar family image (identified by
+  its `cambium-platform` node) to `lib/upgrade/cambium-jaguar.sh`, never to
+  a generic NAND path. It refuses until conversion, writes only the inactive
+  bank, reads back and hashes the kernel, rootfs and vault, carries settings
+  through `rootfs_data` (unless `-n`), and arms a one-shot trial as its last
+  write. The trial's first step restores the old bank as the default, so a
+  hung kernel returns to it on the next power cycle. Upstream's own
+  `cambiumnetworks,xe3-4` image keeps its upgrade path, and the family
+  `sysupgrade.bin` leaves that board name out of its metadata.
+- **Boot guard.** `jaguar-bootguard` commits a trial bank only after the
+  slot, overlay, wired DHCP and vault checks pass; otherwise it records the
+  rollback and reboots to the old bank. `jaguar-ab-status` prints the running,
+  confirmed and target slots, the state and the last failure. Before
+  conversion the guard keeps the validated OEM-fallback behaviour.
+
+`tests/jaguar-ab.sh` exercises all of this against simulated flash, sysfs and
+U-Boot environment, including an interruption at every write and environment
+step of the upgrade and the conversion.
+
+Hardware gates, in order, on the XV2-2T1 with PoE power control at hand:
+
+1. RAM-boot `...jaguar-persistent-initramfs-uImage.itb` (the persistent
+   trees with a RAM root, staged like the recovery image) and confirm both
+   banks' MTD flags and that ART, NVRAM and crashLog are read-only. Its
+   banks are writable: run nothing that writes flash from it.
+2. Install the A/B `factory.ubi` into slot 0 with the published install
+   procedure; confirm `cambium-board-data` reports `vault` and the radios
+   start.
+3. Refresh and verify the off-device backups, then run `jaguar-ab-convert`.
+4. `sysupgrade` to slot 1, power-cycle during the trial once (it must return
+   to slot 0), then let a trial commit; upgrade back to slot 0; repeat with
+   and without `-n`, checking settings and the vault.
 
 ## Family data and release manifest
 
