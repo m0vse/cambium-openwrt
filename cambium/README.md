@@ -103,7 +103,8 @@ build if it does not.
 Hardware history: one XV2-2 was installed into slot 1 and converted; its
 first sysupgrade failed in stage 2 on the missing UBI device node, and after
 the fix and `update-upgrader` a `sysupgrade -n` switched it to slot 0. One
-XV2-2T1 was installed into slot 0 with the installer. The site's Jaguar
+XV2-2T1 was installed into slot 0 with the installer, converted, and
+switched to slot 1 with a sysupgrade. The site's Jaguar
 section (https://m0vse.github.io/cambium-openwrt/#jaguar) gives the exact
 commands for install, conversion, sysupgrade and a rollback check.
 
