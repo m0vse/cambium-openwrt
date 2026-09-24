@@ -21,8 +21,44 @@
 	status = "disabled";
 };
 
-/* Best-effort radio enablement; this model's board data is unqualified. */
+/* Best-effort radio enablement; validate board data on physical XV2-2. */
 &wifi {
 	status = "okay";
 	qcom,ath11k-calibration-variant = "Cambium-XV2-2";
+};
+
+/* Physically observed on XV2-2 OEM 7.2-r1: 128 MiB NAND, not the T1's 256 MiB. */
+&qpic_nand {
+	nand@0 {
+		/* Winbond W29N01HZ has 64-byte OOB; BCH8 cannot fit. */
+		nand-ecc-strength = <4>;
+		partitions {
+			/delete-node/ partition@6000000;
+			/delete-node/ partition@c000000;
+			/delete-node/ partition@f000000;
+
+			partition@0 {
+				reg = <0x0 0x3400000>;
+				read-only;
+			};
+
+			partition@3400000 {
+				label = "rootfs_1";
+				reg = <0x3400000 0x3400000>;
+				read-only;
+			};
+
+			partition@6800000 {
+				label = "0:NVRAM";
+				reg = <0x6800000 0x1000000>;
+				read-only;
+			};
+
+			partition@7800000 {
+				label = "crashlog";
+				reg = <0x7800000 0x800000>;
+				read-only;
+			};
+		};
+	};
 };
