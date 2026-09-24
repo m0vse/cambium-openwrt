@@ -155,6 +155,8 @@ verify=cambium/verify/$family/verify-family-fit.sh
 
 case "$family" in
 sage)
+	fits="recovery=$(image '*cambiumnetworks_sage-recovery-initramfs-zImage.itb')
+persistent=$(image '*cambiumnetworks_sage-persistent-squashfs-kernel.itb')"
 	SAGE_FLAVOR=recovery sh "$verify" "$(image '*cambiumnetworks_sage-recovery-initramfs-zImage.itb')"
 	SAGE_FLAVOR=persistent sh "$verify" "$(image '*cambiumnetworks_sage-persistent-squashfs-kernel.itb')"
 	image '*cambiumnetworks_sage-persistent-squashfs-sysupgrade.bin' >/dev/null
@@ -165,12 +167,17 @@ thor)
 	sysupgrade=$(image '*cambiumnetworks_thor-persistent-squashfs-sysupgrade.bin')
 	tar -xOf "$sysupgrade" sysupgrade-cambiumnetworks_xv3-8/kernel > "$work/kernel.itb"
 	THOR_FLAVOR=persistent sh "$verify" "$work/kernel.itb"
+	fits="recovery=$(image '*cambiumnetworks_thor-recovery-initramfs-uImage.itb')
+installer=$(image '*cambiumnetworks_thor-installer-initramfs-uImage.itb')
+persistent=$work/kernel.itb"
 	[ "$(wc -c < "$(image '*cambiumnetworks_thor-persistent-squashfs-factory.ubi')")" -le 100663296 ] ||
 		fail "XV3-8 factory image exceeds the 96 MiB rootfs partition"
 	;;
 cheetah)
 	CHEETAH_FLAVOR=recovery sh "$verify" "$(image '*cambiumnetworks_cheetah-recovery-initramfs-uImage.itb')"
 	CHEETAH_FLAVOR=persistent sh "$verify" "$(image '*cambiumnetworks_cheetah-persistent-squashfs-kernel.itb')"
+	fits="recovery=$(image '*cambiumnetworks_cheetah-recovery-initramfs-uImage.itb')
+persistent=$(image '*cambiumnetworks_cheetah-persistent-squashfs-kernel.itb')"
 	[ "$(head -c 4 "$(image '*cambiumnetworks_cheetah-persistent-squashfs-rootfs.squashfs')")" = hsqs ] ||
 		fail "Cheetah root image is not SquashFS"
 	[ "$(wc -c < "$(image '*cambiumnetworks_cheetah-persistent-squashfs-factory.ubi')")" -lt 100663296 ] ||
@@ -183,6 +190,8 @@ jaguar)
 	kernel=$(find build_dir -type f -name 'cambiumnetworks_jaguar-persistent-uImage.itb' | head -n 1)
 	[ -s "$kernel" ] || fail "missing Jaguar persistent kernel FIT"
 	JAGUAR_FLAVOR=persistent sh "$verify" "$kernel"
+	fits="recovery=$(image '*cambiumnetworks_jaguar-recovery-initramfs-uImage.itb')
+persistent=$kernel"
 	image '*cambiumnetworks_jaguar-persistent-squashfs-factory.ubi' >/dev/null
 	;;
 esac
@@ -216,6 +225,13 @@ find "$bin_dir" -maxdepth 1 -type f \( -name '*cambiumnetworks_*' -o -name 'prof
 cp -R "$bin_dir/packages" "$output/feed/targets/$target/$subtarget/"
 cp -R "bin/packages/$arch/base" "$output/feed/packages/$arch/"
 cp files/etc/cambium-openwrt-release "$output/images/cambium-openwrt-release"
+# Machine-readable model/SKU/configuration/image manifest; also fails if
+# cambium/families.json names a configuration the built FITs lack.
+old_ifs=$IFS; IFS='
+'
+python3 cambium/scripts/manifest.py cambium/families.json "$family" "$output/images" \
+	files/etc/cambium-openwrt-release $fits
+IFS=$old_ifs
 (cd "$output/images" && sha256sum -- * > SHA256SUMS)
 printf '%s\n' "$build_id" > "$output/BUILD_ID"
 log "Done: $name $build_id"
