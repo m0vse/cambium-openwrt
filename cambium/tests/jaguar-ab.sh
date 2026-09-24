@@ -34,17 +34,25 @@ fail_point() {
 	:
 }
 ubi_mtd() { cat "$S/sys/ubi/$1/mtd_num"; }
+# Sysupgrade stage 2 has no hotplug: with $S/no_hotplug, attaching a device
+# or creating a volume makes its sysfs entry but no new /dev node. Nodes that
+# already exist are kept.
+hotplug() { [ ! -f "$S/no_hotplug" ]; }
+need_node() { [ -e "$1" ] || { echo "error while opening \"$1\": No such file or directory" >&2; exit 1; }; }
 refresh() { # refresh UBI_DEV MTD
 	rm -rf "$S/sys/ubi/$1"_*
-	for f in "$S"/dev/"$1"_*; do [ -L "$f" ] && rm -f "$f"; done
+	echo "250:${1#ubi}" > "$S/sys/ubi/$1/dev"
+	hotplug && touch "$S/dev/$1"
 	for n in "$S/flash/mtd$2"/*.name; do
 		[ -f "$n" ] || continue
 		v=$(basename "$n" .name)
 		mkdir -p "$S/sys/ubi/$1_$v"
 		cp "$n" "$S/sys/ubi/$1_$v/name"
 		cp "$S/flash/mtd$2/$v.size" "$S/sys/ubi/$1_$v/data_bytes"
-		ln -sf "$S/flash/mtd$2/$v.data" "$S/dev/$1_$v"
+		echo "251:$v" > "$S/sys/ubi/$1_$v/dev"
+		hotplug && ln -sf "$S/flash/mtd$2/$v.data" "$S/dev/$1_$v"
 	done
+	:
 }
 EOF
 tool() { cat > "$S/bin/$1"; chmod +x "$S/bin/$1"; }
@@ -69,7 +77,7 @@ tool ubidetach <<'EOF'
 for d in "$S"/sys/ubi/ubi[0-9]*; do
 	case "${d##*/}" in *_*) continue ;; esac
 	[ "$(cat "$d/mtd_num")" = "$2" ] || continue
-	k=${d##*/}; rm -rf "$S/sys/ubi/$k" "$S/sys/ubi/$k"_*; rm -f "$S/dev/$k"_*
+	k=${d##*/}; rm -rf "$S/sys/ubi/$k" "$S/sys/ubi/$k"_*; rm -f "$S/dev/$k" "$S/dev/$k"_*
 	echo "detach mtd$2" >> "$S/calls"; exit 0
 done
 exit 1
@@ -90,6 +98,7 @@ EOF
 tool ubimkvol <<'EOF'
 #!/bin/sh
 . "$(dirname "$0")/_sim"
+need_node "$1"
 dev=${1##*/}; shift
 m=$(ubi_mtd "$dev"); id= name= size=
 while [ $# -gt 0 ]; do
@@ -113,6 +122,7 @@ tool ubiupdatevol <<'EOF'
 . "$(dirname "$0")/_sim"
 len=
 [ "$1" = -s ] && { len=$2; shift 2; }
+need_node "$1"
 vol=${1##*/}; k=${vol%_*}; v=${vol##*_}; m=$(ubi_mtd "$k")
 # Like the real tool, a character-device source needs an explicit length.
 [ -n "$len" ] || [ ! -L "$2" ] || { echo 'no length for a device source' >&2; exit 1; }
@@ -149,6 +159,17 @@ else
 	n=$1; shift; set_one "$n" "$*"
 	echo "setenv $n" >> "$S/calls"
 fi
+EOF
+tool mknod <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+# mknod PATH c MAJOR MINOR: a volume node reads and writes the volume data.
+n=${1##*/}
+case "$n" in
+*_*) k=${n%_*}; v=${n##*_}; ln -s "$S/flash/mtd$(ubi_mtd "$k")/$v.data" "$1" ;;
+*) touch "$1" ;;
+esac
+echo "mknod $n" >> "$S/calls"
 EOF
 tool ubiblock <<'EOF'
 #!/bin/sh
@@ -489,9 +510,11 @@ eval "$(sed -n '/^platform_check_image() {/,/^}/p; /^platform_do_upgrade() {/,/^
 generic() { echo "generic-nand $*" >> "$S/calls"; }
 nand_do_upgrade() { generic nand "$@"; }
 default_do_upgrade() { generic default "$@"; }
+# platform_do_upgrade runs in sysupgrade stage 2, without hotplug.
 dispatch() { (. "$S/system.sh"; . "$S/functions.sh"; . "$CAMBIUM_JAGUAR_UPGRADE_LIB"
 	nand_restore_config() { echo "restore-config $CI_UBIPART $1" >> "$S/calls"; }
-	"$@"); }
+	[ "$1" = platform_do_upgrade ] && touch "$S/no_hotplug"
+	"$@"; rc=$?; rm -f "$S/no_hotplug"; exit $rc); }
 
 make_image "$S/good.bin"
 new_ap; run_board_data >/dev/null 2>&1
@@ -565,6 +588,11 @@ assert "too little space: not armed" [ "$(env_get bootcmd)" = 'run jaguar_stable
 converted_ap; sed -i.bak '/^changing_bootcmd=/d' "$S/env"
 check "missing changing_bootcmd refuses the upgrade" 1 dispatch platform_do_upgrade "$S/good.bin"
 assert "missing changing_bootcmd: nothing written" never_wrote 'format|mkvol|update'
+converted_ap cambiumnetworks,xv2-2 1; echo 4 > "$S/fail_at"
+dispatch platform_do_upgrade "$S/good.bin" >/dev/null 2>&1
+assert "a failed step records its command, status and error" sh -c \
+	"grep -q '^jaguar_ab_last_failure=ubi[a-z]* [^:]*: exit 1: .* failed (injected)\$' '$S/env'"
+rm -f "$S/fail_at"
 
 # Interruption at every write and environment step of the upgrade.
 converted_ap; rm -f "$S/opcount"
