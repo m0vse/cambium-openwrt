@@ -1,0 +1,625 @@
+#!/bin/sh
+# Simulation tests for the Cambium Jaguar A/B code: the board table and
+# identity preflight (lib/functions/cambium-jaguar.sh), the inactive-bank
+# writer (lib/upgrade/cambium-jaguar.sh and its platform.sh dispatch), the
+# boot guard, the one-time conversion and the device-data vault in
+# cambium-board-data. The real scripts run against simulated MTD/UBI
+# devices, sysfs, device tree and U-Boot environment; fault injection covers
+# failed and interrupted writes. Nothing touches the host's flash.
+#
+# Usage: cambium/tests/jaguar-ab.sh   (exit status 0 when all pass)
+
+set -u
+
+top=$(cd "$(dirname "$0")/../.." && pwd)
+base=$top/target/linux/qualcommax/ipq60xx/base-files
+jaguar_pkg=$top/package/cambium/cambium-jaguar-support/files
+board_data=$top/package/cambium/cambium-board-data/files/cambium-board-data
+S=$(mktemp -d)
+trap 'rm -rf "$S"' EXIT HUP INT TERM
+pass=0 fail=0
+LEB=126976
+
+# --- simulated tools -------------------------------------------------------------
+mkdir -p "$S/bin"
+cat > "$S/bin/_sim" <<'EOF'
+S=${JAGUAR_SIM:?}
+LEB=126976
+# Every mutating operation counts; fail_at makes the Nth one fail, as a
+# power cut or flash error at that point would.
+fail_point() {
+	n=$(( $(cat "$S/opcount" 2>/dev/null || echo 0) + 1 ))
+	echo "$n" > "$S/opcount"
+	[ -f "$S/fail_at" ] && [ "$(cat "$S/fail_at")" = "$n" ] && { echo "$1 failed (injected)" >&2; exit 1; }
+	:
+}
+ubi_mtd() { cat "$S/sys/ubi/$1/mtd_num"; }
+refresh() { # refresh UBI_DEV MTD
+	rm -rf "$S/sys/ubi/$1"_*
+	for f in "$S"/dev/"$1"_*; do [ -L "$f" ] && rm -f "$f"; done
+	for n in "$S/flash/mtd$2"/*.name; do
+		[ -f "$n" ] || continue
+		v=$(basename "$n" .name)
+		mkdir -p "$S/sys/ubi/$1_$v"
+		cp "$n" "$S/sys/ubi/$1_$v/name"
+		cp "$S/flash/mtd$2/$v.size" "$S/sys/ubi/$1_$v/data_bytes"
+		ln -sf "$S/flash/mtd$2/$v.data" "$S/dev/$1_$v"
+	done
+}
+EOF
+tool() { cat > "$S/bin/$1"; chmod +x "$S/bin/$1"; }
+
+tool ubiattach <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+[ "$1" = -m ] || exit 2
+for d in "$S"/sys/ubi/ubi[0-9]*; do
+	case "${d##*/}" in *_*) continue ;; esac
+	[ -f "$d/mtd_num" ] && [ "$(cat "$d/mtd_num")" = "$2" ] && exit 1
+done
+k=0; while [ -d "$S/sys/ubi/ubi$k" ]; do k=$((k + 1)); done
+mkdir -p "$S/sys/ubi/ubi$k" "$S/flash/mtd$2"
+echo "$2" > "$S/sys/ubi/ubi$k/mtd_num"
+refresh "ubi$k" "$2"
+echo "attach mtd$2" >> "$S/calls"
+EOF
+tool ubidetach <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+for d in "$S"/sys/ubi/ubi[0-9]*; do
+	case "${d##*/}" in *_*) continue ;; esac
+	[ "$(cat "$d/mtd_num")" = "$2" ] || continue
+	k=${d##*/}; rm -rf "$S/sys/ubi/$k" "$S/sys/ubi/$k"_*; rm -f "$S/dev/$k"_*
+	echo "detach mtd$2" >> "$S/calls"; exit 0
+done
+exit 1
+EOF
+tool ubiformat <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+m=${1##*/mtd}
+for d in "$S"/sys/ubi/ubi[0-9]*; do
+	case "${d##*/}" in *_*) continue ;; esac
+	[ -f "$d/mtd_num" ] && [ "$(cat "$d/mtd_num")" = "$m" ] && { echo 'attached' >&2; exit 1; }
+done
+fail_point ubiformat
+rm -rf "$S/flash/mtd$m"; mkdir -p "$S/flash/mtd$m"
+echo formatted > "$S/dev/mtd$m"
+echo "format mtd$m" >> "$S/calls"
+EOF
+tool ubimkvol <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+dev=${1##*/}; shift
+m=$(ubi_mtd "$dev"); id= name= size=
+while [ $# -gt 0 ]; do
+	case "$1" in -n) id=$2; shift ;; -N) name=$2; shift ;; -s) size=$2; shift ;; -m) size=max ;; esac
+	shift
+done
+fail_point ubimkvol
+used=0
+for f in "$S/flash/mtd$m"/*.size; do [ -f "$f" ] && used=$((used + $(cat "$f") / LEB)); done
+avail=$(( $(cat "$S/bank_lebs" 2>/dev/null || echo 724) - used ))
+if [ "$size" = max ]; then lebs=$avail; else lebs=$(( (size + LEB - 1) / LEB )); fi
+[ "$lebs" -le "$avail" ] && [ "$lebs" -gt 0 ] || { echo 'no space' >&2; exit 1; }
+echo "$name" > "$S/flash/mtd$m/$id.name"
+echo $((lebs * LEB)) > "$S/flash/mtd$m/$id.size"
+: > "$S/flash/mtd$m/$id.data"
+refresh "$dev" "$m"
+echo "mkvol mtd$m $id $name" >> "$S/calls"
+EOF
+tool ubiupdatevol <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+len=
+[ "$1" = -s ] && { len=$2; shift 2; }
+vol=${1##*/}; k=${vol%_*}; v=${vol##*_}; m=$(ubi_mtd "$k")
+# Like the real tool, a character-device source needs an explicit length.
+[ -n "$len" ] || [ ! -L "$2" ] || { echo 'no length for a device source' >&2; exit 1; }
+fail_point ubiupdatevol
+if [ -n "$len" ]; then head -c "$len" "$2"; else cat "$2"; fi > "$S/flash/mtd$m/$v.data.new" &&
+	mv "$S/flash/mtd$m/$v.data.new" "$S/flash/mtd$m/$v.data"
+[ "$(cat "$S/corrupt" 2>/dev/null)" = "mtd$m/$v" ] &&
+	printf 'X' | dd of="$S/flash/mtd$m/$v.data" bs=1 count=1 conv=notrunc 2>/dev/null
+echo "update mtd$m $v" >> "$S/calls"
+EOF
+tool fw_printenv <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+[ "$1" = -c ] && shift 2
+[ "$1" = -n ] && shift
+v=$(sed -n "s/^$1=//p" "$S/env")
+grep -q "^$1=" "$S/env" || exit 1
+printf '%s\n' "$v"
+EOF
+tool fw_setenv <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+[ "$1" = -c ] && shift 2
+fail_point fw_setenv
+set_one() {
+	grep -v "^$1=" "$S/env" > "$S/env.new"
+	[ -n "$2" ] && printf '%s=%s\n' "$1" "$2" >> "$S/env.new"
+	mv "$S/env.new" "$S/env"
+}
+if [ "$1" = -s ]; then
+	while read -r n v; do set_one "$n" "$v"; done < "$2"
+	echo "setenv-batch" >> "$S/calls"
+else
+	n=$1; shift; set_one "$n" "$*"
+	echo "setenv $n" >> "$S/calls"
+fi
+EOF
+tool ubiblock <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+tool mount <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+for last; do :; done
+cp -R "$S/oem_root/." "$last/" && echo "mount-oem" >> "$S/calls"
+EOF
+for t in umount logger sync; do printf '#!/bin/sh\nexit 0\n' | tool "$t"; done
+tool reboot <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+echo reboot >> "$S/calls"
+EOF
+tool ip <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+[ -f "$S/net_ok" ] || exit 0
+case "$*" in
+*address*) echo '    inet 192.0.2.10/24 brd 192.0.2.255 scope global br-lan' ;;
+*route*) echo 'default via 192.0.2.1 dev br-lan' ;;
+esac
+EOF
+command -v sha256sum >/dev/null 2>&1 || tool sha256sum <<'EOF'
+#!/bin/sh
+exec shasum -a 256 "$@"
+EOF
+cat > "$S/functions.sh" <<'EOF'
+find_mtd_index() {
+	awk -v w="\"$1\"" '$4 == w { sub(/^mtd/, "", $1); sub(/:$/, "", $1); print $1 }' "$JAGUAR_PROC_MTD"
+}
+EOF
+cat > "$S/system.sh" <<'EOF'
+board_name() { cat "$JAGUAR_SIM/board"; }
+EOF
+tool board-data <<EOF
+#!/bin/sh
+exec sh "$board_data" "\$@"
+EOF
+
+export PATH="$S/bin:$PATH" JAGUAR_SIM=$S
+export JAGUAR_PROC_MTD=$S/proc_mtd JAGUAR_CMDLINE=$S/cmdline JAGUAR_DT=$S/dt
+export JAGUAR_UBI_SYS=$S/sys/ubi JAGUAR_MTD_SYS=$S/sys/mtd JAGUAR_DEV=$S/dev
+export JAGUAR_ENV_CONFIG=$S/fw_env.config JAGUAR_PROC_MOUNTS=$S/mounts
+export CAMBIUM_JAGUAR_LIB=$base/lib/functions/cambium-jaguar.sh
+export CAMBIUM_JAGUAR_UPGRADE_LIB=${CAMBIUM_JAGUAR_UPGRADE_LIB:-$base/lib/upgrade/cambium-jaguar.sh}
+export CAMBIUM_FUNCTIONS=$S/functions.sh CAMBIUM_SYSTEM_FUNCTIONS=$S/system.sh
+export CAMBIUM_BDF_FW_DIR=$S/fw CAMBIUM_BDF_WORK=$S/bdwork CAMBIUM_BDF_STATUS=$S/bdstatus
+export JAGUAR_BOARD_DATA=$S/bin/board-data JAGUAR_WORK=$S/work
+export JAGUAR_GUARD_TRIES=2 JAGUAR_GUARD_PAUSE=0
+
+# --- simulated AP ---------------------------------------------------------------
+BDF=lib/firmware/IPQ6018/WIFI_FW/bdwlan.b13.stock
+
+sku_byte() {
+	case "$1" in
+	cambiumnetworks,xv2-2) echo 024 ;; cambiumnetworks,xv2-2t0) echo 026 ;;
+	cambiumnetworks,xv2-2t1) echo 037 ;; cambiumnetworks,xe3-4) echo 040 ;;
+	cambiumnetworks,xe3-4tn) echo 041 ;; *) echo 177 ;;
+	esac
+}
+set_sku() { printf "\\000\\000\\000\\$1" > "$S/dt/cambium-platform/board-sku"; }
+
+# new_ap [BOARD] [ACTIVE-SLOT] [oem|openwrt]: the other bank's contents.
+new_ap() {
+	local board=${1:-cambiumnetworks,xv2-2t1} active=${2:-0} other=${3:-oem} i
+	rm -rf "$S/sys" "$S/dev" "$S/flash" "$S/dt" "$S/fw" "$S/bdwork"* "$S/work" "$S/oem_root"
+	rm -f "$S/calls" "$S/opcount" "$S/fail_at" "$S/corrupt" "$S/bank_lebs" "$S/bdstatus" "$S/net_ok"
+	mkdir -p "$S/sys/ubi" "$S/dev" "$S/flash" "$S/dt/cambium-platform" "$S/fw"
+	touch "$S/calls"
+	echo "$board" > "$S/board"
+	set_sku "$(sku_byte "$board")"
+	printf '%s\n' 'dev:    size   erasesize  name' \
+		'mtd0: 06000000 00020000 "rootfs"' 'mtd1: 06000000 00020000 "rootfs_1"' \
+		'mtd2: 03000000 00020000 "NVRAM"' 'mtd3: 01000000 00020000 "crashLog"' \
+		'mtd4: 00080000 00010000 "0:ART"' 'mtd5: 00010000 00010000 "0:APPSBLENV"' > "$S/proc_mtd"
+	for i in 0 1 2 3 4 5; do mkdir -p "$S/sys/mtd/mtd$i"; echo 0x800 > "$S/sys/mtd/mtd$i/flags"; done
+	echo 0xc00 > "$S/sys/mtd/mtd0/flags"; echo 0xc00 > "$S/sys/mtd/mtd1/flags"
+	echo 0xc00 > "$S/sys/mtd/mtd5/flags"
+	echo "ART-of-this-unit" > "$S/dev/mtd4"; echo NVRAM > "$S/dev/mtd2"
+	printf 'console=ttyMSM0 ubi.mtd=%s root=/dev/ubiblock0_1\n' "$([ "$active" = 0 ] && echo rootfs || echo rootfs_1)" > "$S/cmdline"
+	make_bank "$active" "running-kernel" "running-root"
+	if [ "$other" = oem ]; then
+		mkdir -p "$S/flash/mtd$((1 - active))"
+		echo ubi_rootfs > "$S/flash/mtd$((1 - active))/0.name"
+		echo $((200 * LEB)) > "$S/flash/mtd$((1 - active))/0.size"
+		echo oem-squashfs > "$S/flash/mtd$((1 - active))/0.data"
+		echo "OEM-7.2-BANK" > "$S/dev/mtd$((1 - active))"
+		mkdir -p "$S/oem_root/$(dirname "$BDF")"
+		head -c 65536 /dev/zero | tr '\000' 'B' > "$S/oem_root/$BDF"
+	else
+		make_bank "$((1 - active))" "other-kernel" "other-root" detached
+	fi
+	mkdir -p "$S/sys/ubi/ubi0"; echo "$active" > "$S/sys/ubi/ubi0/mtd_num"
+	(. "$S/bin/_sim"; refresh ubi0 "$active")
+	touch "$S/dev/ubiblock0_1"
+	echo '/dev/ubi0_2 /overlay ubifs rw,noatime 0 0' > "$S/mounts"
+	printf '%s\n' 'bootcmd=bootipq' 'image=1' 'changing_bootcmd=1' > "$S/env"
+}
+make_bank() { # SLOT KERNEL ROOT
+	local m="$S/flash/mtd$1"
+	mkdir -p "$m"
+	printf 'kernel\n' > "$m/0.name"; echo $((40 * LEB)) > "$m/0.size"; printf '%s' "$2" > "$m/0.data"
+	printf 'rootfs\n' > "$m/1.name"; echo $((200 * LEB)) > "$m/1.size"; printf '%s' "$3" > "$m/1.data"
+	printf 'rootfs_data\n' > "$m/2.name"; echo $((470 * LEB)) > "$m/2.size"; : > "$m/2.data"
+	printf 'cambium_device_data\n' > "$m/3.name"; echo $((8 * LEB)) > "$m/3.size"; : > "$m/3.data"
+	echo "OPENWRT-BANK-$1" > "$S/dev/mtd$1"
+}
+# A converted AP: both banks OpenWrt, vault filled, env in A/B mode.
+converted_ap() {
+	new_ap "${1:-cambiumnetworks,xv2-2t1}" "${2:-0}" oem
+	run_board_data >/dev/null 2>&1
+	sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --allow-untested --yes >/dev/null 2>&1 ||
+		{ echo "fixture: conversion failed" >&2; return 1; }
+	: > "$S/calls"; rm -f "$S/opcount"
+}
+oem_hash() { sha256sum < "$S/dev/mtd$(( 1 - $(cat "$S/sys/ubi/ubi0/mtd_num") ))" | cut -d' ' -f1; }
+env_get() { sed -n "s/^$1=//p" "$S/env"; }
+bank_hash() { (cd "$S/flash/mtd$1" && cat ./* 2>/dev/null) | sha256sum | cut -d' ' -f1; }
+run_board_data() { sh "$board_data" "$@"; }
+
+# FIT holding the five Jaguar configuration nodes (or those given).
+make_fit() {
+	local c
+	printf '\320\015\376\355\000\000\000\100'
+	for c in ${*:-config@cp01-c1 config@cp01-c1-1 config@cp01-c1-2 config@cp01-c3-xv3-4 config@cp01-c3-2}; do
+		printf '\000\000\000\001%s\000' "$c"
+	done
+	printf 'kernel-payload'
+}
+# make_image OUT [kernel-file] [root-file] [dir]
+make_image() {
+	local d=$S/img/${4:-sysupgrade-cambiumnetworks_jaguar}
+	rm -rf "$S/img"; mkdir -p "$d"
+	if [ -n "${2:-}" ]; then cp "$2" "$d/kernel"; else make_fit > "$d/kernel"; fi
+	if [ -n "${3:-}" ]; then cp "$3" "$d/root"; else printf 'hsqs-new-root' > "$d/root"; fi
+	(cd "$S/img" && tar -cf "$1" "${4:-sysupgrade-cambiumnetworks_jaguar}")
+}
+
+# --- harness --------------------------------------------------------------------
+check() { # check DESCRIPTION EXPECTED(0|1) COMMAND...
+	local desc=$1 want=$2 got
+	shift 2
+	( "$@" ) >"$S/out" 2>&1; got=$?
+	[ "$got" -ne 0 ] && got=1
+	if [ "$got" = "$want" ]; then pass=$((pass + 1)); else
+		fail=$((fail + 1)); echo "FAIL: $desc (exit $got, wanted $want)"; sed 's/^/    /' "$S/out"
+	fi
+}
+assert() { # assert DESCRIPTION TEST...
+	local desc=$1
+	shift
+	if "$@"; then pass=$((pass + 1)); else fail=$((fail + 1)); echo "FAIL: $desc"; fi
+}
+in_lib() { # run a function with the libraries loaded
+	(. "$S/system.sh"; . "$S/functions.sh"; . "$CAMBIUM_JAGUAR_UPGRADE_LIB"
+	 nand_restore_config() { echo "restore-config $CI_UBIPART $1" >> "$S/calls"; }
+	 "$@")
+}
+never_wrote() { # never_wrote PATTERN: no simulated write matched
+	! grep -E "$1" "$S/calls" >/dev/null
+}
+
+# --- board table and identity ---------------------------------------------------
+while read -r board fit; do
+	new_ap "$board"
+	check "$board identity accepted in slot 0" 0 in_lib eval \
+		'jaguar_identity && [ "$JAGUAR_ACTIVE:$JAGUAR_TARGET:$JAGUAR_FIT" = "0:1:'"$fit"'" ]'
+done <<'EOF'
+cambiumnetworks,xv2-2t0 config@cp01-c1-1
+cambiumnetworks,xv2-2t1 config@cp01-c1-2
+cambiumnetworks,xe3-4 config@cp01-c3-xv3-4
+cambiumnetworks,xe3-4tn config@cp01-c3-2
+EOF
+new_ap cambiumnetworks,xv2-2
+check "XV2-2 (128 MiB NAND, two 52 MiB slots) refused" 1 in_lib jaguar_identity
+new_ap cambiumnetworks,xv2-2t1 1 openwrt
+check "identity accepted in slot 1" 0 in_lib eval \
+	'jaguar_identity && [ "$JAGUAR_ACTIVE:$JAGUAR_TARGET:$JAGUAR_TARGET_PART" = "1:0:rootfs" ]'
+new_ap; set_sku 024
+check "board/SKU mismatch refused" 1 in_lib jaguar_identity
+new_ap; echo 'ubi.mtd=rootfs ubi.mtd=rootfs_1' > "$S/cmdline"
+check "conflicting ubi.mtd refused" 1 in_lib jaguar_identity
+new_ap; echo 'console=ttyMSM0 ubi.mtd=rootfs_1' > "$S/cmdline"
+check "command line / UBI attachment mismatch refused" 1 in_lib jaguar_identity
+new_ap; echo 0xc00 > "$S/sys/mtd/mtd4/flags"
+check "writable ART refused" 1 in_lib jaguar_identity
+new_ap; echo 0xc00 > "$S/sys/mtd/mtd2/flags"
+check "writable NVRAM refused" 1 in_lib jaguar_identity
+new_ap; sed -i.bak 's/^mtd0: 06000000/mtd0: 03000000/' "$S/proc_mtd"
+check "wrong bank size refused" 1 in_lib jaguar_identity
+new_ap cambiumnetworks,xv2-99
+check "unknown board refused" 1 in_lib jaguar_identity
+new_ap cambiumnetworks,xe3-4; rm -rf "$S/dt/cambium-platform"
+check "upstream XE3-4 image (no cambium-platform) is not a Jaguar family image" 1 in_lib jaguar_family
+new_ap cambiumnetworks,xe3-4
+check "Jaguar family XE3-4 is recognised" 0 in_lib jaguar_family
+
+# --- boot commands --------------------------------------------------------------
+for slot in 0 1; do
+	new_ap
+	cmd=$(in_lib eval 'jaguar_board cambiumnetworks,xv2-2t1; jaguar_boot_command '"$slot")
+	case "$slot:$cmd" in
+	0:*'@0x0(fs)'*'ubi.mtd=rootfs '*'bootm 0x60000000#config@cp01-c1-2') ok=0 ;;
+	1:*'@0x6000000(fs)'*'ubi.mtd=rootfs_1 '*'bootm 0x60000000#config@cp01-c1-2') ok=0 ;;
+	*) ok=1 ;;
+	esac
+	assert "slot $slot boot command selects its bank and FIT" [ "$ok" = 0 ]
+done
+assert "stable command 0" [ "$(in_lib jaguar_stable_command 0 1)" = 'run jaguar_boot0; run jaguar_boot1' ]
+assert "stable command 1" [ "$(in_lib jaguar_stable_command 1 0)" = 'run jaguar_boot1; run jaguar_boot0' ]
+assert "trial 0->1 restores slot 0 first" [ "$(in_lib jaguar_trial_command 0 1)" = \
+	'setenv bootcmd run jaguar_stable0; setenv image 0; setenv jaguar_ab_state trial-started; saveenv; run jaguar_boot1; run jaguar_boot0' ]
+assert "trial 1->0 restores slot 1 first" [ "$(in_lib jaguar_trial_command 1 0)" = \
+	'setenv bootcmd run jaguar_stable1; setenv image 1; setenv jaguar_ab_state trial-started; saveenv; run jaguar_boot0; run jaguar_boot1' ]
+new_ap
+assert "no single quotes reach U-Boot" [ -z "$(in_lib eval 'jaguar_board cambiumnetworks,xv2-2t1; jaguar_boot_command 1; jaguar_trial_command 0 1' | tr -dc "'")" ]
+check "invalid slot refused" 1 in_lib eval 'jaguar_board cambiumnetworks,xv2-2t1; jaguar_boot_command 2'
+check "equal stable slots refused" 1 in_lib jaguar_stable_command 0 0
+
+# --- device-data vault ----------------------------------------------------------
+new_ap
+oem_before=$(bank_hash 1)
+check "first boot fills the vault from the OEM slot" 0 run_board_data
+assert "status is vault" [ "$(cat "$S/bdstatus")" = vault ]
+assert "board file installed" [ -s "$S/fw/ath11k/IPQ6018/hw1.0/board.bin" ]
+assert "vault written to the running bank's volume 3" grep -q 'update mtd0 3' "$S/calls"
+assert "OEM bank contents unchanged by the import" [ "$(bank_hash 1)" = "$oem_before" ]
+assert "OEM bank detached after the import" [ -z "$(in_lib jaguar_ubi_for_mtd 1)" ]
+check "--check-vault accepts this unit's vault" 0 run_board_data --check-vault
+rm -rf "$S/fw"; : > "$S/calls"
+check "later boot restores from the vault" 0 run_board_data
+assert "later boot never attaches the OEM slot" never_wrote 'attach|mount-oem'
+assert "board file restored after factory reset" [ -s "$S/fw/ath11k/IPQ6018/hw1.0/board.bin" ]
+echo "ART-of-another-unit" > "$S/dev/mtd4"; : > "$S/calls"
+check "vault from another unit (ART) refused" 1 run_board_data
+assert "status is vault-mismatch" [ "$(cat "$S/bdstatus")" = vault-mismatch ]
+assert "another unit's vault is not overwritten" never_wrote 'update mtd0 3'
+check "--check-vault refuses another unit's vault" 1 run_board_data --check-vault
+new_ap; run_board_data >/dev/null 2>&1
+set_sku 026
+check "--check-vault refuses a SKU mismatch" 1 run_board_data --check-vault
+new_ap; run_board_data >/dev/null 2>&1
+# Corrupt the stored board file: the vault is refilled from the OEM slot.
+(cd "$S" && mkdir -p x && tar -xf flash/mtd0/3.data -C x && printf 'Z' | dd of="x/files/$BDF" bs=1 count=1 conv=notrunc 2>/dev/null &&
+	(cd x && tar -cf ../flash/mtd0/3.data MANIFEST files) && rm -rf x)
+check "--check-vault detects a corrupted board file" 1 run_board_data --check-vault
+: > "$S/calls"
+check "corrupted vault is refilled while the OEM slot exists" 0 run_board_data
+assert "refill rewrote the vault" grep -q 'update mtd0 3' "$S/calls"
+new_ap cambiumnetworks,xe3-4
+check "XE3-4 gets a manifest-only vault" 0 run_board_data
+assert "XE3-4 never attaches the OEM slot" never_wrote 'attach|mount-oem'
+check "XE3-4 vault is valid" 0 run_board_data --check-vault
+new_ap; rm -rf "$S/oem_root"
+check "no OEM board file: radios stay down" 1 run_board_data
+assert "status is missing" [ "$(cat "$S/bdstatus")" = missing ]
+
+# --- conversion -----------------------------------------------------------------
+new_ap; run_board_data >/dev/null 2>&1; : > "$S/calls"
+check "conversion needs --yes" 1 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)"
+check "conversion refuses a wrong OEM backup hash" 1 sh "$jaguar_pkg/jaguar-ab-convert" \
+	--oem-sha256 0000000000000000000000000000000000000000000000000000000000000000 --yes
+assert "a refused conversion wrote nothing" never_wrote 'format|mkvol|update|setenv'
+new_ap cambiumnetworks,xv2-2t0; run_board_data >/dev/null 2>&1
+check "untested model needs --allow-untested" 1 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --yes
+new_ap
+new_ap cambiumnetworks,xv2-2; run_board_data >/dev/null 2>&1
+check "XV2-2 conversion refused even with --allow-untested" 1 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --allow-untested --yes
+new_ap
+check "conversion refuses an empty vault" 1 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --yes
+new_ap; run_board_data >/dev/null 2>&1; echo 0x800 > "$S/sys/mtd/mtd1/flags"
+check "conversion refuses a read-only target bank (pre-A/B image)" 1 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --yes
+new_ap; run_board_data >/dev/null 2>&1
+active_before=$(bank_hash 0)
+check "XV2-2T1 conversion succeeds" 0 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$(oem_hash)" --yes
+assert "converted: version 1, slot 0 confirmed" [ "$(env_get jaguar_ab_version):$(env_get jaguar_ab_confirmed):$(env_get jaguar_ab_state)" = 1:0:confirmed ]
+assert "bootcmd boots slot 0 then slot 1" [ "$(env_get bootcmd)" = 'run jaguar_stable0' ]
+assert "changing_bootcmd kept" [ "$(env_get changing_bootcmd)" = 1 ]
+assert "OEM image value recorded" [ "$(env_get jaguar_ab_oem_image)" = 1 ]
+assert "image follows the running bank" [ "$(env_get image)" = 0 ]
+assert "slot 1 holds the running kernel" cmp -s "$S/flash/mtd1/0.data" "$S/flash/mtd0/0.data"
+assert "slot 1 holds the running rootfs" cmp -s "$S/flash/mtd1/1.data" "$S/flash/mtd0/1.data"
+assert "slot 1 holds the vault" cmp -s "$S/flash/mtd1/3.data" "$S/flash/mtd0/3.data"
+assert "slot 1 volume IDs are kernel, rootfs, rootfs_data, vault" \
+	[ "$(cat "$S/flash/mtd1/0.name" "$S/flash/mtd1/1.name" "$S/flash/mtd1/2.name" "$S/flash/mtd1/3.name" | tr '\n' ' ')" = 'kernel rootfs rootfs_data cambium_device_data ' ]
+assert "running bank untouched" [ "$(bank_hash 0)" = "$active_before" ]
+assert "bootcmd written after changing_bootcmd and boot commands" sh -c \
+	"grep -n 'setenv bootcmd' '$S/calls' | head -n 1 | cut -d: -f1 | { read b; [ \"\$b\" -gt \"\$(grep -n 'setenv-batch' '$S/calls' | sed -n 2p | cut -d: -f1)\" ]; }"
+assert "stable command installed before the OEM bank is formatted" sh -c \
+	"[ \$(grep -n 'setenv bootcmd' '$S/calls' | head -n1 | cut -d: -f1) -lt \$(grep -n 'format mtd1' '$S/calls' | cut -d: -f1) ]"
+check "second conversion refused" 1 sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 x --yes
+
+# Interrupted conversion: stable slot-0 boot survives, --resume finishes it.
+new_ap; run_board_data >/dev/null 2>&1; sha=$(oem_hash)
+steps=$( (sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$sha" --yes >/dev/null 2>&1; cat "$S/opcount") )
+ok=0
+for n in $(seq 1 "$steps"); do
+	new_ap; run_board_data >/dev/null 2>&1; rm -f "$S/opcount"; echo "$n" > "$S/fail_at"
+	sh "$jaguar_pkg/jaguar-ab-convert" --oem-sha256 "$sha" --yes >/dev/null 2>&1
+	rm -f "$S/fail_at"
+	case "$(env_get bootcmd)" in
+	bootipq|'run jaguar_stable0') ;;
+	*) ok=1; echo "    convert interrupted at op $n left bootcmd=$(env_get bootcmd)" ;;
+	esac
+	[ "$(env_get jaguar_ab_version)" = 1 ] && [ "$n" -lt "$steps" ] && { ok=1; echo "    op $n: converted too early"; }
+	if [ "$(env_get jaguar_ab_state)" = convert-failed ] || [ "$(env_get jaguar_ab_state)" = converting ]; then
+		sh "$jaguar_pkg/jaguar-ab-convert" --resume --yes >/dev/null 2>&1 ||
+			{ ok=1; echo "    op $n: --resume failed"; }
+		[ "$(env_get jaguar_ab_version)" = 1 ] || { ok=1; echo "    op $n: not converted after --resume"; }
+	fi
+done
+assert "every interruption of the $steps conversion writes keeps slot 0 booting first and resumes" [ "$ok" = 0 ]
+
+# --- sysupgrade -----------------------------------------------------------------
+eval "$(sed -n '/^platform_check_image() {/,/^}/p; /^platform_do_upgrade() {/,/^}/p' "$base/lib/upgrade/platform.sh")"
+generic() { echo "generic-nand $*" >> "$S/calls"; }
+nand_do_upgrade() { generic nand "$@"; }
+default_do_upgrade() { generic default "$@"; }
+dispatch() { (. "$S/system.sh"; . "$S/functions.sh"; . "$CAMBIUM_JAGUAR_UPGRADE_LIB"
+	nand_restore_config() { echo "restore-config $CI_UBIPART $1" >> "$S/calls"; }
+	"$@"); }
+
+make_image "$S/good.bin"
+new_ap; run_board_data >/dev/null 2>&1
+check "unconverted AP refuses sysupgrade (check)" 1 dispatch platform_check_image "$S/good.bin"
+check "unconverted AP refuses sysupgrade (do)" 1 dispatch platform_do_upgrade "$S/good.bin"
+assert "unconverted AP never reaches a generic path" never_wrote 'generic-nand'
+new_ap cambiumnetworks,xe3-4; rm -rf "$S/dt/cambium-platform"
+check "upstream XE3-4 keeps its own check" 0 dispatch platform_check_image "$S/good.bin"
+dispatch platform_do_upgrade "$S/good.bin" >/dev/null 2>&1
+assert "upstream XE3-4 keeps its nand_do_upgrade path" grep -q 'generic-nand nand' "$S/calls"
+
+converted_ap
+check "converted AP accepts the family image" 0 dispatch platform_check_image "$S/good.bin"
+make_image "$S/nofit.bin" "$S/good.bin"
+check "non-FIT kernel refused" 1 dispatch platform_check_image "$S/nofit.bin"
+make_fit config@cp01-c1 config@cp01-c1-1 > "$S/fit-partial"
+make_image "$S/partial.bin" "$S/fit-partial"
+check "FIT without this model's configuration refused" 1 dispatch platform_check_image "$S/partial.bin"
+make_fit config@cp01-c1-2x > "$S/fit-similar"
+make_image "$S/similar.bin" "$S/fit-similar"
+check "similar configuration name not accepted" 1 dispatch platform_check_image "$S/similar.bin"
+printf 'not-squashfs' > "$S/root-bad"; make_image "$S/noroot.bin" "" "$S/root-bad"
+check "non-SquashFS root refused" 1 dispatch platform_check_image "$S/noroot.bin"
+head -c $((700 * LEB)) /dev/zero | sed 's/^/hsqs/' > "$S/root-big"; make_image "$S/big.bin" "" "$S/root-big"
+check "image too large for a bank refused" 1 dispatch platform_check_image "$S/big.bin"
+make_image "$S/otherdir.bin" "" "" sysupgrade-cambiumnetworks_xe3-4
+check "image for another board directory refused" 1 dispatch platform_check_image "$S/otherdir.bin"
+converted_ap; echo "ART-of-another-unit" > "$S/dev/mtd4"
+check "vault mismatch refuses sysupgrade" 1 dispatch platform_check_image "$S/good.bin"
+
+for active in 0 1; do
+	target=$((1 - active))
+	converted_ap cambiumnetworks,xv2-2t1 "$active"
+	active_before=$(bank_hash "$active")
+	check "upgrade slot $active -> $target" 0 dispatch platform_do_upgrade "$S/good.bin"
+	assert "slot $target kernel written" [ "$(cat "$S/flash/mtd$target/0.data")" = "$(tar -xOf "$S/good.bin" sysupgrade-cambiumnetworks_jaguar/kernel)" ]
+	assert "slot $target rootfs written" [ "$(cat "$S/flash/mtd$target/1.data")" = hsqs-new-root ]
+	assert "slot $target vault copied" cmp -s "$S/flash/mtd$target/3.data" "$S/flash/mtd$active/3.data"
+	assert "slot $active untouched" [ "$(bank_hash "$active")" = "$active_before" ]
+	assert "only slot $target and the environment written" never_wrote "(format|mkvol|update) mtd[^$target]"
+	assert "trial of slot $target armed last" [ "$(env_get bootcmd)" = \
+		"setenv bootcmd run jaguar_stable$active; setenv image $active; setenv jaguar_ab_state trial-started; saveenv; run jaguar_boot$target; run jaguar_boot$active" ]
+	assert "state armed, target $target" [ "$(env_get jaguar_ab_state):$(env_get jaguar_ab_target)" = "armed:$target" ]
+	assert "bootcmd is the last environment write" [ "$(grep setenv "$S/calls" | tail -n 1)" = 'setenv bootcmd' ]
+	check "a second upgrade waits for the trial" 1 dispatch platform_check_image "$S/good.bin"
+done
+
+converted_ap
+UPGRADE_BACKUP=$S/sysupgrade.tgz dispatch platform_do_upgrade "$S/good.bin" >/dev/null 2>&1
+assert "settings saved to the target bank's rootfs_data" grep -q 'restore-config rootfs_1 ' "$S/calls"
+converted_ap
+UPGRADE_BACKUP= dispatch platform_do_upgrade "$S/good.bin" >/dev/null 2>&1
+assert "sysupgrade -n skips the settings" never_wrote 'restore-config'
+assert "sysupgrade -n still copies the vault" cmp -s "$S/flash/mtd1/3.data" "$S/flash/mtd0/3.data"
+
+converted_ap; echo mtd1/1 > "$S/corrupt"
+check "readback mismatch fails the upgrade" 1 dispatch platform_do_upgrade "$S/good.bin"
+assert "readback mismatch: not armed" [ "$(env_get bootcmd):$(env_get jaguar_ab_state)" = 'run jaguar_stable0:write-failed' ]
+converted_ap; echo 75 > "$S/bank_lebs"
+check "too little overlay space fails the upgrade" 1 dispatch platform_do_upgrade "$S/good.bin"
+assert "too little space: not armed" [ "$(env_get bootcmd)" = 'run jaguar_stable0' ]
+converted_ap; sed -i.bak '/^changing_bootcmd=/d' "$S/env"
+check "missing changing_bootcmd refuses the upgrade" 1 dispatch platform_do_upgrade "$S/good.bin"
+assert "missing changing_bootcmd: nothing written" never_wrote 'format|mkvol|update'
+
+# Interruption at every write and environment step of the upgrade.
+converted_ap; rm -f "$S/opcount"
+dispatch platform_do_upgrade "$S/good.bin" >/dev/null 2>&1; steps=$(cat "$S/opcount")
+ok=0
+for n in $(seq 1 "$steps"); do
+	converted_ap; echo "$n" > "$S/fail_at"
+	dispatch platform_do_upgrade "$S/good.bin" >/dev/null 2>&1; rc=$?
+	rm -f "$S/fail_at"
+	cmd=$(env_get bootcmd)
+	if [ "$n" -lt "$steps" ]; then
+		[ "$rc" != 0 ] && [ "$cmd" = 'run jaguar_stable0' ] ||
+			{ ok=1; echo "    upgrade interrupted at op $n: rc=$rc bootcmd=$cmd"; }
+	fi
+	never_wrote '(format|mkvol|update) mtd0' || { ok=1; echo "    op $n wrote the active bank"; }
+done
+assert "every interruption of the $steps upgrade writes keeps slot 0 the default" [ "$ok" = 0 ]
+
+# --- boot guard -----------------------------------------------------------------
+guard() { sh "$jaguar_pkg/jaguar-bootguard"; }
+healthy_ap() { touch "$S/net_ok"; run_board_data >/dev/null 2>&1; }
+boot_slot() { # the new kernel came up from slot $1
+	printf 'console=ttyMSM0 ubi.mtd=%s root=/dev/ubiblock0_1\n' "$([ "$1" = 0 ] && echo rootfs || echo rootfs_1)" > "$S/cmdline"
+	rm -rf "$S/sys/ubi"; mkdir -p "$S/sys/ubi/ubi0"; echo "$1" > "$S/sys/ubi/ubi0/mtd_num"
+	(. "$S/bin/_sim"; refresh ubi0 "$1")
+}
+# U-Boot running the armed trial command up to bootm.
+uboot_trial() {
+	local old=$(env_get jaguar_ab_confirmed)
+	sed -i.bak -e "s/^bootcmd=.*/bootcmd=run jaguar_stable$old/" -e "s/^image=.*/image=$old/" \
+		-e 's/^jaguar_ab_state=.*/jaguar_ab_state=trial-started/' "$S/env"
+}
+
+converted_ap; dispatch platform_do_upgrade "$S/good.bin" >/dev/null 2>&1
+uboot_trial; boot_slot 1; healthy_ap; : > "$S/calls"
+check "healthy trial of slot 1 committed" 0 guard
+assert "slot 1 confirmed and default" [ "$(env_get jaguar_ab_confirmed):$(env_get jaguar_ab_state):$(env_get bootcmd):$(env_get image)" = '1:confirmed:run jaguar_stable1:1' ]
+assert "trial target cleared" [ -z "$(env_get jaguar_ab_target)" ]
+assert "no reboot after a healthy trial" never_wrote reboot
+check "reverse upgrade 1 -> 0 accepted after commit" 0 dispatch platform_check_image "$S/good.bin"
+
+converted_ap; dispatch platform_do_upgrade "$S/good.bin" >/dev/null 2>&1
+uboot_trial; boot_slot 1; run_board_data >/dev/null 2>&1; : > "$S/calls"
+check "unhealthy trial (no DHCP) rolls back" 0 guard
+assert "unhealthy trial recorded" [ "$(env_get jaguar_ab_state)" = rolled-back ]
+assert "unhealthy trial rebooted" grep -q reboot "$S/calls"
+assert "unhealthy trial leaves slot 0 the default" [ "$(env_get bootcmd):$(env_get jaguar_ab_confirmed)" = 'run jaguar_stable0:0' ]
+
+converted_ap; dispatch platform_do_upgrade "$S/good.bin" >/dev/null 2>&1
+uboot_trial; boot_slot 0; healthy_ap
+check "trial that did not boot is recorded" 1 guard
+assert "rollback recorded with slot 0 kept" [ "$(env_get jaguar_ab_state):$(env_get bootcmd)" = 'rolled-back:run jaguar_stable0' ]
+check "upgrade allowed again after a rollback" 0 dispatch platform_check_image "$S/good.bin"
+
+converted_ap; boot_slot 1; healthy_ap; : > "$S/calls"
+check "confirmed bank failing to boot is reported" 0 guard
+assert "fallback state recorded once" [ "$(env_get jaguar_ab_state)" = fallback ]
+: > "$S/calls"; guard >/dev/null 2>&1
+assert "fallback not re-recorded every boot" never_wrote setenv
+
+converted_ap; boot_slot 0; healthy_ap; : > "$S/calls"
+check "healthy confirmed boot" 0 guard
+assert "healthy confirmed boot writes nothing" never_wrote 'setenv|reboot'
+
+new_ap; healthy_ap; : > "$S/calls"
+check "legacy guard re-arms the OEM-fallback one-shot" 0 guard
+assert "legacy one-shot is the validated command" [ "$(env_get bootcmd)" = 'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1-2; reset' ]
+assert "legacy writes changing_bootcmd before bootcmd" [ "$(grep setenv "$S/calls" | tr '\n' ' ')" = 'setenv changing_bootcmd setenv bootcmd ' ]
+new_ap; healthy_ap; sed -i.bak 's/^bootcmd=.*/bootcmd=something-else/' "$S/env"; : > "$S/calls"
+check "legacy guard leaves a changed bootcmd alone" 1 guard
+assert "changed bootcmd not overwritten" never_wrote setenv
+new_ap; run_board_data >/dev/null 2>&1; : > "$S/calls"
+check "legacy guard: unhealthy start returns to OEM" 0 guard
+assert "legacy unhealthy start rebooted" grep -q reboot "$S/calls"
+assert "legacy unhealthy start wrote no environment" never_wrote setenv
+new_ap cambiumnetworks,xe3-4; rm -rf "$S/dt/cambium-platform"; : > "$S/calls"
+check "guard ignores upstream XE3-4 images" 0 guard
+assert "upstream XE3-4 untouched by the guard" never_wrote 'setenv|reboot'
+
+converted_ap; boot_slot 0; healthy_ap
+assert "status reports A/B mode" sh -c "sh '$jaguar_pkg/jaguar-ab-status' | grep -qx 'mode=ab'"
+assert "status reports the confirmed slot" sh -c "sh '$jaguar_pkg/jaguar-ab-status' | grep -qx 'confirmed=0'"
+
+echo "$pass passed, $fail failed"
+[ "$fail" -eq 0 ]
