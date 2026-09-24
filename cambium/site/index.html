@@ -186,6 +186,9 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
     has no password until you set one.</li>
     <li>The LAN port is a DHCP <em>client</em>. The access point never serves
     DHCP or router advertisements onto your network.</li>
+    <li>The hostname is the stock firmware's: the model and the last six hex
+    digits of the access point's MAC address, e.g. <code>E410-ABABAB</code> or
+    <code>XV2-21X-BEA5BE</code>.</li>
     <li>Persistent images include LuCI, WPA-Enterprise (<code>wpad-mbedtls</code>),
     802.11r/k/v roaming (<code>usteer</code>), WireGuard, OpenVPN, LLDP and the
     OpenWISP agents. Anything else can be added from the package feeds.</li>
@@ -510,10 +513,12 @@ fw_printenv changing_bootcmd bootcmd</pre>
   <summary><strong>Jaguar</strong> &mdash; recovery validated on the XV2-2T1 and XV2-2; A/B persistent build under hardware test</summary>
   <div class="note danger"><strong>Hardware trial.</strong> The Jaguar
   persistent image is the A/B build (two OpenWrt banks with automatic
-  rollback). It has been installed and converted on one XV2-2, whose
-  first A/B sysupgrade failed (since fixed, see below); sysupgrade, rollback
-  and reverse switching are still under test, so it is not validated on
-  any model and needs <code>--trial</code>. Only trial a unit you can recover, with PoE power
+  rollback). On one XV2-2 it has been installed and converted, and, after
+  the stage-2 fix and <code>update-upgrader</code>, an A/B sysupgrade
+  switched it from slot 1 to slot 0 with its device-data vault intact.
+  Rollback, reverse switching and settings carry-over are still under
+  test, so it is not validated on any model and needs
+  <code>--trial</code>. Only trial a unit you can recover, with PoE power
   control at hand. The <code>sysupgrade.bin</code> and the persistent RAM
   test image are not in the release: take them from the build's
   <code>cambium-jaguar</code> Actions artifact (<code>test-only/</code>),
