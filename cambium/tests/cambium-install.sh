@@ -261,6 +261,13 @@ jaguar_ram() { echo "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; n
 thor_one() { echo "setenv changing_bootcmd; setenv bootcmd \"aq_load_fw&&bootipq\"; saveenv; aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x0(rootfs)\"; ubi part rootfs; ubi read 0x60000000 $1; bootm 0x60000000#config@hk02; bootipq"; }
 
 # --- Jaguar ----------------------------------------------------------------------------
+# The XV2-2T1 stock firmware also lists its root UBI volume as a second
+# "rootfs" (gluebi, type ubi): only the real partition may be used.
+ap jaguar XV2-2T1 31 1
+echo 'mtd29: 008f6000 0001f000 "rootfs"' >> "$RT/proc/mtd"
+mkdir -p "$RT/sys/class/mtd/mtd29"; echo ubi > "$RT/sys/class/mtd/mtd29/type"
+check "a gluebi volume named rootfs is ignored" 0 inst --from "$W/rel" ram
+assert "the real rootfs partition is used" said 'slots: rootfs=mtd1 (06000000), rootfs_1=mtd2 (06000000)'
 ap jaguar XV2-2T1 31 1
 check "Jaguar dry run passes its checks" 0 inst --from "$W/rel" ram
 assert "dry run writes nothing" nothing_written
