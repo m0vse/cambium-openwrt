@@ -13,6 +13,8 @@ src=$(cd "$(dirname "$0")/../site" && pwd)
 
 cp -R "$src/." "$site/"
 touch "$site/.nojekyll"
+python3 "$(dirname "$0")/gen-select-config.py" "$src/../families.json" > "$site/select-config.sh"
+cp "$src/../families.json" "$site/families.json"
 
 # Newest snapshot first.
 builds=$(ls -1 "$site" | grep -E '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+$' |
