@@ -71,6 +71,7 @@ python3 "$(dirname "$0")/gen-select-config.py" "$(dirname "$0")/../families.json
 	> "$stage/assets/select-config.sh"
 cp "$(dirname "$0")/../site/cambium-report.sh" "$stage/assets/cambium-report.sh"
 cp "$(dirname "$0")/../site/cambium-install.sh" "$stage/assets/cambium-install.sh"
+cp "$(dirname "$0")/../site/cambium-serve.py" "$stage/assets/cambium-serve.py"
 (cd "$stage/assets" && sha256sum -- * > SHA256SUMS)
 
 {
