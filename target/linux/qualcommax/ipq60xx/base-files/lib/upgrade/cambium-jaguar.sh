@@ -24,6 +24,22 @@ jaguar_fail() {
 	return 1
 }
 
+# jaguar_step DESCRIPTION COMMAND...: run one write step. Its output goes to
+# $JAGUAR_LOG; on failure JAGUAR_STEP_ERROR names the step, its exit status
+# and last error line, and is what the environment records as the failure,
+# since stage 2's own output is lost when it reboots.
+jaguar_step() {
+	local desc=$1 rc err log=${JAGUAR_LOG:-/tmp/jaguar-upgrade.log}
+	shift
+	"$@" >>"$log" 2>"$log.err"; rc=$?
+	cat "$log.err" >>"$log"
+	[ "$rc" = 0 ] && return 0
+	err=$(grep . "$log.err" | tail -n 1 | tr -d '\r' | cut -c1-120)
+	JAGUAR_STEP_ERROR="$desc: exit $rc${err:+: $err}"
+	echo "Jaguar sysupgrade: $JAGUAR_STEP_ERROR" >&2
+	return "$rc"
+}
+
 # Extract and check the image's kernel FIT and root filesystem into
 # $JAGUAR_WORK. Sets JAGUAR_KERNEL_SIZE and JAGUAR_ROOT_SIZE.
 jaguar_image_extract() {
@@ -75,12 +91,14 @@ cambium_jaguar_check_image() {
 	rm -rf "$JAGUAR_WORK"
 }
 
+# jaguar_record_failure STATE MESSAGE: the failing step's own error, if one
+# was captured, replaces MESSAGE.
 jaguar_record_failure() {
-	local batch=/tmp/jaguar-env-fail.$$
-	printf 'jaguar_ab_state %s\njaguar_ab_last_failure %s\n' "$1" "$2" > "$batch"
+	local batch=/tmp/jaguar-env-fail.$$ msg=${JAGUAR_STEP_ERROR:-$2}
+	printf 'jaguar_ab_state %s\njaguar_ab_last_failure %s\n' "$1" "$msg" > "$batch"
 	jaguar_setenv_batch "$batch" >/dev/null 2>&1
 	rm -f "$batch"
-	jaguar_fail "$2"
+	jaguar_fail "$msg"
 }
 
 # Readback: the first $3 bytes of volume $1 must hash like file $2.
@@ -92,20 +110,32 @@ jaguar_verify_volume() {
 # Format the inactive bank and create kernel (0), rootfs (1), the vault (3)
 # and rootfs_data (2) from the remaining space. Sets JAGUAR_TARGET_UBI.
 jaguar_prepare_bank() {
-	local kernel_size="$1" root_size="$2" ubi dev=${JAGUAR_DEV:-/dev} data
-	ubi=$(jaguar_ubi_for_mtd "$JAGUAR_TARGET_MTD") &&
-		{ ubidetach -m "$JAGUAR_TARGET_MTD" || return 1; }
-	ubiformat "$dev/mtd$JAGUAR_TARGET_MTD" -y -q || return 1
-	ubiattach -m "$JAGUAR_TARGET_MTD" >/dev/null || return 1
-	JAGUAR_TARGET_UBI=$(jaguar_ubi_for_mtd "$JAGUAR_TARGET_MTD") || return 1
-	ubimkvol "$dev/$JAGUAR_TARGET_UBI" -n 0 -N kernel -s "$kernel_size" >/dev/null &&
-		ubimkvol "$dev/$JAGUAR_TARGET_UBI" -n 1 -N rootfs -s "$root_size" >/dev/null &&
-		ubimkvol "$dev/$JAGUAR_TARGET_UBI" -n 3 -N cambium_device_data \
-			-s $((JAGUAR_VAULT_LEBS * JAGUAR_LEB)) >/dev/null &&
-		ubimkvol "$dev/$JAGUAR_TARGET_UBI" -n 2 -N rootfs_data -m >/dev/null || return 1
-	data=$(cat "${JAGUAR_UBI_SYS:-/sys/class/ubi}/${JAGUAR_TARGET_UBI}_2/data_bytes") || return 1
-	[ "$data" -ge $((JAGUAR_MIN_DATA_LEBS * JAGUAR_LEB)) ] ||
-		jaguar_fail "only $data bytes left for rootfs_data"
+	local kernel_size="$1" root_size="$2" dev=${JAGUAR_DEV:-/dev} data ubi
+	if jaguar_ubi_for_mtd "$JAGUAR_TARGET_MTD" >/dev/null; then
+		jaguar_step "ubidetach mtd$JAGUAR_TARGET_MTD" ubidetach -m "$JAGUAR_TARGET_MTD" || return 1
+	fi
+	jaguar_step "ubiformat mtd$JAGUAR_TARGET_MTD" ubiformat "$dev/mtd$JAGUAR_TARGET_MTD" -y -q || return 1
+	jaguar_step "ubiattach mtd$JAGUAR_TARGET_MTD" ubiattach -m "$JAGUAR_TARGET_MTD" || return 1
+	ubi=$(jaguar_ubi_for_mtd "$JAGUAR_TARGET_MTD") || {
+		JAGUAR_STEP_ERROR="no UBI device for mtd$JAGUAR_TARGET_MTD after ubiattach"
+		return 1
+	}
+	JAGUAR_TARGET_UBI=$ubi
+	jaguar_step "mknod $ubi" jaguar_ubi_node "$ubi" &&
+		jaguar_step "ubimkvol $ubi kernel" ubimkvol "$dev/$ubi" -n 0 -N kernel -s "$kernel_size" &&
+		jaguar_step "mknod ${ubi}_0" jaguar_ubi_node "${ubi}_0" &&
+		jaguar_step "ubimkvol $ubi rootfs" ubimkvol "$dev/$ubi" -n 1 -N rootfs -s "$root_size" &&
+		jaguar_step "mknod ${ubi}_1" jaguar_ubi_node "${ubi}_1" &&
+		jaguar_step "ubimkvol $ubi vault" ubimkvol "$dev/$ubi" -n 3 -N cambium_device_data \
+			-s $((JAGUAR_VAULT_LEBS * JAGUAR_LEB)) &&
+		jaguar_step "mknod ${ubi}_3" jaguar_ubi_node "${ubi}_3" &&
+		jaguar_step "ubimkvol $ubi rootfs_data" ubimkvol "$dev/$ubi" -n 2 -N rootfs_data -m &&
+		jaguar_step "mknod ${ubi}_2" jaguar_ubi_node "${ubi}_2" || return 1
+	data=$(cat "${JAGUAR_UBI_SYS:-/sys/class/ubi}/${ubi}_2/data_bytes") || return 1
+	[ "$data" -ge $((JAGUAR_MIN_DATA_LEBS * JAGUAR_LEB)) ] || {
+		JAGUAR_STEP_ERROR="only $data bytes left for rootfs_data"
+		jaguar_fail "$JAGUAR_STEP_ERROR"
+	}
 }
 
 # Copy the running bank's vault to the target bank and compare it.
@@ -113,7 +143,7 @@ jaguar_copy_vault() {
 	local dev=${JAGUAR_DEV:-/dev} src dst copy=/tmp/jaguar-vault.$$
 	src=$dev/$(jaguar_ubi_volume "$JAGUAR_ACTIVE_UBI" cambium_device_data) || return 1
 	dst=$dev/${JAGUAR_TARGET_UBI}_3
-	cat "$src" > "$copy" && ubiupdatevol "$dst" "$copy" &&
+	cat "$src" > "$copy" && jaguar_step "ubiupdatevol vault" ubiupdatevol "$dst" "$copy" &&
 		jaguar_verify_volume "$dst" "$copy" "$(wc -c < "$copy")"
 	local rc=$?
 	rm -f "$copy"
@@ -133,6 +163,7 @@ jaguar_arm_trial() {
 
 cambium_jaguar_do_upgrade() {
 	local dev=${JAGUAR_DEV:-/dev} batch=/tmp/jaguar-env-write.$$
+	JAGUAR_STEP_ERROR=
 	jaguar_upgrade_preflight || return 1
 	jaguar_image_extract "$1" || return 1
 
@@ -145,12 +176,12 @@ cambium_jaguar_do_upgrade() {
 	echo "Jaguar: writing slot $JAGUAR_TARGET ($JAGUAR_TARGET_PART) from slot $JAGUAR_ACTIVE"
 	jaguar_prepare_bank "$JAGUAR_KERNEL_SIZE" "$JAGUAR_ROOT_SIZE" ||
 		{ jaguar_record_failure write-failed "cannot format slot $JAGUAR_TARGET"; return 1; }
-	ubiupdatevol "$dev/${JAGUAR_TARGET_UBI}_0" "$JAGUAR_KERNEL" &&
-		ubiupdatevol "$dev/${JAGUAR_TARGET_UBI}_1" "$JAGUAR_ROOT" ||
+	jaguar_step "ubiupdatevol kernel" ubiupdatevol "$dev/${JAGUAR_TARGET_UBI}_0" "$JAGUAR_KERNEL" &&
+		jaguar_step "ubiupdatevol rootfs" ubiupdatevol "$dev/${JAGUAR_TARGET_UBI}_1" "$JAGUAR_ROOT" ||
 		{ jaguar_record_failure write-failed "cannot write slot $JAGUAR_TARGET"; return 1; }
 	jaguar_verify_volume "$dev/${JAGUAR_TARGET_UBI}_0" "$JAGUAR_KERNEL" "$JAGUAR_KERNEL_SIZE" &&
 		jaguar_verify_volume "$dev/${JAGUAR_TARGET_UBI}_1" "$JAGUAR_ROOT" "$JAGUAR_ROOT_SIZE" ||
-		{ jaguar_record_failure write-failed "slot $JAGUAR_TARGET readback mismatch"; return 1; }
+		{ JAGUAR_STEP_ERROR=; jaguar_record_failure write-failed "slot $JAGUAR_TARGET readback mismatch"; return 1; }
 	jaguar_copy_vault ||
 		{ jaguar_record_failure write-failed "cannot copy the device-data vault"; return 1; }
 
