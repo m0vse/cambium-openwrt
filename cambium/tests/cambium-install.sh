@@ -132,6 +132,39 @@ EOF
 tool wget <<'EOF'
 #!/bin/sh
 . "$(dirname "$0")/_sim"
+if [ "$1" = --help ]; then
+	echo 'Usage: wget [-cqS] [--spider] [-O FILE] [-o LOGFILE] [--header STR]'
+	[ -f "$W/wget_no_post" ] || echo '	[--post-data STR | --post-file FILE] URL...'
+	exit 1
+fi
+case "$4" in
+--post-file|--post-data)
+	# cambium-serve.py. Like BusyBox wget, a posted file is sent only up to its
+	# first zero byte.
+	[ -f "$W/plain_server" ] && { echo 'wget: server returned error: HTTP/1.0 501 Unsupported method' >&2; exit 1; }
+	url=$6; mkdir -p "$W/uploads"
+	python3 - "$W/uploads" "$url" "$4" "$5" "$([ -f "$W/damage_upload" ] && echo 1)" <<'PY'
+import hashlib, os, sys, urllib.parse
+up, url, how, arg, damage = sys.argv[1:6]
+# BusyBox wget posts a file as a C string: it stops at the first zero byte.
+body = open(arg, "rb").read().split(b"\0")[0].decode("latin-1") if how == "--post-file" else arg
+u = urllib.parse.urlsplit(url); name = os.path.basename(u.path); q = urllib.parse.parse_qs(u.query, keep_blank_values=True)
+path = os.path.join(up, name)
+if "done" in q:
+    os.replace(path + ".part", path)
+    data = open(path, "rb").read() + (b"damaged" if damage else b"")
+    print(hashlib.sha256(data).hexdigest())
+elif "offset" in q:
+    data = bytes.fromhex("".join(c for c in body if c in "0123456789abcdefABCDEF"))
+    with open(path + ".part", "r+b" if int(q["offset"][0]) and os.path.exists(path + ".part") else "wb") as f:
+        f.seek(int(q["offset"][0])); f.write(data)
+    print(hashlib.sha256(data).hexdigest())
+else:
+    data = body.encode(); open(path, "wb").write(data); print(hashlib.sha256(data).hexdigest())
+PY
+	log "upload ${url##*/}"
+	exit 0 ;;
+esac
 out=$3 url=$4
 case "$url" in https://*) echo "wget: not an http or ftp url: $url" >&2; exit 1 ;; esac
 f=$W/http/${url##*/}
@@ -192,7 +225,8 @@ RT=$W/root
 # ap FAMILY MODEL SKU RUNNING-SLOT(0|1) [bank-hex]
 ap() {
 	local fam=$1 sku=$3 run=$4 bank=${5:-06000000} i
-	rm -rf "$RT" "$W/flash" "$W/calls" "$W/env" "$W/corrupt" "$W/fail_mkvol" "$W/tftp_readonly" "$W/bad_format"
+	rm -rf "$RT" "$W/flash" "$W/calls" "$W/env" "$W/corrupt" "$W/fail_mkvol" "$W/tftp_readonly" "$W/bad_format" \
+		"$W/plain_server" "$W/damage_upload" "$W/wget_no_post"
 	mkdir -p "$RT/proc" "$RT/sys/class/ubi" "$RT/sys/class/mtd" "$RT/dev" "$RT/tmp" "$W/flash"
 	touch "$W/calls"
 	printf "\\000\\000\\000\\$(printf '%03o' "$sku")" > "$RT/sku"
@@ -226,7 +260,9 @@ ap() {
 		echo $((100 * LEB)) > "$W/flash/mtd$i/0.size"; echo "oem-slot-mtd$i" > "$W/flash/mtd$i/0.data"
 		echo "raw-mtd$i" > "$RT/dev/mtd${i}ro"
 	done
-	for i in 20 21; do echo "nor$i" > "$RT/dev/mtd${i}ro"; done
+	# U-Boot environment and ART are binary, with zero bytes.
+	printf 'CRC!baudrate=115200\000ethaddr=00:04:56:12:34:56\000\000' > "$RT/dev/mtd20ro"
+	printf 'ART\000\000\001calibration' > "$RT/dev/mtd21ro"
 	running=$([ "$run" = 0 ] && echo $r0 || echo $r1)
 	mkdir -p "$RT/sys/class/ubi/ubi0"; echo "$running" > "$RT/sys/class/ubi/ubi0/mtd_num"
 	(. "$W/bin/_sim"; refresh ubi0 "$running")
@@ -305,11 +341,13 @@ check "persistent RAM test" 0 inst --from "$W/rel" --yes --backed-up --persisten
 assert "persistent RAM test attaches no bank (own bootargs)" [ "$(env_get bootcmd)" = \
 	'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 openwrt && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab swiotlb=1" && bootm 0x60000000#config@cp01-c1-2; reset' ]
 
-ap jaguar XV2-2T1 31 1
+ap jaguar XV2-2T0 22 1
 check "untested persistent install refused without --trial" 1 inst --from "$W/rel" --yes --backed-up install
 assert "refusal says RAM boot only" said 'Only the recovery (RAM) image may be used'
 assert "refused install wrote nothing" nothing_written
-check "Jaguar persistent install (--trial)" 0 inst --from "$W/rel" --yes --backed-up --trial install
+check "XV2-2T0 install with --trial" 0 inst --from "$W/rel" --yes --backed-up --trial install
+ap jaguar XV2-2T1 31 1
+check "Jaguar XV2-2T1 persistent install (validated, no --trial)" 0 inst --from "$W/rel" --yes --backed-up install
 assert "Jaguar first boot is the validated guarded command" [ "$(env_get bootcmd)" = \
 	'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1-2; reset' ]
 assert "Jaguar install formatted only rootfs" [ "$(writes)" = "format mtd1 $p-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-squashfs-factory.ubi;attach(plain) mtd1;setenv changing_bootcmd;setenv bootcmd;reboot;" ]
@@ -402,6 +440,26 @@ check "https without TLS explains the http fallback" 1 inst --release snapshot-2
 assert "the fallback is suggested" said 'python3 -m http.server'
 ap jaguar XV2-2T1 31 1
 check "http source" 0 inst --from http://192.0.2.5:8000 --yes --backed-up ram
+# Stock firmware root logins need the challenge/response, so scp cannot fetch
+# the backups: over http they are uploaded to cambium-serve.py and checked.
+ap jaguar XV2-2T1 31 1; rm -rf "$W/uploads"
+check "http check run uploads the backups" 0 inst --from http://192.0.2.5:8000 ram
+assert "backups arrived on the computer" [ -f "$W/uploads/cambium-backup-sku31-mtd1ro.bin" -a -f "$W/uploads/cambium-backup-sku31-ART.bin" ]
+assert "binary backups (with zero bytes) arrive intact" cmp -s "$W/uploads/cambium-backup-sku31-APPSBLENV.bin" "$RT/tmp/cambium-install/backup/APPSBLENV.bin"
+assert "check run still writes nothing to flash" [ -z "$(grep -E '^(attach|mkvol|update|setenv|format)' "$W/calls")" ]
+check "then --yes needs no --backed-up" 0 inst --from http://192.0.2.5:8000 --yes ram
+assert "already-uploaded backups are not sent again" said 'backups already uploaded'
+ap jaguar XV2-2T1 31 1; touch "$W/plain_server"
+check "a plain http.server cannot take uploads" 1 inst --from http://192.0.2.5:8000 --yes ram
+assert "the reason names cambium-serve.py" said "serve the release files with 'python3 cambium-serve.py 8000'"
+ap jaguar XV2-2T1 31 1; rm -f "$W/plain_server"; touch "$W/damage_upload"
+check "a damaged upload stops" 1 inst --from http://192.0.2.5:8000 --yes ram
+assert "the damage is named" said 'the upload is damaged'
+assert "damaged upload: flash untouched" [ -z "$(grep -E '^(attach|mkvol|update|setenv)' "$W/calls")" ]
+ap jaguar XV2-2T1 31 1; rm -f "$W/damage_upload"; touch "$W/wget_no_post"
+check "a wget without --post-file stops with advice" 1 inst --from http://192.0.2.5:8000 --yes ram
+assert "the advice is given" said 'cannot upload files (no --post-file)'
+rm -f "$W/wget_no_post"
 cp -R "$W/rel" "$W/rel-bad"; echo tampered >> "$W/rel-bad/$p-qualcommax-ipq60xx-cambiumnetworks_jaguar-recovery-initramfs-uImage.itb"
 ap jaguar XV2-2T1 31 1
 check "a tampered image is refused" 1 inst --from "$W/rel-bad" --yes --backed-up ram
