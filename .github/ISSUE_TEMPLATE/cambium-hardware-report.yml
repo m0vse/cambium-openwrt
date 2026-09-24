@@ -1,0 +1,60 @@
+name: Cambium hardware report
+description: Report a RAM boot (or stock firmware details) of a Cambium access point model that is not yet validated
+title: "Hardware report: MODEL (SKU N)"
+labels:
+  - hardware-report
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing. On a model that is not yet validated, use **only the recovery (RAM) image**: do not install the persistent image. See https://m0vse.github.io/cambium-openwrt/#report for the steps.
+
+        Run `cambium-report.sh` in the booted recovery image, and if you can on the stock firmware too, and **attach the report file(s)** below. The script only reads; it masks MAC addresses and serial numbers, but please read the files before posting them. Never attach partition backups, calibration (ART) data or firmware files.
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: As printed on the label, e.g. XV2-2T0, E510
+    validations:
+      required: true
+  - type: input
+    id: sku
+    attributes:
+      label: Board SKU
+      description: The `board-sku` line at the top of the report
+    validations:
+      required: true
+  - type: input
+    id: stock
+    attributes:
+      label: Stock firmware version
+      description: The Cambium firmware version on the AP (both slots, if you know them)
+    validations:
+      required: true
+  - type: input
+    id: snapshot
+    attributes:
+      label: Snapshot
+      description: The snapshot tag of the recovery image you booted, e.g. snapshot-2026.09.24.1
+  - type: checkboxes
+    id: tried
+    attributes:
+      label: What you ran
+      options:
+        - label: cambium-report.sh on the stock firmware
+        - label: RAM boot of the recovery image
+        - label: cambium-report.sh in the booted recovery image
+  - type: textarea
+    id: result
+    attributes:
+      label: Result
+      description: Did the recovery image boot? Which Ethernet ports got a link and an address? What did the LEDs do? Did the radios start? Anything unexpected.
+    validations:
+      required: true
+  - type: textarea
+    id: reports
+    attributes:
+      label: Reports and logs
+      description: Drag the cambium-report-*.txt file(s) here, and a serial console log if you have one.
+    validations:
+      required: true
