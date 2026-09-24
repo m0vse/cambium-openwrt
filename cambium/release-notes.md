@@ -56,7 +56,8 @@ untested or unported model, please open an issue on this repository.
   is gone or unreadable, the radios stay down and wired operation continues.
 - Sysupgrade works on the Sage E410-layout models (A/B with automatic
   rollback) and on the Thor XV3-8 (in place). Jaguar A/B sysupgrade is under
-  hardware test and not published; Cheetah has no sysupgrade path yet.
+  hardware test and not published (on an installed Jaguar, run
+  `cambium-install.sh update-upgrader` before any sysupgrade trial); Cheetah has no sysupgrade path yet.
 - Kernel modules must come from the same snapshot as the image. The package
   feed for each snapshot is configured in the image and kept for the two
   most recent snapshots only.
