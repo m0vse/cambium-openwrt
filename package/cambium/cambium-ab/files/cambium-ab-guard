@@ -1,40 +1,41 @@
 #!/bin/sh
-# Jaguar boot guard.
+# Cambium A/B boot guard, for every family with an A/B module.
 #
 # Before conversion (one OpenWrt slot, OEM firmware in the other): after a
-# healthy start, re-arm the guarded one-shot that restores the OEM default
-# before booting OpenWrt again, exactly as the validated guard did.
+# healthy start, re-arm the family's guarded one-shot that restores the OEM
+# default before booting OpenWrt again.
 #
-# After jaguar-ab-convert (two OpenWrt banks): commit a trial bank as the new
+# After cambium-ab-convert (two OpenWrt banks): commit a trial bank as the new
 # default only after its health checks pass; if the trial fails, or did not
 # come up, record the rollback and stay on (or return to) the old bank.
 
 . "${CAMBIUM_SYSTEM_FUNCTIONS:-/lib/functions/system.sh}"
-. "${CAMBIUM_JAGUAR_LIB:-/lib/functions/cambium-jaguar.sh}"
+. "${CAMBIUM_AB_LIB:-/lib/functions/cambium-ab.sh}"
 
-TRIES=${JAGUAR_GUARD_TRIES:-60}
-PAUSE=${JAGUAR_GUARD_PAUSE:-5}
+TRIES=${AB_GUARD_TRIES:-60}
+PAUSE=${AB_GUARD_PAUSE:-5}
 BOARD_DATA_STATUS=${CAMBIUM_BDF_STATUS:-/tmp/cambium-board-data.status}
 
 log() {
-	logger -t jaguar-bootguard "$*" 2>/dev/null
-	echo "jaguar-bootguard: $*" >&2
+	logger -t cambium-ab-guard "$*" 2>/dev/null
+	echo "cambium-ab-guard: $*" >&2
 }
 
 do_reboot() {
-	${JAGUAR_REBOOT:-reboot}
+	${AB_REBOOT:-reboot}
 }
 
 # Health of the slot this kernel runs from: its UBI device and root volume,
-# a writable overlay, wired DHCP with a default route and, on A/B, a valid
-# device-data vault. OpenWISP is deliberately not required.
+# a writable overlay, wired DHCP with a default route and, on A/B for a
+# family that keeps one, a valid device-data vault. OpenWISP is deliberately
+# not required.
 healthy() {
-	jaguar_identity >/dev/null 2>&1 || return 1
-	[ -e "${JAGUAR_DEV:-/dev}/ubiblock0_1" ] || return 1
-	grep -q ' /overlay ubifs rw' "${JAGUAR_PROC_MOUNTS:-/proc/mounts}" || return 1
+	ab_identity >/dev/null 2>&1 || return 1
+	[ -e "${AB_DEV:-/dev}/ubiblock0_1" ] || return 1
+	grep -q ' /overlay ubifs rw' "${AB_PROC_MOUNTS:-/proc/mounts}" || return 1
 	ip -4 address show dev br-lan 2>/dev/null | grep -q 'inet ' || return 1
 	ip -4 route show default dev br-lan 2>/dev/null | grep -q '^default ' || return 1
-	[ "$1" != ab ] || [ "$(cat "$BOARD_DATA_STATUS" 2>/dev/null)" = vault ]
+	[ "$1" != ab ] || [ "$AB_VAULT" != 1 ] || [ "$(cat "$BOARD_DATA_STATUS" 2>/dev/null)" = vault ]
 }
 
 wait_healthy() {
@@ -52,20 +53,20 @@ wait_healthy() {
 # one-shot that restores the stock default before booting OpenWrt again.
 legacy_guard() {
 	local slot bootcmd
-	slot=$(jaguar_running_slot 2>/dev/null) || return 0
-	bootcmd=$(jaguar_guarded_command "$slot") || return 1
+	slot=$(ab_running_slot 2>/dev/null) || return 0
+	bootcmd=$(ab_guarded_command "$slot") || return 1
 
 	if wait_healthy legacy; then
-		[ "$(jaguar_getenv bootcmd)" = bootipq ] || {
+		[ "$(ab_getenv bootcmd)" = "$AB_STOCK_BOOTCMD" ] || {
 			log 'bootcmd changed independently; leaving it alone'
 			return 1
 		}
-		[ "$(jaguar_getenv image)" = "$((1 - slot))" ] || {
+		[ "$(ab_getenv image)" = "$((1 - slot))" ] || {
 			log "U-Boot image is not the stock firmware's slot $((1 - slot)); leaving it alone"
 			return 1
 		}
-		jaguar_setenv changing_bootcmd 1 || return 1
-		jaguar_setenv bootcmd "$bootcmd" || return 1
+		ab_setenv changing_bootcmd 1 || return 1
+		ab_setenv bootcmd "$bootcmd" || return 1
 		log "healthy; guarded OpenWrt boot of slot $slot rearmed"
 		return 0
 	fi
@@ -74,13 +75,13 @@ legacy_guard() {
 }
 
 commit_trial() {
-	local slot="$1" batch=/tmp/jaguar-guard.$$ rc=0
-	printf 'jaguar_ab_confirmed %s\njaguar_ab_state confirmed\nimage %s\n' "$slot" "$slot" > "$batch"
+	local slot="$1" batch=/tmp/cambium-ab-guard.$$ rc=0
+	printf "${AB_ENV}_ab_confirmed %s\n${AB_ENV}_ab_state confirmed\nimage %s\n" "$slot" "$slot" > "$batch"
 	# A committed switch supersedes any earlier failure.
-	printf 'jaguar_ab_target\njaguar_ab_last_failure\n' >> "$batch"
-	jaguar_setenv_batch "$batch" || rc=1
+	printf "${AB_ENV}_ab_target\n${AB_ENV}_ab_last_failure\n" >> "$batch"
+	ab_setenv_batch "$batch" || rc=1
 	rm -f "$batch"
-	[ "$rc" = 0 ] && jaguar_setenv bootcmd "run jaguar_stable$slot" || {
+	[ "$rc" = 0 ] && ab_setenv bootcmd "run ${AB_ENV}_stable$slot" || {
 		log "could not commit slot $slot; the old bank stays the default"
 		return 1
 	}
@@ -88,21 +89,21 @@ commit_trial() {
 }
 
 record_rollback() {
-	local batch=/tmp/jaguar-guard.$$
-	printf 'jaguar_ab_state rolled-back\njaguar_ab_last_failure %s\n' "$1" > "$batch"
-	echo jaguar_ab_target >> "$batch"
-	jaguar_setenv_batch "$batch"
+	local batch=/tmp/cambium-ab-guard.$$
+	printf "${AB_ENV}_ab_state rolled-back\n${AB_ENV}_ab_last_failure %s\n" "$1" > "$batch"
+	echo ${AB_ENV}_ab_target >> "$batch"
+	ab_setenv_batch "$batch"
 	rm -f "$batch"
 	log "rollback: $1"
 }
 
 ab_guard() {
 	local state target confirmed running
-	jaguar_identity || { log 'A/B identity check failed'; return 1; }
-	running=$JAGUAR_ACTIVE
-	state=$(jaguar_getenv jaguar_ab_state)
-	target=$(jaguar_getenv jaguar_ab_target)
-	confirmed=$(jaguar_getenv jaguar_ab_confirmed)
+	ab_identity || { log 'A/B identity check failed'; return 1; }
+	running=$AB_ACTIVE
+	state=$(ab_getenv ${AB_ENV}_ab_state)
+	target=$(ab_getenv ${AB_ENV}_ab_target)
+	confirmed=$(ab_getenv ${AB_ENV}_ab_confirmed)
 
 	case "$state" in
 	trial-started)
@@ -123,10 +124,10 @@ ab_guard() {
 		;;
 	*)
 		if [ "$running" != "$confirmed" ] && [ "$state" != fallback ]; then
-			local batch=/tmp/jaguar-guard.$$
-			printf 'jaguar_ab_state fallback\njaguar_ab_last_failure %s\n' \
+			local batch=/tmp/cambium-ab-guard.$$
+			printf "${AB_ENV}_ab_state fallback\n${AB_ENV}_ab_last_failure %s\n" \
 				"confirmed slot $confirmed did not boot; running slot $running" > "$batch"
-			jaguar_setenv_batch "$batch"
+			ab_setenv_batch "$batch"
 			rm -f "$batch"
 			log "confirmed slot $confirmed did not boot; running fallback slot $running"
 		fi
@@ -135,12 +136,12 @@ ab_guard() {
 }
 
 main() {
-	jaguar_family || return 0
-	if jaguar_ab_converted; then
+	ab_family || return 0
+	if ab_converted; then
 		ab_guard
 	else
 		legacy_guard
 	fi
 }
 
-[ -n "${JAGUAR_GUARD_SOURCE_ONLY:-}" ] || main
+[ -n "${AB_GUARD_SOURCE_ONLY:-}" ] || main
