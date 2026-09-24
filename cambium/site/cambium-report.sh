@@ -25,8 +25,15 @@ PATH=/usr/sbin:/usr/bin:/sbin:/bin:$PATH
 have() { command -v "$1" >/dev/null 2>&1; }
 
 sku_hex=
+# The stock firmware has od; OpenWrt's BusyBox has hexdump instead.
+hex_bytes() {
+	local h
+	h=$(od -An -tx1 "$1" 2>/dev/null | tr -d ' \n')
+	[ -n "$h" ] || h=$(hexdump -v -e '1/1 "%02x"' "$1" 2>/dev/null)
+	echo "$h"
+}
 [ -r /proc/device-tree/cambium-platform/board-sku ] &&
-	sku_hex=$(od -An -tx1 /proc/device-tree/cambium-platform/board-sku | tr -d ' \n')
+	sku_hex=$(hex_bytes /proc/device-tree/cambium-platform/board-sku)
 sku=unknown
 [ -n "$sku_hex" ] && sku=$(printf '%d' "0x$sku_hex")
 [ "$sku" = unknown ] && [ -r /proc/sku ] && sku=$(tr -dc '0-9' < /proc/sku)
@@ -51,7 +58,11 @@ showfile() {
 }
 # A device-tree property as text (strings) or hex (cells).
 dt_text() { [ -r "$1" ] && tr '\000' ' ' < "$1"; }
-dt_hex() { [ -r "$1" ] && od -An -tx4 "$1" | tr -s ' \n' ' '; }
+dt_hex() {
+	[ -r "$1" ] || return 0
+	od -An -tx4 "$1" 2>/dev/null | tr -s ' \n' ' ' | grep . ||
+		hexdump -v -e '4/1 "%02x" " "' "$1" 2>/dev/null
+}
 
 # MAC addresses keep their vendor half (OUI).
 mask() {
