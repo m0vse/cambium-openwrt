@@ -3,7 +3,10 @@
 # Fresh E410 images accept only untagged/PVID VLAN 1 for DHCP management.
 # Tagged site VLANs are added later by an E410-specific OpenWISP template.
 # Preserve existing network configurations when upgrading deployed APs.
-[ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = 'cambium,e410' ] || exit 0
+[ -f /lib/functions/cambium-sage.sh ] || exit 0
+. /lib/functions/cambium-sage.sh
+cambium_sage_board "$(cat /tmp/sysinfo/board_name 2>/dev/null)" &&
+	[ "$SAGE_QUALIFIED" = 1 ] || exit 0
 
 if [ "$(uci -q get network.device_br_lan.vlan_filtering)" = '1' ] &&
    [ "$(uci -q get network.lan.device)" = 'br-lan.1' ]; then
