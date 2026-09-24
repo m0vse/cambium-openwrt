@@ -12,7 +12,11 @@ flavor=${THOR_FLAVOR:-recovery}
 case "$flavor" in
 	recovery) expected_configs='config@hk02
 config@hk01.c6' ;;
+	# The RAM installer: one configuration, rooted in rootfs.
 	persistent) expected_configs='config@hk02' ;;
+	# The A/B persistent kernel: one configuration per firmware bank.
+	ab) expected_configs='config@hk02
+config@hk02-bank1' ;;
 	*) echo "Unknown Thor FIT flavor: $flavor" >&2; exit 2 ;;
 esac
 test "$(fdtget -l "$fit" /configurations)" = "$expected_configs"
@@ -29,6 +33,22 @@ fi
 if sh "$selector" "$fit" 99 >/dev/null 2>&1; then
 	echo 'Selector accepted unknown SKU 99' >&2
 	exit 1
+fi
+
+# Each A/B configuration's tree roots the kernel in its own bank.
+if [ "$flavor" = ab ]; then
+	work_dir=$(mktemp -d)
+	trap 'rm -r "$work_dir"' EXIT HUP INT TERM
+	for pair in config@hk02:rootfs config@hk02-bank1:rootfs_1; do
+		fdt=$(fdtget -t s "$fit" "/configurations/${pair%%:*}" fdt)
+		fdtget -t r "$fit" "/images/$fdt" data > "$work_dir/bank.dtb"
+		test "$(printf '%d' "0x$(fdtget -t x "$work_dir/bank.dtb" /cambium-platform board-sku)")" = 19
+		append=$(fdtget -t s "$work_dir/bank.dtb" /chosen bootargs-append)
+		case " $append " in
+		*" ubi.mtd=${pair#*:} "*) ;;
+		*) echo "Thor ${pair%%:*} appends '$append', not ubi.mtd=${pair#*:}" >&2; exit 1 ;;
+		esac
+	done
 fi
 
 kernel=$(fdtget -t s "$fit" /configurations/config@hk02 kernel)
