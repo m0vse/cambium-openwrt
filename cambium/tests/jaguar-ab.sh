@@ -628,7 +628,9 @@ uboot_trial() {
 
 converted_ap; dispatch platform_do_upgrade "$S/good.bin" >/dev/null 2>&1
 uboot_trial; boot_slot 1; healthy_ap; : > "$S/calls"
+echo 'jaguar_ab_last_failure=cannot format slot 1' >> "$S/env"
 check "healthy trial of slot 1 committed" 0 guard
+assert "a committed trial clears the earlier failure" [ -z "$(env_get jaguar_ab_last_failure)" ]
 assert "slot 1 confirmed and default" [ "$(env_get jaguar_ab_confirmed):$(env_get jaguar_ab_state):$(env_get bootcmd):$(env_get image)" = '1:confirmed:run jaguar_stable1:1' ]
 assert "trial target cleared" [ -z "$(env_get jaguar_ab_target)" ]
 assert "no reboot after a healthy trial" never_wrote reboot
