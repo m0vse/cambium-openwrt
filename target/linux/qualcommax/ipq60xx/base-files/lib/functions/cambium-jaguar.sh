@@ -3,27 +3,41 @@
 # U-Boot boot commands. Shared by sysupgrade, the boot guard, the device-data
 # vault and the one-time conversion. Callers provide board_name().
 #
-# Each Jaguar has two 96 MiB NAND firmware banks: rootfs (slot 0) and
-# rootfs_1 (slot 1). Only OEM 7.2-r1 on the XV2-2T1 has been captured; the
-# preflight re-checks the layout on every unit instead of assuming it.
+# Each Jaguar has two NAND firmware banks, rootfs (slot 0) and rootfs_1
+# (slot 1), whose size depends on the NAND: two 96 MiB banks on the 256 MiB
+# models (captured on the XV2-2T1, OEM 7.2-r1) and two 52 MiB banks on the
+# XV2-2's 128 MiB NAND. The preflight re-checks the layout on every unit
+# instead of assuming it.
 #
 # Test hooks: JAGUAR_PROC_MTD, JAGUAR_CMDLINE, JAGUAR_DT, JAGUAR_UBI_SYS,
 # JAGUAR_MTD_SYS.
 
-JAGUAR_BANK_SIZE=06000000
 JAGUAR_BANK_ERASE=00020000
+JAGUAR_LEB=126976
 
 # jaguar_board BOARD: set JAGUAR_MODEL, JAGUAR_SKU (8 hex digits, as read
 # from the device tree), JAGUAR_FIT, JAGUAR_QUALIFIED (hardware-tested) and
-# JAGUAR_LAYOUT: 96m for two 96 MiB banks (captured on the XV2-2T1), or a
-# description of a different layout, which the A/B code refuses.
+# the bank layout: JAGUAR_BANK_SIZE (as in /proc/mtd), JAGUAR_SLOT1_OFFSET,
+# JAGUAR_BANK_LEBS (usable LEBs: the bank's PEBs less UBI's bad-block
+# reserve of 20 per 1024 PEBs of the whole NAND and 4 PEBs for the volume
+# table and wear levelling) and the names of the NVRAM and crash-log
+# partitions, which must stay read-only.
 jaguar_board() {
 	JAGUAR_QUALIFIED=0
-	JAGUAR_LAYOUT=96m
+	JAGUAR_BANK_SIZE=06000000
+	JAGUAR_SLOT1_OFFSET=0x6000000
+	JAGUAR_BANK_LEBS=724
+	JAGUAR_NVRAM=NVRAM
+	JAGUAR_CRASHLOG=crashLog
 	case "$1" in
 	cambiumnetworks,xv2-2)
+		# 128 MiB Winbond NAND: 416-PEB banks, 20 reserved + 4.
 		JAGUAR_MODEL=XV2-2; JAGUAR_SKU=00000014; JAGUAR_FIT=config@cp01-c1
-		JAGUAR_LAYOUT='a 128 MiB NAND with two 52 MiB slots'
+		JAGUAR_BANK_SIZE=03400000
+		JAGUAR_SLOT1_OFFSET=0x3400000
+		JAGUAR_BANK_LEBS=392
+		JAGUAR_NVRAM=0:NVRAM
+		JAGUAR_CRASHLOG=crashlog
 		;;
 	cambiumnetworks,xv2-2t0) JAGUAR_MODEL=XV2-2T0; JAGUAR_SKU=00000016; JAGUAR_FIT=config@cp01-c1-1 ;;
 	cambiumnetworks,xv2-2t1) JAGUAR_MODEL=XV2-2T1; JAGUAR_SKU=0000001f; JAGUAR_FIT=config@cp01-c1-2; JAGUAR_QUALIFIED=1 ;;
@@ -123,10 +137,6 @@ jaguar_identity() {
 		echo "Jaguar: $board has board-sku $sku, expected $JAGUAR_SKU" >&2
 		return 1
 	}
-	[ "$JAGUAR_LAYOUT" = 96m ] || {
-		echo "Jaguar: the $JAGUAR_MODEL has $JAGUAR_LAYOUT, not two 96 MiB banks" >&2
-		return 1
-	}
 	for slot in 0 1; do
 		name=$(jaguar_bank_name "$slot")
 		idx=$(jaguar_mtd_index "$name")
@@ -154,7 +164,7 @@ jaguar_identity() {
 		echo 'Jaguar: the active slot lacks kernel/rootfs volumes' >&2
 		return 1
 	}
-	for name in NVRAM crashLog 0:ART; do
+	for name in "$JAGUAR_NVRAM" "$JAGUAR_CRASHLOG" 0:ART; do
 		idx=$(jaguar_mtd_index "$name")
 		[ -n "$idx" ] || { echo "Jaguar: missing protected $name" >&2; return 1; }
 		flags=$(cat "${JAGUAR_MTD_SYS:-/sys/class/mtd}/mtd$idx/flags") || return 1
@@ -166,18 +176,23 @@ jaguar_identity() {
 	JAGUAR_BOARD=$board
 }
 
+# The bank size as U-Boot writes it, e.g. 0x6000000.
+jaguar_bank_hex() {
+	printf '0x%x\n' $((0x$JAGUAR_BANK_SIZE))
+}
+
 # U-Boot command booting slot $1 with this board's FIT configuration. It
-# matches the validated slot-0 guard command apart from the slot offset.
+# matches the validated slot-0 guard command apart from the bank.
 jaguar_boot_command() {
 	local part offset
 	[ -n "${JAGUAR_FIT:-}" ] || { echo 'Jaguar: FIT configuration not selected' >&2; return 1; }
 	case "$1" in
 	0) part=rootfs; offset=0x0 ;;
-	1) part=rootfs_1; offset=0x6000000 ;;
+	1) part=rootfs_1; offset=$JAGUAR_SLOT1_OFFSET ;;
 	*) echo "Jaguar: invalid slot $1" >&2; return 1 ;;
 	esac
-	printf 'nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@%s(fs)" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=%s root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#%s\n' \
-		"$offset" "$part" "$JAGUAR_FIT"
+	printf 'nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:%s@%s(fs)" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=%s root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#%s\n' \
+		"$(jaguar_bank_hex)" "$offset" "$part" "$JAGUAR_FIT"
 }
 
 # Stable boot: slot $1, then slot $2 if bootm returns.
