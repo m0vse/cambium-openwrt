@@ -94,8 +94,22 @@ need() {
 # --- the running system ------------------------------------------------------
 
 on_openwrt() { [ -f "$R/etc/openwrt_release" ]; }
-mtd_idx() { sed -n "s/^mtd\([0-9]*\): [0-9a-f]* [0-9a-f]* \"$1\"\$/\1/p" "$R/proc/mtd"; }
-mtd_size() { sed -n "s/^mtd[0-9]*: \([0-9a-f]*\) [0-9a-f]* \"$1\"\$/\1/p" "$R/proc/mtd"; }
+# mtd_idx NAME: the flash partition NAME. The stock firmware can also list a
+# UBI volume under the same name (gluebi, sysfs type "ubi", e.g. a second
+# "rootfs"); only the first real partition counts.
+mtd_idx() {
+	local i
+	for i in $(sed -n "s/^mtd\([0-9]*\): [0-9a-f]* [0-9a-f]* \"$1\"\$/\1/p" "$R/proc/mtd"); do
+		[ "$(cat "$R/sys/class/mtd/mtd$i/type" 2>/dev/null)" = ubi ] && continue
+		echo "$i"
+		return 0
+	done
+}
+mtd_size() {
+	local i
+	i=$(mtd_idx "$1")
+	[ -n "$i" ] && sed -n "s/^mtd$i: \([0-9a-f]*\) .*/\1/p" "$R/proc/mtd"
+}
 ubi_of_mtd() { grep -lx "$1" "$R"/sys/class/ubi/ubi*/mtd_num 2>/dev/null | sed -n 's|.*/\(ubi[0-9]*\)/mtd_num$|\1|p' | head -n 1; }
 vol_of() { grep -lx "$2" "$R"/sys/class/ubi/"$1"_*/name 2>/dev/null | sed -n 's|.*/\(ubi[0-9]*_[0-9]*\)/name$|\1|p' | head -n 1; }
 getenv() { fw_printenv -n "$1" 2>/dev/null; }
