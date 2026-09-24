@@ -24,10 +24,9 @@ procedure, and lists the current snapshots and their package feeds.
 
 Each family publishes one recovery and one persistent image. Thor's
 persistent image covers the XV3-8 only until the XE5-8 flash layout has been
-captured. Jaguar's persistent image assumes the XV2-2T1's two 96 MiB slots;
-the XV2-2 has a 128 MiB NAND with two 52 MiB slots, so its persistent entry
-is `refused` in `families.json` and `select-config.sh` will not select it,
-although its tree is still in the family FIT. Family images are one kernel plus every model's device tree in a single FIT,
+captured. Jaguar models differ in flash layout: two 96 MiB slots on the
+256 MiB-NAND models (XV2-2T1) and two 52 MiB slots with BCH4 ECC on the
+XV2-2's 128 MiB NAND; each model's tree carries its own layout. Family images are one kernel plus every model's device tree in a single FIT,
 built by the `cambium-family-fit` image command. The OEM U-Boot boots a
 named configuration (`config@5`, `config@hk02`, ...), so each configuration
 keeps the name used by Cambium's own family image. `verify/<family>/`
@@ -40,15 +39,24 @@ distributed. Per-device calibration still comes from `0:ART`. Neither the
 OEM slot nor ART is ever written; the importer refuses writable partitions,
 except once on a Jaguar A/B image (below), whose OEM bank must be writable.
 
-## Jaguar A/B sysupgrade (not yet qualified)
+## Jaguar A/B sysupgrade (under hardware test)
 
-This branch gives the Jaguar family two OpenWrt banks with automatic
-rollback. It must not be merged, published or advertised until the XV2-2T1
-hardware trial below passes; until then `families.json` and the site keep
-Jaguar's sysupgrade status at none.
+The Jaguar family has two OpenWrt banks with automatic rollback. It is under
+hardware test: the published persistent image is the A/B build (marked
+untested, so `select-config.sh` offers only the recovery image), and the
+family `sysupgrade.bin` and a RAM build of the persistent trees
+(`...jaguar-persistent-initramfs-uImage.itb`) are kept out of releases. They
+are in each build's `cambium-jaguar` Actions artifact under `test-only/`.
+For a hardware trial, `CAMBIUM_HARDWARE_TRIAL=1 sh select-config.sh
+persistent` selects the persistent configuration of an untested model.
 
-- **Banks.** `rootfs` (slot 0) and `rootfs_1` (slot 1) are 96 MiB NAND banks,
-  both writable in the persistent device trees; NVRAM, crashLog, ART and the
+- **Banks.** `rootfs` (slot 0) and `rootfs_1` (slot 1): 96 MiB banks (slot 1
+  at `0x6000000`) on the 256 MiB-NAND models, 52 MiB banks (slot 1 at
+  `0x3400000`) on the XV2-2. The board table in
+  `lib/functions/cambium-jaguar.sh` holds each model's bank size, offset,
+  usable LEBs and protected partition names; the identity preflight refuses
+  a unit whose partitions differ. Both banks are writable in the persistent
+  device trees; NVRAM, crashLog, ART and the
   other NOR partitions stay read-only. Each bank holds UBI volumes `kernel`
   (0), `rootfs` (1), `rootfs_data` (2) and `cambium_device_data` (3). U-Boot's
   boot command selects the bank with `ubi.mtd=`; the trees append no root.
@@ -62,7 +70,6 @@ Jaguar's sysupgrade status at none.
   bank with a copy of the running bank. It refuses unless the live OEM bank
   matches the hash of your off-device backup, the vault is valid and the
   model is qualified (only the XV2-2T1; `--allow-untested` overrides). The
-  XV2-2 is always refused: it has a 128 MiB NAND with two 52 MiB slots. The
   running bank's stable boot command is saved before the OEM bank is erased,
   and `--resume` finishes an interrupted conversion.
 - **Upgrades.** `platform.sh` sends every Jaguar family image (identified by
@@ -84,7 +91,11 @@ Jaguar's sysupgrade status at none.
 U-Boot environment, including an interruption at every write and environment
 step of the upgrade and the conversion.
 
-Hardware gates, in order, on the XV2-2T1 with PoE power control at hand:
+The family image must fit the XV2-2's smaller bank; `build.sh` fails the
+build if it does not.
+
+Hardware gates, in order, on the XV2-2T1 and then the XV2-2, with PoE power
+control at hand:
 
 1. RAM-boot `...jaguar-persistent-initramfs-uImage.itb` (the persistent
    trees with a RAM root, staged like the recovery image) and confirm both
