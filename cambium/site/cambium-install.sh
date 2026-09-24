@@ -534,31 +534,23 @@ install_jaguar() {
 }
 
 install_cheetah() {
-	local kernel root ubi id ksize rsize
+	local image contents ubi v
 	layout_cheetah
-	kernel=$(get_image cambiumnetworks_cheetah-persistent-squashfs-kernel.itb) || exit 1
-	root=$(get_image cambiumnetworks_cheetah-persistent-squashfs-rootfs.squashfs) || exit 1
-	need ubiattach ubimkvol ubirmvol ubiupdatevol
+	image=$(get_image cambiumnetworks_cheetah-persistent-squashfs-factory.ubi) || exit 1
+	contents=$(get_image cambiumnetworks_cheetah-persistent-squashfs-factory.ubi.contents) || exit 1
+	need ubiformat ubiattach ubidetach
 	backup "$R/dev/mtd${R0}ro"
-	dry_run_stop "replace the volumes in rootfs (mtd$R0) with the persistent image and boot it once"
+	dry_run_stop "write the persistent image over rootfs (mtd$R0) and boot it once"
+	[ -n "$(ubi_of_mtd "$R0")" ] && step "ubidetach mtd$R0" ubidetach -m "$R0"
+	step "ubiformat mtd$R0 with ${image##*/}" ubiformat "$R/dev/mtd$R0" -y -f "$image"
 	attach "$R0"; ubi=$UBI
-	for id in $(ls "$R/sys/class/ubi" | sed -n "s/^${ubi}_\([0-9]*\)\$/\1/p" | sort -rn); do
-		step "ubirmvol $ubi volume $id" ubirmvol "$R/dev/$ubi" -n "$id"
+	for v in kernel rootfs rootfs_data cambium_device_data; do
+		[ -n "$(vol_of "$ubi" "$v")" ] || die "the written image has no $v volume on mtd$R0"
 	done
-	ksize=$(wc -c < "$kernel"); rsize=$(wc -c < "$root")
-	step "ubimkvol kernel" ubimkvol "$R/dev/$ubi" -N kernel -s "$ksize"
-	step "ubiupdatevol kernel" ubiupdatevol "$R/dev/$(vol_of "$ubi" kernel)" "$kernel"
-	step "ubimkvol rootfs" ubimkvol "$R/dev/$ubi" -N rootfs -s "$rsize"
-	step "ubiupdatevol rootfs" ubiupdatevol "$R/dev/$(vol_of "$ubi" rootfs)" "$root"
-	step "ubimkvol rootfs_data" ubimkvol "$R/dev/$ubi" -N rootfs_data -m
-	sync
-	[ "$(head -c "$ksize" "$R/dev/$(vol_of "$ubi" kernel)" | sha256sum | cut -d' ' -f1)" = "$(sha256sum < "$kernel" | cut -d' ' -f1)" ] ||
-		die "the kernel volume does not read back correctly"
-	[ "$(head -c "$rsize" "$R/dev/$(vol_of "$ubi" rootfs)" | sha256sum | cut -d' ' -f1)" = "$(sha256sum < "$root" | cut -d' ' -f1)" ] ||
-		die "the rootfs volume does not read back correctly"
-	say "kernel and rootfs written to mtd$R0 and read back"
-	arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x80000(fs)\"; ubi part fs && ubi read 0x60000000 kernel && bootm 0x60000000#$CONFIG; bootipq"
-	say "guarded first boot armed: OpenWrt re-arms its boot after each healthy start."
+	verify_factory "$ubi" "$contents"
+	# The cambium-ab Cheetah module's guarded boot of slot 0.
+	arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x80000(fs)\"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait\" && bootm 0x60000000#$CONFIG; bootipq"
+	say "guarded first boot armed: after a healthy start OpenWrt re-arms its boot; otherwise the next boot returns to the stock firmware."
 }
 
 install_sage() {

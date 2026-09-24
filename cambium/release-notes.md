@@ -20,8 +20,8 @@ SKU. Hardware status per model:
 | Jaguar (IPQ6018) | 7.2-r1 | XV2-2T1 | validated | validated (A/B build) | A/B, validated |
 | | | XV2-2 (128 MiB NAND, 52 MiB slots) | validated | validated (A/B build) | A/B, validated |
 | | | XV2-2T0, XE3-4, XE3-4TN | untested | untested: RAM boot only | A/B, untested |
-| Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | validated | none yet: reinstall |
-| | | XV2-22H, XV2-23T | untested | untested | none yet: reinstall |
+| Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | untested: now the A/B build | A/B, untested |
+| | | XV2-22H, XV2-23T | untested | untested: RAM boot only | A/B, untested |
 | Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X, X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
 
 Families are listed oldest first. Run the listed (latest) stock firmware,
@@ -55,10 +55,9 @@ untested or unported model, please open an issue on this repository.
   slot; the OEM slot and calibration (ART) are never modified. If that slot
   is gone or unreadable, the radios stay down and wired operation continues.
 - Sysupgrade works on the Sage E410-layout models (A/B with automatic
-  rollback) and on the Thor XV3-8 (in place). Jaguar has A/B sysupgrade with
-  automatic rollback after conversion (validated on the XV2-2 and XV2-2T1; on
-  an AP installed before this fix, run `cambium-install.sh update-upgrader`
-  first); Cheetah has no sysupgrade path yet.
+  rollback) and on the Thor XV3-8 (in place). Jaguar and Cheetah have A/B
+  sysupgrade with automatic rollback after conversion (validated on the
+  Jaguar XV2-2 and XV2-2T1, untested on Cheetah).
 - Kernel modules must come from the same snapshot as the image. The package
   feed for each snapshot is configured in the image and kept for the two
   most recent snapshots only.

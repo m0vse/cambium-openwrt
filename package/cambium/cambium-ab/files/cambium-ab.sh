@@ -17,7 +17,9 @@
 # AB_SLOT1_OFFSET, AB_BANK_LEBS (usable LEBs: the bank's PEBs less UBI's
 # bad-block reserve of 20 per 1024 PEBs of the whole NAND and 4 PEBs for the
 # volume table and wear levelling) and AB_PROTECTED (partitions that must
-# stay read-only).
+# stay read-only). Optional: AB_LAN (candidate LAN interfaces for the boot
+# guard's DHCP check, first present wins; default br-lan) and AB_RADIOS
+# (Wi-Fi phys that must be up before a boot counts as healthy; default 0).
 #
 # Test hooks: AB_PROC_MTD, AB_CMDLINE, AB_DT, AB_UBI_SYS, AB_MTD_SYS,
 # AB_DEV, CAMBIUM_AB_MODULES.
@@ -34,7 +36,7 @@ unset _ab_module
 ab_board() {
 	local family
 	for family in ${AB_FAMILIES:-}; do
-		AB_QUALIFIED=0 AB_VAULT=0 AB_STOCK_BOOTCMD=bootipq
+		AB_QUALIFIED=0 AB_VAULT=0 AB_STOCK_BOOTCMD=bootipq AB_LAN=br-lan AB_RADIOS=0
 		if "ab_${family}_board" "$1"; then
 			AB_FAMILY=$family
 			return 0
