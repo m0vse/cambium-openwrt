@@ -173,6 +173,8 @@ the absence of SSH keys or OEM board data, and collects everything under
 Persistent images get OpenWrt's default package set, LuCI and the managed-AP
 packages (OpenWISP, WPA-Enterprise `wpad-mbedtls`, WireGuard, OpenVPN,
 usteer, lldpd, irqbalance and diagnostics). Recovery images stay minimal.
+On every family `cambium-openwisp-led` lights the status LED blue while the
+OpenWISP controller answers the access point, and green otherwise.
 
 ## Versioning
 
