@@ -206,6 +206,20 @@ jaguar_boot_command() {
 		"$(jaguar_bank_hex)" "$offset" "$part" "$JAGUAR_FIT"
 }
 
+# Guarded one-shot for the one-OEM/one-OpenWrt state, booting OpenWrt slot
+# $1 after restoring the stock default. Slot 0 is the command validated on
+# the XV2-2T1; slot 1 uses the "(fs)" / "ubi part fs" form that booted the
+# XV2-2 from its slot 1.
+jaguar_guarded_command() {
+	local mtdparts part
+	case "$1" in
+	0) mtdparts="$(jaguar_bank_hex)@0x0(rootfs)"; part=rootfs ;;
+	1) mtdparts="$(jaguar_bank_hex)@$JAGUAR_SLOT1_OFFSET(fs)"; part=fs ;;
+	*) echo "Jaguar: invalid slot $1" >&2; return 1 ;;
+	esac
+	echo "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$mtdparts\" && ubi part $part && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=$(jaguar_bank_name "$1") root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$JAGUAR_FIT; reset"
+}
+
 # Stable boot: slot $1, then slot $2 if bootm returns.
 jaguar_stable_command() {
 	case "$1:$2" in
