@@ -1,0 +1,6 @@
+// SPDX-License-Identifier: (GPL-2.0+)
+
+/* Second 96 MiB firmware bank of the 256 MiB NAND models (XV2-2T1 layout). */
+&{/soc@0/nand-controller@79b0000/nand@0/partitions/partition@6000000} {
+	/delete-property/ read-only;
+};
