@@ -136,7 +136,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
       <tr><td>E600</td><td>11</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">refused</span> different NAND controller</td></tr>
       <tr><td>E700</td><td>14</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">refused</span> different NAND controller</td></tr>
       <tr><td class="fam">Lila<br><small>MIPS, Wi-Fi 5</small></td><td>4.2.3.3-r10</td><td>E425W, E505</td><td>17, 18</td><td colspan="3"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
-      <tr><td class="fam" rowspan="2">Thor<br><small>IPQ8074, Wi-Fi 6</small></td><td rowspan="2">7.2-r1</td><td>XV3-8</td><td>19</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
+      <tr><td class="fam" rowspan="2">Thor<br><small>IPQ8074, Wi-Fi 6</small></td><td rowspan="2">7.2-r1</td><td>XV3-8</td><td>19</td><td><span class="pill ok">validated</span></td><td><span class="pill untested">untested</span> now the A/B build; the single-bank image was validated</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
       <tr><td>XE5-8</td><td>30</td><td><span class="pill untested">untested</span></td><td><span class="pill none">not built</span> flash layout not yet captured</td><td><span class="pill none">none yet</span> no persistent image yet</td></tr>
       <tr><td class="fam" rowspan="5">Jaguar<br><small>IPQ6018, Wi-Fi 6/6E</small></td><td rowspan="5">7.2-r1</td><td>XV2-2T1</td><td>31</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> A/B build</td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
       <tr><td>XV2-2</td><td>20</td><td><span class="pill ok">validated</span> 128&nbsp;MiB NAND, two 52&nbsp;MiB slots</td><td><span class="pill ok">validated</span> A/B build</td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
@@ -174,12 +174,11 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
   usual. Neither is ever modified. If the stock slot is missing, the radios
   stay off and wired networking still works.</p>
   <h3>Safe boot</h3>
-  <p>On Sage, Cheetah and Jaguar, each boot of a newly installed image is a
-  one-off: until the access point has come up healthy (network, and radios
-  where validated), the next reboot returns to the stock firmware. Only a
-  healthy system arms OpenWrt as the default, so a failed install recovers
-  itself with a power cycle. Thor (XV3-8) boots OpenWrt directly; its stock
-  firmware stays in the other slot for a manual return.</p>
+  <p>On every family, each boot of a newly installed image is a one-off:
+  until the access point has come up healthy (network, and radios where
+  validated), the next reboot returns to the stock firmware. Only a healthy
+  system arms OpenWrt as the default, so a failed install recovers itself
+  with a power cycle.</p>
   <h3>Defaults</h3>
   <ul>
     <li>Stock OpenWrt login: no SSH keys are included and <code>root</code>
@@ -273,11 +272,12 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram      # checks, bac
     <thead><tr><th>Command</th><th>Does</th></tr></thead>
     <tbody>
       <tr><td><code>ram</code></td><td>RAM-boots the recovery image once, every family. Any later reboot returns to the stock firmware. On a model that is not validated, stop here and <a href="#report">send a report</a>.</td></tr>
-      <tr><td><code>install</code></td><td>Installs the persistent image on a validated model and arms its guarded first boot (Sage: a one-shot trial, then <code>sage-migration-mark-good --confirm</code> in OpenWrt). Thor: RAM-boots the installer; run <code>install</code> again inside it, then <code>boot</code> from the stock firmware, then <code>commit</code> in OpenWrt.</td></tr>
+      <tr><td><code>install</code></td><td>Installs the persistent image on a validated model and arms its guarded first boot (Sage: a one-shot trial, then <code>sage-migration-mark-good --confirm</code> in OpenWrt). Thor: if its stock firmware has no <code>ubiformat</code>, it RAM-boots the installer instead; run the same <code>install</code> command again inside it.</td></tr>
+      <tr><td><code>stock</code></td><td>In an installed OpenWrt that still has the stock firmware in its other slot (not converted to A/B): makes the stock firmware the default boot again, e.g. to reinstall a single-bank Thor as A/B.</td></tr>
       <tr><td><code>--trial</code></td><td>Hardware trial of a persistent image not yet validated on the model, e.g. the Jaguar A/B build.</td></tr>
       <tr><td><code>--persistent-test</code></td><td>Jaguar: RAM-boot the A/B persistent trees (the test-only image) with no bank attached.</td></tr>
       <tr><td><code>--format-inactive</code></td><td>Lets <code>ram</code> erase the inactive slot (after backing it up) when its stock firmware copy leaves too little free space for the RAM image, as on a stock XV2-2.</td></tr>
-      <tr><td><code>update-upgrader</code></td><td>Jaguar, in the installed OpenWrt: installs the release's A/B upgrade scripts on the running system, which is what <code>sysupgrade</code> uses. Run it before an A/B sysupgrade.</td></tr>
+      <tr><td><code>update-upgrader</code></td><td>Thor, Jaguar and Cheetah, in the installed A/B OpenWrt: installs the release's A/B upgrade scripts on the running system, which is what <code>sysupgrade</code> uses. Run it before an A/B sysupgrade.</td></tr>
     </tbody>
   </table>
   </div>
@@ -433,90 +433,46 @@ sage-migration-mark-good --confirm</pre>
   Later upgrades use <code>sysupgrade</code>.</p>
   </details>
 
-  <details>
-  <summary><strong>Thor</strong> &mdash; validated on the XV3-8 (stock firmware 7.2-r1). Not for the XE5-8.</summary>
-  <p>OpenWrt is always staged and installed in the slot the stock firmware
-  is <em>not</em> running from. Thor images put OpenWrt in
-  <code>rootfs</code> (<code>mtd1</code>) and keep <code>rootfs_1</code>
-  (<code>mtd2</code>) read-only for the stock firmware, so the stock firmware
-  must be running from <code>rootfs_1</code>: UBI device 0 on
-  <code>mtd2</code>. If it is running from <code>rootfs</code>, upgrade the
-  stock firmware once more first (see above).</p>
-  <p>Thor U-Boot has no working network, so RAM images are staged in flash
-  first, in a separate <code>openwrt</code> volume in the inactive slot. It
-  also rejects a non-default <code>bootcmd</code> unless
-  <code>changing_bootcmd=1</code> is set first, and its default command is
-  <code>aq_load_fw&amp;&amp;bootipq</code>.</p>
-  <div class="note danger">Do not use these commands on the XE5-8: its
-  flash layout has not been captured.</div>
-  <p><strong>Check the slots and back up</strong> the inactive slot
-  (copy it off the AP with the APPSBLENV and ART backups):</p>
-<pre>cat /proc/mtd                           # mtd1 "rootfs", mtd2 "rootfs_1"
-cat /proc/cmdline
-test "$(cat /sys/class/ubi/ubi0/mtd_num)" = 2 &amp;&amp; echo "stock on rootfs_1: OK"
-dd if=/dev/mtd1ro of=/tmp/oem-rootfs.bin bs=131072</pre>
-  <p><strong>Stage</strong> <code>...thor-installer-initramfs-uImage.itb</code>
-  (copied to <code>/tmp/initramfs.itb</code>) in the inactive
-  <code>rootfs</code>. This stops rather than overwrite anything already
-  attached:</p>
-<pre>(
-set -eu
-IMAGE=/tmp/initramfs.itb
-EXPECTED_SHA='SHA256_FROM_SHA256SUMS'
-BYTES=$(wc -c &lt; "$IMAGE")
-test "$(sha256sum "$IMAGE" | cut -d ' ' -f 1)" = "$EXPECTED_SHA"
-test ! -e /sys/class/ubi/ubi2
-ubiattach /dev/ubi_ctrl -m 1 -d 2
-test "$(cat /sys/class/ubi/ubi2/mtd_num)" = 1
-ubinfo /dev/ubi2
-test ! -e /sys/class/ubi/ubi2_2
-ubimkvol /dev/ubi2 -n 2 -N openwrt -s "$BYTES"
-test "$(cat /sys/class/ubi/ubi2_2/name)" = openwrt
-ubiupdatevol /dev/ubi2_2 "$IMAGE"
-sync
-test "$(head -c "$BYTES" /dev/ubi2_2 | sha256sum | cut -d ' ' -f 1)" = "$EXPECTED_SHA"
-echo VERIFIED
-)</pre>
-  <p><strong>RAM boot.</strong> Only after <code>VERIFIED</code>, arm the
-  self-restoring one-shot. Check that the marker reads <code>1</code> and the
-  whole <code>bootcmd</code> reads back before rebooting. On boot it restores
-  and saves the stock command before loading OpenWrt, so any later reset
-  returns to the stock firmware:</p>
-<pre>CONFIG=; eval "$(sh /tmp/select-config.sh installer)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
-[ -n "$CONFIG" ] &amp;&amp; fw_setenv changing_bootcmd 1
-fw_printenv changing_bootcmd
-[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv changing_bootcmd; setenv bootcmd "aq_load_fw&amp;&amp;bootipq"; saveenv; aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)"; ubi part rootfs; ubi read 0x60000000 openwrt; bootm 0x60000000#'"$CONFIG"'; bootipq'
-fw_printenv changing_bootcmd bootcmd
-reboot</pre>
-  <p>The same staging and command RAM-boot the <code>thor-recovery</code>
-  image instead, for a trial without installing.</p>
-  <p><strong>Install</strong> from the running installer (OpenWrt in RAM,
-  reachable over SSH as <code>root</code>). Copy
-  <code>...thor-persistent-squashfs-factory.ubi</code> to <code>/tmp</code>
-  and write it to <code>rootfs</code>, the only writable slot in the
-  installer (this also removes the staging volume):</p>
-<pre>grep '"rootfs"' /proc/mtd              # mtd0 in the installer
-ubiformat /dev/mtd0 -y -f /tmp/FACTORY.ubi
-reboot                                  # returns to the stock firmware</pre>
-  <p><strong>Trial boot</strong> the installed image once from the stock
-  firmware. <em>This command is the one-shot above reading the installed
-  <code>kernel</code> volume instead of <code>openwrt</code>; that exact
-  string has not itself been recorded on hardware.</em></p>
-<pre>CONFIG=; eval "$(sh /tmp/select-config.sh persistent)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
-[ -n "$CONFIG" ] &amp;&amp; fw_setenv changing_bootcmd 1
-fw_printenv changing_bootcmd
-[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv changing_bootcmd; setenv bootcmd "aq_load_fw&amp;&amp;bootipq"; saveenv; aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)"; ubi part rootfs; ubi read 0x60000000 kernel; bootm 0x60000000#'"$CONFIG"'; bootipq'
-fw_printenv changing_bootcmd bootcmd
-reboot</pre>
-  <p><strong>Make it permanent</strong> once OpenWrt, its LAN and radios are
-  healthy (run from OpenWrt; keep the marker set while this command is in
-  use):</p>
-<pre>fw_setenv changing_bootcmd 1
-fw_printenv changing_bootcmd
-fw_setenv bootcmd 'aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)"; ubi part rootfs; ubi read 0x60000000 kernel; bootm 0x60000000#config@hk02'
-fw_printenv changing_bootcmd bootcmd</pre>
-  <p>Thor has no automatic fallback after this; <code>rootfs_1</code> keeps
-  the stock firmware for a manual return.</p>
+  <details id="thor">
+  <summary><strong>Thor</strong> &mdash; XV3-8 (stock firmware 7.2-r1). Not for the XE5-8.</summary>
+  <p>The Thor persistent image is the A/B build: two OpenWrt banks, with
+  <code>sysupgrade</code> writing the inactive one and automatic rollback,
+  as on Jaguar and Cheetah. Its FIT has one configuration per bank
+  (<code>config@hk02</code> for <code>rootfs</code>,
+  <code>config@hk02-bank1</code> for <code>rootfs_1</code>). The earlier
+  single-bank image was validated on the XV3-8; the A/B build has not run on
+  hardware yet, so the install needs <code>--trial</code>.</p>
+  <p>OpenWrt goes into <code>rootfs</code>, so the stock firmware must be
+  running from <code>rootfs_1</code> (UBI device 0 on <code>mtd2</code>);
+  if it runs from <code>rootfs</code>, upgrade the stock firmware once more
+  first. Thor U-Boot has no working network, so RAM images are staged in an
+  <code>openwrt</code> volume in <code>rootfs</code>; its default command is
+  <code>aq_load_fw&amp;&amp;bootipq</code> and it rejects any other
+  <code>bootcmd</code> unless <code>changing_bootcmd=1</code> was saved
+  first. The installer handles all of this.</p>
+  <div class="note danger">Do not install on the XE5-8: its flash layout
+  has not been captured.</div>
+  <h4>RAM boot</h4>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram        # check run; writes nothing
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes ram</pre>
+  <h4>Install</h4>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --trial install
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --trial --yes install</pre>
+  <p>With <code>ubiformat</code> on the stock firmware, this writes the
+  factory image into <code>rootfs</code>, hashes it back and arms the guarded
+  first boot. Without it, the installer RAM-boots once; SSH to it as
+  <code>root</code> and run the same <code>install</code> command there. In
+  OpenWrt, set a root password; <code>cat /tmp/cambium-board-data.status</code>
+  should say <code>vault</code>. Convert to two OpenWrt banks as on
+  <a href="#jaguar">Jaguar</a>, with <code>--allow-untested</code>.</p>
+  <h4>Single-bank Thor installs</h4>
+  <p>An XV3-8 installed with the earlier single-bank image boots OpenWrt
+  directly and has no device-data vault, so it cannot be converted in
+  place. Its existing <code>sysupgrade</code> still installs the new image
+  into the same bank, but to move it to A/B, reinstall it once. From its
+  OpenWrt:</p>
+<pre>sh /tmp/cambium-install.sh --yes stock        # the stock firmware becomes the default boot; reboots</pre>
+  <p>then run the install above from the stock firmware.</p>
   </details>
 
   <details id="jaguar">
@@ -702,8 +658,7 @@ cambium-ab-status                                  # a few minutes later: runnin
   <h3>After the first boot (all families)</h3>
   <p>Set a root password with <code>passwd</code>, then check
   <code>cat /tmp/cambium-board-data.status</code> (should be
-  <code>imported</code> or <code>present</code> on Thor and Cheetah,
-  <code>vault</code> on Jaguar),
+  <code>vault</code> on Thor, Jaguar and Cheetah),
   <code>cat /etc/cambium-openwrt-release</code> and the radios with
   <code>iw dev</code>. Configure the network or OpenWISP as required.</p>
 
@@ -715,7 +670,7 @@ cambium-ab-status                                  # a few minutes later: runnin
     <thead><tr><th>Family</th><th>Model &rarr; configuration</th></tr></thead>
     <tbody>
       <tr><td class="fam">Sage</td><td>E410 <code>config@5</code>, E600 <code>config@10</code>, E430W <code>config@13</code>, E700 <code>config@14</code>, E430H <code>config@15</code>, E510 <code>config@16</code>, E410B <code>config@5</code> / <code>config@ap.dk01.1-c2</code> (same as the E410)</td></tr>
-      <tr><td class="fam">Thor</td><td>XV3-8 <code>config@hk02</code>, XE5-8 <code>config@hk01.c6</code> (recovery only)</td></tr>
+      <tr><td class="fam">Thor</td><td>XV3-8 <code>config@hk02</code> (A/B bank 1: <code>config@hk02-bank1</code>), XE5-8 <code>config@hk01.c6</code> (recovery only)</td></tr>
       <tr><td class="fam">Jaguar</td><td>XV2-2 <code>config@cp01-c1</code>, XV2-2T0 <code>config@cp01-c1-1</code>, XV2-2T1 <code>config@cp01-c1-2</code>, XE3-4 <code>config@cp01-c3-xv3-4</code>, XE3-4TN <code>config@cp01-c3-2</code></td></tr>
       <tr><td class="fam">Cheetah</td><td>XV2-21X <code>config@mp03.3-ocelot</code>, XV2-22H <code>config@mp03.3-cheetah</code>, XV2-23T <code>config@mp03.3-lynx</code></td></tr>
     </tbody>
@@ -737,20 +692,19 @@ cambium-ab-status                                  # a few minutes later: runnin
     replaces the stock firmware</strong>; from then on the two slots
     alternate between OpenWrt versions. Go back to the stock firmware first
     if you might still want it.</li>
-    <li><strong>Thor</strong> uses <code>sysupgrade</code> with the family
-    <code>sysupgrade.bin</code>. It rewrites OpenWrt's own
-    <code>rootfs</code> slot in place; the stock firmware in
-    <code>rootfs_1</code> is kept.</li>
     <li><strong>Jaguar</strong>, after conversion to two OpenWrt banks, uses
     <code>sysupgrade</code> with the family <code>sysupgrade.bin</code>, on
     the XV2-2 and XV2-2T1: it writes the inactive bank, trial-boots it and
     rolls back automatically if the new bank fails its checks. See the
     <a href="#jaguar">Jaguar steps</a>.</li>
-    <li><strong>Cheetah</strong> has the same A/B <code>sysupgrade</code> after
-    conversion, not yet tested on hardware; see the
-    <a href="#cheetah">Cheetah steps</a>. Before conversion, a Jaguar or
-    Cheetah is upgraded by reinstalling the persistent image from the stock
-    firmware.</li>
+    <li><strong>Thor</strong> and <strong>Cheetah</strong> have the same A/B
+    <code>sysupgrade</code> after conversion, not yet tested on hardware; see
+    the <a href="#thor">Thor</a> and <a href="#cheetah">Cheetah steps</a>.
+    Before conversion, a Thor, Jaguar or Cheetah is upgraded by reinstalling
+    the persistent image from the stock firmware (<code>cambium-install.sh
+    stock</code> returns to it). An XV3-8 still on the single-bank image
+    sysupgrades in place to the new image, then reinstalls once to move to
+    A/B.</li>
     <li>Kernel modules must come from the same snapshot as the running image.
     The feed for each snapshot is configured in the image; feeds for the two
     most recent snapshots are kept online.</li>
@@ -761,17 +715,11 @@ cambium-ab-status                                  # a few minutes later: runnin
 <pre># Sage (after migration, before any sysupgrade)
 sage-migration-rollback-oem --confirm-oem
 
-# Thor: restore the stock boot command and remove the guard marker
-fw_setenv bootcmd 'aq_load_fw&amp;&amp;bootipq'
-fw_setenv changing_bootcmd
-
-# Cheetah, and Jaguar before conversion: restore the stock boot command
-fw_setenv bootcmd bootipq
-fw_setenv changing_bootcmd</pre>
-  <p>The install never changes the U-Boot <code>image</code> variable, so
-  it still names the stock firmware's slot. Check with
-  <code>fw_printenv bootcmd changing_bootcmd image</code>, then
-  <code>reboot</code>.</p>
+# Thor, Jaguar and Cheetah before conversion (reboots)
+sh /tmp/cambium-install.sh --yes stock</pre>
+  <p>It restores the stock boot command and clears the
+  <code>changing_bootcmd</code> marker. The install never changes the U-Boot
+  <code>image</code> variable, so it still names the stock firmware's slot.</p>
 </section>
 
 <section id="safety">

@@ -48,10 +48,17 @@ common; each family adds a small module,
 `/lib/functions/cambium-ab-<family>.sh` (in its support package), with its
 board table (models, SKUs, FIT configurations, bank size and slot-1 offset,
 usable LEBs, protected partitions, the prefix of its U-Boot variables) and
-its U-Boot boot commands. Jaguar (validated) and Cheetah (A/B untested on
-hardware) use it; Thor and Sage follow. Cheetah's banks are 96 MiB at NAND
-`0x80000` and `0x6080000`, and its boot commands set `bootargs` with the
-bank, as Jaguar's do.
+its U-Boot boot commands. Jaguar (validated), Cheetah and Thor (A/B
+untested on hardware) use it; Sage follows. Cheetah's banks are 96 MiB at
+NAND `0x80000` and `0x6080000`, and its boot commands set `bootargs` with
+the bank, as Jaguar's do. Thor's banks are 96 MiB at `0x0` and `0x6000000`;
+its boot commands load the Aquantia firmware first (`aq_load_fw`) and pick
+the bank's FIT configuration instead of setting `bootargs`: `config@hk02`
+appends `ubi.mtd=rootfs`, so single-bank XV3-8 installs, whose committed
+`bootcmd` boots it, keep working after a sysupgrade, and `config@hk02-bank1`
+appends `ubi.mtd=rootfs_1`. Those installs have no device-data vault and
+are reinstalled once (`cambium-install.sh stock`, then `install`) to move
+to A/B.
 
 Jaguar's A/B image and its family `sysupgrade.bin` are validated on the
 XV2-2 and XV2-2T1 and untested on the XV2-2T0, XE3-4 and XE3-4TN, where
@@ -141,7 +148,8 @@ board SKUs, FIT configurations and hardware status. From it:
 `site/cambium-serve.py` (also a release asset) serves the release files to
 the access point and receives the backups the installer uploads, since the
 stock firmware's root login needs the challenge/response. `site/cambium-install.sh`, also a release asset, runs the install
-procedures (RAM boot, persistent install, and Thor's installer stages) for
+procedures (RAM boot, persistent install, and Thor's RAM installer when its
+stock firmware lacks `ubiformat`) for
 every family from the stock firmware, with layout, slot, environment and
 checksum checks, backups and read-back; `tests/cambium-install.sh`
 simulates each family and checks the U-Boot commands against the validated
