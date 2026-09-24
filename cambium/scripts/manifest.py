@@ -75,9 +75,15 @@ def main():
             path = os.path.join(images, name)
             image_list.append({"file": name, "role": r, "size": os.path.getsize(path),
                                "sha256": sha256(path)})
-    for needed in ("recovery", "persistent-factory"):
-        if not any(i["role"] == needed for i in image_list):
-            sys.exit(f"manifest: no {needed} image found")
+    # Every family publishes a recovery image and at least one way to install
+    # the persistent image: a factory UBI (Thor, Cheetah, Jaguar) or the
+    # kernel/rootfs pair and sysupgrade archive (Sage).
+    roles = {i["role"] for i in image_list}
+    if "recovery" not in roles:
+        sys.exit("manifest: no recovery image found")
+    if not ("persistent-factory" in roles or
+            {"persistent-kernel", "persistent-rootfs"} <= roles):
+        sys.exit("manifest: no persistent factory image or kernel/rootfs pair found")
 
     manifest = {
         "schema": 1,
