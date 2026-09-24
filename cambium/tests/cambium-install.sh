@@ -419,7 +419,13 @@ assert "the release's functions are installed" cmp -s "$RT/lib/functions/cambium
 assert "the old copies are kept apart" [ "$(cat "$RT/tmp/cambium-install/upgrader-before/upgrade-cambium-jaguar.sh")" = '# old upgrade' ]
 assert "the installed upgrader creates UBI nodes" grep -q jaguar_ubi_node "$RT/lib/functions/cambium-jaguar.sh"
 check "update-upgrader again: already current" 0 inst --from "$W/rel" --yes update-upgrader
+
 assert "already current is reported" said 'already the release'
+# OpenWrt's BusyBox has no od (the stock firmware does): the SKU must still read.
+mkdir -p "$W/no-od"; printf '#!/bin/sh\necho "sh: od: not found" >&2\nexit 127\n' > "$W/no-od/od"; chmod +x "$W/no-od/od"
+cp "$RT/lib/upgrade/cambium-jaguar.sh" "$W/up.keep"; echo '# old upgrade' > "$RT/lib/upgrade/cambium-jaguar.sh"
+check "update-upgrader on a firmware without od" 0 env PATH="$W/no-od:$PATH" sh "$installer" --from "$W/rel" --yes update-upgrader
+assert "without od the SKU is read with hexdump" said 'XV2-2 (SKU 20, jaguar)'
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
