@@ -20,6 +20,8 @@
 #                   it) and, if it accepts uploads, the backups
 #   --ap-ip IP      the access point's address for the Sage TFTP boot
 #   --backed-up     you have copied the backups off the access point
+#                   (not needed when --from is http served by cambium-serve.py:
+#                   the backups are then uploaded to it and checked)
 #   --trial         hardware trial of a persistent image that is not yet
 #                   validated on this model (only on a unit you can recover)
 #   --persistent-test  Jaguar: RAM-boot the A/B persistent trees instead
@@ -271,6 +273,16 @@ backup() {
 		[ -s "$b/${n#0:}.bin" ] || step "back up $n" dd if="$R/dev/mtd${i}ro" of="$b/${n#0:}.bin"
 	done
 	(cd "$b" && sha256sum *.bin > SHA256SUMS) || die "cannot hash the backups (out of space in /tmp?)"
+	[ -f "$b/uploaded" ] && cmp -s "$b/SHA256SUMS" "$b/uploaded" && {
+		say "backups already uploaded to your computer and checked"
+		return 0
+	}
+	case "$src" in
+	http://*|https://*)
+		upload_http "$b"
+		cp "$b/SHA256SUMS" "$b/uploaded"
+		return 0 ;;
+	esac
 	if [ -n "$tftp" ]; then
 		for f in "$b"/*; do
 			step "upload ${f##*/} to TFTP server $tftp (it must accept uploads)" \
@@ -281,7 +293,55 @@ backup() {
 	fi
 	say "backups are in $b; copy them off the access point, e.g. from your computer:"
 	say "  scp -O 'root@AP_IP:$b/*' ."
-	[ -n "$yes" ] && die "copy the backups off the access point first, then run this again with --backed-up (or give --tftp SERVER to upload them)"
+	[ -n "$yes" ] && die "copy the backups off the access point first, then run this again with --backed-up (or serve the release with cambium-serve.py, or give --tftp SERVER, to upload them)"
+}
+
+# hexenc FILE: the file as hex text (no zero bytes), with hexdump or od.
+hexenc() {
+	if have hexdump; then
+		hexdump -v -e '1/1 "%02x"' "$1"
+	else
+		od -An -v -tx1 "$1"
+	fi
+}
+
+# upload_http DIR: send each backup to cambium-serve.py on the release server
+# in hex-encoded 256 KiB chunks (BusyBox wget stops a posted file at its
+# first zero byte). Every chunk and the whole file must come back with the
+# SHA-256 they have here.
+upload_http() {
+	local f name size off got want chunk=262144 url
+	wget --help 2>&1 | grep -q -- '--post-file' ||
+		die "this firmware's wget cannot upload files (no --post-file): copy $1 off the access point yourself and use --backed-up, or give --tftp SERVER"
+	have hexdump || have od || die "this firmware has neither hexdump nor od to encode the backups for upload"
+	for f in "$1"/*; do
+		name=cambium-backup-sku$SKU-${f##*/}
+		url=${src%/}/upload/$name
+		size=$(wc -c < "$f")
+		say "uploading ${f##*/} ($size bytes) to your computer as uploads/$name"
+		off=0
+		while [ "$off" -lt "$size" ]; do
+			dd if="$f" of="$WORK/chunk" bs="$chunk" skip=$((off / chunk)) count=1 2> /dev/null ||
+				die "cannot read ${f##*/} at byte $off"
+			hexenc "$WORK/chunk" > "$WORK/chunk.hex" || die "cannot encode ${f##*/} at byte $off"
+			got=$(wget -q -O - --post-file "$WORK/chunk.hex" "$url?offset=$off" 2> "$WORK/err") || {
+				grep -q '50[01]' "$WORK/err" &&
+					die "the server does not accept uploads: serve the release files with 'python3 cambium-serve.py 8000' instead of python3 -m http.server"
+				die "cannot upload ${f##*/} at byte $off to $url ($(grep . "$WORK/err" | tail -n 1))"
+			}
+			want=$(sha256sum < "$WORK/chunk" | cut -d' ' -f1)
+			[ "${got%% *}" = "$want" ] ||
+				die "your computer stored the chunk of ${f##*/} at byte $off with SHA-256 '${got%% *}' but it is $want here: the upload is damaged"
+			off=$((off + chunk))
+		done
+		got=$(wget -q -O - --post-data done "$url?done" 2> "$WORK/err") ||
+			die "cannot finish the upload of ${f##*/} ($(grep . "$WORK/err" | tail -n 1))"
+		want=$(sha256sum < "$f" | cut -d' ' -f1)
+		[ "${got%% *}" = "$want" ] ||
+			die "your computer stored ${f##*/} with SHA-256 '${got%% *}' but it is $want here: the upload is damaged"
+	done
+	rm -f "$WORK/chunk" "$WORK/chunk.hex"
+	say "backups uploaded to the uploads folder beside the release files, and their SHA-256 checked"
 }
 
 # --- staging a RAM image in the inactive firmware slot -----------------------------
