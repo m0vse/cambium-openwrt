@@ -18,7 +18,8 @@ SKU. Hardware status per model:
 | Thor (IPQ8074) | 7.2-r1 | XV3-8 | validated | validated | in place, validated |
 | | | XE5-8 | untested | not built: flash layout not yet captured | none |
 | Jaguar (IPQ6018) | 7.2-r1 | XV2-2T1 | validated | validated | none yet: reinstall |
-| | | XV2-2, XV2-2T0, XE3-4, XE3-4TN | untested | untested | none yet: reinstall |
+| | | XV2-2 | untested (RAM only) | **do not install**: 128 MiB NAND with two 52 MiB slots; this image would erase both stock slots | none |
+| | | XV2-2T0, XE3-4, XE3-4TN | untested | untested | none yet: reinstall |
 | Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | validated | none yet: reinstall |
 | | | XV2-22H, XV2-23T | untested | untested | none yet: reinstall |
 | Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X, X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
@@ -32,7 +33,9 @@ Untested models are included for controlled, locally recoverable trials:
 a model that RAM-boots the recovery image has a reasonable chance of
 running the persistent image, but neither has run on that hardware yet.
 Keep a verified backup of every unit and never
-overwrite the bootloader, ART or U-Boot environment partitions.
+overwrite the bootloader, ART or U-Boot environment partitions. Models in a
+family do not always share a flash layout: the Jaguar persistent image
+assumes two 96 MiB slots, which the XV2-2 does not have.
 
 Hardware for validation is very welcome: if you can send a unit of an
 untested or unported model, please open an issue on this repository.
