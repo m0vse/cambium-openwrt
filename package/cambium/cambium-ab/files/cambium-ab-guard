@@ -65,7 +65,7 @@ wait_healthy() {
 # firmware (U-Boot image=) in the other. After a healthy start, re-arm the
 # one-shot that restores the stock default before booting OpenWrt again.
 legacy_guard() {
-	local slot bootcmd
+	local slot bootcmd image
 	slot=$(ab_running_slot 2>/dev/null) || return 0
 	bootcmd=$(ab_guarded_command "$slot") || return 1
 
@@ -74,7 +74,9 @@ legacy_guard() {
 			log 'bootcmd changed independently; leaving it alone'
 			return 1
 		}
-		[ "$(ab_getenv image)" = "$((1 - slot))" ] || {
+		# Families whose stock U-Boot has no image variable (Thor) skip this.
+		image=$(ab_getenv image)
+		[ -z "$image" ] || [ "$image" = "$((1 - slot))" ] || {
 			log "U-Boot image is not the stock firmware's slot $((1 - slot)); leaving it alone"
 			return 1
 		}
