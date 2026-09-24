@@ -58,10 +58,12 @@ managed() {
 	return 1
 }
 
-case "$(board_name 2>/dev/null)" in
-	cambium,e410) ;;
-	*) exit 0 ;;
-esac
+cambium_sage_qualified() {
+	[ -f /lib/functions/cambium-sage.sh ] || return 1
+	. /lib/functions/cambium-sage.sh
+	cambium_sage_board && [ "$SAGE_QUALIFIED" = 1 ]
+}
+cambium_sage_qualified || exit 0
 
 case "$interval" in
 	''|*[!0-9]*) interval=60 ;;
