@@ -166,12 +166,15 @@ thor)
 	THOR_FLAVOR=persistent sh "$verify" "$(image '*cambiumnetworks_thor-installer-initramfs-uImage.itb')"
 	sysupgrade=$(image '*cambiumnetworks_thor-persistent-squashfs-sysupgrade.bin')
 	tar -xOf "$sysupgrade" sysupgrade-cambiumnetworks_xv3-8/kernel > "$work/kernel.itb"
-	THOR_FLAVOR=persistent sh "$verify" "$work/kernel.itb"
+	THOR_FLAVOR=ab sh "$verify" "$work/kernel.itb"
 	fits="recovery=$(image '*cambiumnetworks_thor-recovery-initramfs-uImage.itb')
 installer=$(image '*cambiumnetworks_thor-installer-initramfs-uImage.itb')
 persistent=$work/kernel.itb"
-	[ "$(wc -c < "$(image '*cambiumnetworks_thor-persistent-squashfs-factory.ubi')")" -le 100663296 ] ||
-		fail "XV3-8 factory image exceeds the 96 MiB rootfs partition"
+	factory=$(image '*cambiumnetworks_thor-persistent-squashfs-factory.ubi')
+	[ "$(wc -c < "$factory")" -lt 100663296 ] ||
+		fail "XV3-8 factory image exceeds the 96 MiB bank"
+	grep -aq cambium_device_data "$factory" ||
+		fail "Thor factory image lacks the device-data vault volume"
 	;;
 cheetah)
 	CHEETAH_FLAVOR=recovery sh "$verify" "$(image '*cambiumnetworks_cheetah-recovery-initramfs-uImage.itb')"
