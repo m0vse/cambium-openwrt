@@ -29,6 +29,10 @@ ideally in both slots, before installing. Gambit, Lila and Miami have no OpenWrt
 port yet; they are listed so the table covers every Cambium access point
 family.
 
+**Installing:** `cambium-install.sh` (a release asset) RAM-boots or installs
+from the stock firmware's root shell for every family, with all checks,
+backups and read-back built in; see the site's installer section.
+
 **Untested models: RAM boot only.** On any model not marked validated, use
 only the recovery (RAM) image, then run `cambium-report.sh` (a release
 asset) in the booted image, and on the stock firmware, and attach the
