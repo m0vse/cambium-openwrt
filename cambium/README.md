@@ -24,7 +24,10 @@ procedure, and lists the current snapshots and their package feeds.
 
 Each family publishes one recovery and one persistent image. Thor's
 persistent image covers the XV3-8 only until the XE5-8 flash layout has been
-captured. Family images are one kernel plus every model's device tree in a single FIT,
+captured. Jaguar's persistent image assumes the XV2-2T1's two 96 MiB slots;
+the XV2-2 has a 128 MiB NAND with two 52 MiB slots, so its persistent entry
+is `refused` in `families.json` and `select-config.sh` will not select it,
+although its tree is still in the family FIT. Family images are one kernel plus every model's device tree in a single FIT,
 built by the `cambium-family-fit` image command. The OEM U-Boot boots a
 named configuration (`config@5`, `config@hk02`, ...), so each configuration
 keeps the name used by Cambium's own family image. `verify/<family>/`
