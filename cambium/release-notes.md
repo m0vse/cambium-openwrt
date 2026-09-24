@@ -17,9 +17,9 @@ SKU. Hardware status per model:
 | Lila (Wi-Fi 5, MIPS) | 4.2.3.3-r10 | E425W, E505 | no build yet | no build yet | no build yet |
 | Thor (IPQ8074) | 7.2-r1 | XV3-8 | validated | validated | in place, validated |
 | | | XE5-8 | untested | not built: flash layout not yet captured | none |
-| Jaguar (IPQ6018) | 7.2-r1 | XV2-2T1 | validated | validated | none yet: reinstall |
-| | | XV2-2 | untested (RAM only) | **do not install**: 128 MiB NAND with two 52 MiB slots; this image would erase both stock slots | none |
-| | | XV2-2T0, XE3-4, XE3-4TN | untested | untested | none yet: reinstall |
+| Jaguar (IPQ6018) | 7.2-r1 | XV2-2T1 | validated | under test: now the A/B build | A/B, under test (not published) |
+| | | XV2-2 (128 MiB NAND, 52 MiB slots) | validated | untested: RAM boot only | A/B, under test (not published) |
+| | | XV2-2T0, XE3-4, XE3-4TN | untested | untested: RAM boot only | A/B, under test (not published) |
 | Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | validated | none yet: reinstall |
 | | | XV2-22H, XV2-23T | untested | untested | none yet: reinstall |
 | Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X, X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
@@ -37,8 +37,8 @@ image on these models: `select-config.sh` refuses it. The report script only
 reads, and masks MAC addresses and serial numbers.
 Keep a verified backup of every unit and never
 overwrite the bootloader, ART or U-Boot environment partitions. Models in a
-family do not always share a flash layout: the Jaguar persistent image
-assumes two 96 MiB slots, which the XV2-2 does not have.
+family do not always share a flash layout: the Jaguar XV2-2 has two 52 MiB
+slots where the XV2-2T1 has two 96 MiB slots.
 
 Hardware for validation is very welcome: if you can send a unit of an
 untested or unported model, please open an issue on this repository.
@@ -51,8 +51,8 @@ untested or unported model, please open an issue on this repository.
   slot; the OEM slot and calibration (ART) are never modified. If that slot
   is gone or unreadable, the radios stay down and wired operation continues.
 - Sysupgrade works on the Sage E410-layout models (A/B with automatic
-  rollback) and on the Thor XV3-8 (in place). Cheetah and Jaguar have no
-  sysupgrade path yet: upgrade by reinstalling the persistent image.
+  rollback) and on the Thor XV3-8 (in place). Jaguar A/B sysupgrade is under
+  hardware test and not published; Cheetah has no sysupgrade path yet.
 - Kernel modules must come from the same snapshot as the image. The package
   feed for each snapshot is configured in the image and kept for the two
   most recent snapshots only.
