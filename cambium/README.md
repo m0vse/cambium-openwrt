@@ -50,7 +50,15 @@ board SKUs, FIT configurations and hardware status. From it:
 - `scripts/gen-select-config.py` generates `select-config.sh`, published with
   each release and on the site. On the stock firmware it maps the board SKU
   to the FIT configuration for a recovery, installer or persistent image,
-  and refuses unknown SKUs and images not built for the model.
+  and refuses unknown SKUs, images not built for the model, and any
+  persistent or installer image for a model that is not validated.
+
+Untested models are RAM boot only. `site/cambium-report.sh`, also a release
+asset, collects a read-only hardware report on the stock firmware or in the
+booted recovery image for a *Cambium hardware report* issue
+(`.github/ISSUE_TEMPLATE/cambium-hardware-report.yml`);
+`tests/cambium-report.sh` checks in CI that it contains no writing command
+and masks MAC addresses.
 
 Update `families.json` (and the site's tables) when a model's status or
 configuration changes.

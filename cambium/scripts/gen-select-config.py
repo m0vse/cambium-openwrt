@@ -44,8 +44,9 @@ def main():
 #   sh select-config.sh recovery|installer|persistent
 # Prints FAMILY, MODEL, SKU, CONFIG and STATUS as shell assignments, e.g.
 #   eval "$(sh select-config.sh recovery)" && echo "$CONFIG"
-# Exits non-zero, printing nothing on stdout, for an unknown SKU or an image
-# that is not built for this model.
+# Exits non-zero, printing nothing on stdout, for an unknown SKU, an image
+# that is not built for this model, or a persistent or installer image for a
+# model that is not yet validated (those get the recovery image only).
 
 flavour=${1:-}
 case "$flavour" in
@@ -79,8 +80,18 @@ if [ -z "$config" ]; then
 	echo "$model (SKU $sku, $family): no $flavour image: $note" >&2
 	exit 1
 fi
-[ "$status" = validated ] ||
-	echo "Warning: $model $flavour image is $status on hardware; trial only on a unit you can recover" >&2
+# Until a model is validated only its recovery (RAM) image may be used; the
+# report from that boot is what validation starts from.
+if [ "$status" != validated ]; then
+	if [ "$flavour" != recovery ]; then
+		echo "$model (SKU $sku, $family): the $flavour image is $status on this model." >&2
+		echo "Only the recovery (RAM) image may be used until the model is validated:" >&2
+		echo "RAM-boot it, run cambium-report.sh and open an issue with the report." >&2
+		exit 1
+	fi
+	echo "Warning: $model has not been validated. RAM boot only; in the booted image run" >&2
+	echo "cambium-report.sh and attach the report to an issue." >&2
+fi
 printf "FAMILY='%s'\\nMODEL='%s'\\nSKU='%s'\\nCONFIG='%s'\\nSTATUS='%s'\\n" \\
 	"$family" "$model" "$sku" "$config" "$status"
 """, end="")
