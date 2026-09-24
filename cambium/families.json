@@ -314,7 +314,7 @@
           },
           "sysupgrade": {
             "status": "validated",
-            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks (a bank switch has run on the XV2-2)"
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks: a sysupgrade -n switched this model from slot 1 to slot 0, vault intact"
           }
         },
         {
@@ -343,11 +343,11 @@
           "persistent": {
             "config": "config@cp01-c1-2",
             "status": "validated",
-            "note": "A/B image installed into slot 0 with cambium-install.sh (2026-09-24): factory image read back, device-data vault filled, guarded boot re-armed"
+            "note": "A/B image installed into slot 0 with cambium-install.sh (2026-09-24): factory image read back, device-data vault filled, guarded boot re-armed; then converted to two OpenWrt banks"
           },
           "sysupgrade": {
             "status": "validated",
-            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks (a bank switch has run on the XV2-2)"
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks: a sysupgrade switched this model from slot 0 to slot 1, vault intact"
           }
         },
         {
