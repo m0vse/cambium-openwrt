@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cambium-board-data
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Phil Taylor <phil@m0vse.uk>
 
@@ -17,9 +17,10 @@ endef
 
 define Package/cambium-board-data/description
   Installs the Wi-Fi board data files used by the access point's own stock
-  firmware. They are read at boot from the retained, read-only OEM firmware
-  slot, so no OEM board data is redistributed in OpenWrt images. The OEM slot
-  and the ART calibration partition are never modified.
+  firmware. They are read at boot from the retained OEM firmware
+  slot, so no OEM board data is redistributed in OpenWrt images. The ART
+  calibration partition is never modified. Jaguar A/B images keep the files
+  in a per-bank device-data vault bound to the unit's board, SKU and ART.
 endef
 
 define Build/Compile
