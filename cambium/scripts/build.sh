@@ -256,12 +256,10 @@ if [ "$family" = jaguar ]; then
 	cp target/linux/qualcommax/ipq60xx/base-files/lib/upgrade/cambium-jaguar.sh \
 		"$output/images/cambium-jaguar-upgrade.sh"
 fi
-# Jaguar A/B is under hardware test: its sysupgrade image and a RAM build of
-# the persistent trees go only to the CI artifact (test-only/), never to a
-# release, until trial boot, rollback and reverse switching are validated.
+# A RAM build of the Jaguar persistent trees, for hardware tests of the A/B
+# trees, goes only to the CI artifact (test-only/), never to a release.
 if [ "$family" = jaguar ]; then
 	mkdir -p "$output/test-only"
-	mv "$output/images/"*cambiumnetworks_jaguar-persistent-squashfs-sysupgrade.bin "$output/test-only/"
 	cp "$bin_dir/"*cambiumnetworks_jaguar-persistent-initramfs-uImage.itb "$output/test-only/"
 	(cd "$output/test-only" && sha256sum -- * > test-only-SHA256SUMS)
 fi
