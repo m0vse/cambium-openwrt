@@ -1,6 +1,6 @@
 #!/bin/sh
 # Simulation tests for the shared Cambium A/B code (package cambium-ab) and
-# every family module (Jaguar, Cheetah): board tables and the identity
+# every family module (Jaguar, Cheetah, Thor): board tables and the identity
 # preflight, boot commands, the inactive-bank writer and its platform.sh
 # dispatch, the boot guard, the one-time conversion and the device-data vault
 # in cambium-board-data. The real scripts run against simulated MTD/UBI
@@ -221,6 +221,7 @@ export AB_ENV_CONFIG=$S/fw_env.config AB_PROC_MOUNTS=$S/mounts
 mkdir -p "$S/modules"
 ln -s "$jaguar_module_dir/cambium-ab-jaguar.sh" "$S/modules/"
 ln -s "$top/package/cambium/cambium-cheetah-support/files/cambium-ab-cheetah.sh" "$S/modules/"
+ln -s "$top/package/cambium/cambium-thor-support/files/cambium-ab-thor.sh" "$S/modules/"
 export CAMBIUM_AB_LIB=$ab_pkg/cambium-ab.sh CAMBIUM_AB_MODULES=$S/modules
 export AB_SYS_NET=$S/net AB_SYS_IEEE80211=$S/ieee80211
 export CAMBIUM_AB_UPGRADE_LIB=${CAMBIUM_AB_UPGRADE_LIB:-$ab_pkg/cambium-ab-upgrade.sh}
@@ -237,7 +238,8 @@ sku_byte() {
 	cambiumnetworks,xv2-2) echo 024 ;; cambiumnetworks,xv2-2t0) echo 026 ;;
 	cambiumnetworks,xv2-2t1) echo 037 ;; cambiumnetworks,xe3-4) echo 040 ;;
 	cambiumnetworks,xe3-4tn) echo 041 ;; cambiumnetworks,xv2-22h) echo 042 ;;
-	cambiumnetworks,xv2-21x) echo 043 ;; cambiumnetworks,xv2-23t) echo 044 ;; *) echo 177 ;;
+	cambiumnetworks,xv2-21x) echo 043 ;; cambiumnetworks,xv2-23t) echo 044 ;;
+	cambiumnetworks,xv3-8) echo 023 ;; *) echo 177 ;;
 	esac
 }
 cheetah_board() {
@@ -250,6 +252,7 @@ oem_bdfs() {
 	cambiumnetworks,xv2-22h) echo lib/firmware/IPQ5018/WIFI_FW/bdwlan.b24-cheetah:131072 lib/firmware/IPQ5018/WIFI_FW/qcn6122/bdwlan.b50-cheetah:131072 ;;
 	cambiumnetworks,xv2-23t) echo lib/firmware/IPQ5018/WIFI_FW/bdwlan.b24-lynx:131072 lib/firmware/IPQ5018/WIFI_FW/qcn6122/bdwlan.b60.stock:131072 ;;
 	cambiumnetworks,xv2-2|cambiumnetworks,xv2-2t0|cambiumnetworks,xv2-2t1) echo "$BDF:65536" ;;
+	cambiumnetworks,xv3-8) echo lib/firmware/IPQ8074/WIFI_FW/bdwlan.b215.accton:131072 ;;
 	esac
 }
 set_sku() { printf "\\000\\000\\000\\$1" > "$S/dt/cambium-platform/board-sku"; }
@@ -277,6 +280,12 @@ new_ap() {
 			'mtd2: 02f80000 00020000 "0:NVRAM"' 'mtd3: 01000000 00020000 "crashLog"' \
 			'mtd4: 00070000 00001000 "0:ART"' 'mtd5: 00010000 00001000 "0:APPSBLENV"' \
 			'mtd6: 00080000 00020000 "0:TRAINING"' > "$S/proc_mtd"
+	elif [ "$board" = cambiumnetworks,xv3-8 ]; then
+		# Thor: two 96 MiB NAND banks; Aquantia firmware and ART on NOR.
+		printf '%s\n' 'dev:    size   erasesize  name' \
+			'mtd0: 06000000 00020000 "rootfs"' 'mtd1: 06000000 00020000 "rootfs_1"' \
+			'mtd2: 00080000 00010000 "0:ETHPHYFW"' 'mtd3: 00950000 00010000 "config"' \
+			'mtd4: 00040000 00010000 "0:ART"' 'mtd5: 00010000 00010000 "0:APPSBLENV"' > "$S/proc_mtd"
 	else
 		printf '%s\n' 'dev:    size   erasesize  name' \
 			'mtd0: 06000000 00020000 "rootfs"' 'mtd1: 06000000 00020000 "rootfs_1"' \
@@ -307,7 +316,12 @@ new_ap() {
 	(. "$S/bin/_sim"; refresh ubi0 "$active")
 	touch "$S/dev/ubiblock0_1"
 	echo '/dev/ubi0_2 /overlay ubifs rw,noatime 0 0' > "$S/mounts"
-	printf '%s\n' 'bootcmd=bootipq' 'image=1' 'changing_bootcmd=1' > "$S/env"
+	if [ "$board" = cambiumnetworks,xv3-8 ]; then
+		# Thor's stock environment has no image variable.
+		printf '%s\n' 'bootcmd=aq_load_fw&&bootipq' 'changing_bootcmd=1' > "$S/env"
+	else
+		printf '%s\n' 'bootcmd=bootipq' 'image=1' 'changing_bootcmd=1' > "$S/env"
+	fi
 }
 make_bank() { # SLOT KERNEL ROOT
 	local m="$S/flash/mtd$1"
@@ -789,6 +803,73 @@ new_ap cambiumnetworks,xv2-22h; healthy_ap; : > "$S/calls"
 check "XV2-22H needs no radios to re-arm" 0 guard
 assert "XV2-22H legacy one-shot" grep -q 'bootm 0x60000000#config@mp03.3-cheetah; bootipq$' "$S/env"
 assert "status names the Cheetah family" sh -c "sh '$ab_pkg/cambium-ab-status' | grep -qx 'family=cheetah'"
+
+# --- Thor (cambium-ab-thor.sh) -----------------------------------------------------
+T=cambiumnetworks,xv3-8
+new_ap $T
+check "Thor identity" 0 in_lib eval \
+	'ab_identity && [ "$AB_FAMILY:$AB_ACTIVE:$AB_TARGET:$AB_FIT:$AB_STOCK_BOOTCMD" = "thor:0:1:config@hk02:aq_load_fw&&bootipq" ]'
+new_ap $T; echo 0xc00 > "$S/sys/mtd/mtd2/flags"
+check "Thor writable 0:ETHPHYFW refused" 1 in_lib ab_identity
+new_ap $T
+assert "Thor slot 0 boot command (config@hk02 is rooted in rootfs)" [ "$(in_lib eval "ab_board $T; ab_boot_command 0")" = \
+	'aq_load_fw; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && bootm 0x60000000#config@hk02' ]
+assert "Thor slot 1 boot command (config@hk02-bank1)" [ "$(in_lib eval "ab_board $T; ab_boot_command 1")" = \
+	'aq_load_fw; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x6000000(fs)" && ubi part fs && ubi read 0x60000000 kernel && bootm 0x60000000#config@hk02-bank1' ]
+assert "Thor guarded command restores the stock default first" [ "$(in_lib eval "ab_board $T; ab_guarded_command 0")" = \
+	'setenv changing_bootcmd; setenv bootcmd "aq_load_fw&&bootipq"; saveenv; aq_load_fw; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && bootm 0x60000000#config@hk02; bootipq' ]
+
+new_ap $T; oem_before=$(bank_hash 1)
+check "Thor first boot fills the vault" 0 run_board_data
+assert "Thor vault status" [ "$(cat "$S/bdstatus")" = vault ]
+assert "Thor IPQ8074 board file installed" [ -s "$S/fw/ath11k/IPQ8074/hw2.0/board.bin" ]
+assert "Thor OEM bank unchanged by the import" [ "$(bank_hash 1)" = "$oem_before" ]
+
+new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2"; : > "$S/calls"
+check "Thor legacy guard re-arms slot 0 (no image variable)" 0 guard
+assert "Thor legacy one-shot is the module's guarded command" [ "$(env_get bootcmd)" = "$(in_lib eval "ab_board $T; ab_guarded_command 0")" ]
+new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1"; : > "$S/calls"
+check "Thor with two of its three radios is unhealthy" 0 guard
+assert "Thor unhealthy start returns to the stock firmware" grep -q reboot "$S/calls"
+# A validated single-bank install: OpenWrt is the committed default.
+new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2"
+sed -i.bak 's/^bootcmd=.*/bootcmd=aq_load_fw; nand device 0; ubi part rootfs; bootm 0x60000000#config@hk02/' "$S/env"; : > "$S/calls"
+check "Thor guard leaves a committed single-bank install alone" 1 guard
+assert "committed single-bank bootcmd kept" never_wrote setenv
+
+new_ap $T; run_board_data >/dev/null 2>&1; : > "$S/calls"
+check "Thor conversion needs --allow-untested" 1 sh "$ab_pkg/cambium-ab-convert" --oem-sha256 "$(oem_hash)" --yes
+check "Thor conversion" 0 sh "$ab_pkg/cambium-ab-convert" --oem-sha256 "$(oem_hash)" --allow-untested --yes
+assert "Thor converted: thor_ variables, slot 0 default" [ "$(env_get thor_ab_version):$(env_get thor_ab_confirmed):$(env_get bootcmd)" = '1:0:run thor_stable0' ]
+assert "Thor stable command" [ "$(env_get thor_stable0)" = 'run thor_boot0; run thor_boot1' ]
+
+# The ipq807x platform.sh sends Thor to the A/B writer.
+dispatch807x() { (. "$S/system.sh"; . "$S/functions.sh"; . "$CAMBIUM_AB_UPGRADE_LIB"
+	eval "$(sed -n '/^platform_check_image() {/,/^}/p; /^platform_do_upgrade() {/,/^}/p' \
+		"$top/target/linux/qualcommax/ipq807x/base-files/lib/upgrade/platform.sh")"
+	nand_restore_config() { echo "restore-config $CI_UBIPART $1" >> "$S/calls"; }
+	[ "$1" = platform_do_upgrade ] && touch "$S/no_hotplug"
+	"$@"; rc=$?; rm -f "$S/no_hotplug"; exit $rc); }
+make_fit config@hk02 config@hk02-bank1 > "$S/thor-fit"
+make_image "$S/thor.bin" "$S/thor-fit" "" sysupgrade-cambiumnetworks_xv3-8
+new_ap $T; run_board_data >/dev/null 2>&1
+check "unconverted Thor refuses sysupgrade" 1 dispatch807x platform_check_image "$S/thor.bin"
+assert "unconverted Thor never reaches nand_do_upgrade" never_wrote 'generic-nand'
+converted_ap $T
+check "a Jaguar image is refused on a Thor" 1 dispatch807x platform_check_image "$S/good.bin"
+check "Thor image check" 0 dispatch807x platform_check_image "$S/thor.bin"
+active_before=$(bank_hash 0)
+check "Thor upgrade slot 0 -> 1" 0 dispatch807x platform_do_upgrade "$S/thor.bin"
+assert "Thor slot 1 rootfs written" [ "$(cat "$S/flash/mtd1/1.data")" = hsqs-new-root ]
+assert "Thor slot 1 vault copied" cmp -s "$S/flash/mtd1/3.data" "$S/flash/mtd0/3.data"
+assert "Thor slot 0 untouched" [ "$(bank_hash 0)" = "$active_before" ]
+assert "Thor trial of slot 1 armed" [ "$(env_get bootcmd)" = \
+	'setenv bootcmd run thor_stable0; setenv image 0; setenv thor_ab_state trial-started; saveenv; run thor_boot1; run thor_boot0' ]
+sed -i.bak -e 's/^bootcmd=.*/bootcmd=run thor_stable0/' -e 's/^thor_ab_state=.*/thor_ab_state=trial-started/' "$S/env"
+boot_slot 1; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2" "$S/net/br-lan.1"; : > "$S/calls"
+check "Thor healthy trial committed" 0 guard
+assert "Thor slot 1 confirmed" [ "$(env_get thor_ab_confirmed):$(env_get thor_ab_state):$(env_get bootcmd)" = '1:confirmed:run thor_stable1' ]
+assert "status names the Thor family" sh -c "sh '$ab_pkg/cambium-ab-status' | grep -qx 'family=thor'"
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]

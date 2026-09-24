@@ -258,11 +258,12 @@
           },
           "persistent": {
             "config": "config@hk02",
-            "status": "validated"
+            "status": "untested",
+            "note": "The persistent image is now the A/B build (both banks writable, device-data vault, one FIT configuration per bank), not yet run on hardware; the earlier single-bank image was validated"
           },
           "sysupgrade": {
-            "status": "validated",
-            "note": "in place; stock firmware kept in rootfs_1"
+            "status": "untested",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks; not yet run on hardware"
           }
         },
         {

@@ -1,21 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 
-#include "ipq8074-xv3-8.dts"
+/*
+ * Thor A/B persistent tree for bank 0 (config@hk02): both 96 MiB firmware
+ * banks and the U-Boot environment are writable, and the root is appended
+ * here, as on the validated single-bank installs, so their committed boot
+ * command keeps working. ipq8074-xv3-8-persistent-bank1.dts is the same tree
+ * rooted in bank 1. ART, 0:ETHPHYFW and the other NOR partitions stay
+ * read-only.
+ */
+#include "ipq8074-xv3-8-installer.dts"
 
-/ {
-	model = "Cambium Networks XV3-8";
-
-	chosen {
-		bootargs-append = " ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait";
-	};
-};
-
-/* Only the OpenWrt slot is writable.  Preserve rootfs_1 as OEM recovery. */
-&rootfs {
-	/delete-property/ read-only;
-};
-
-/* Permit guarded bootcmd updates through /etc/fw_env.config. */
-&appsblenv {
+&rootfs_1 {
 	/delete-property/ read-only;
 };
