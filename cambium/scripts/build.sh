@@ -201,6 +201,13 @@ persistent=$kernel"
 	tar -xOf "$sysupgrade" sysupgrade-cambiumnetworks_jaguar/kernel > "$work/jaguar-kernel.itb"
 	cmp -s "$work/jaguar-kernel.itb" "$kernel" ||
 		fail "Jaguar sysupgrade kernel differs from the verified persistent FIT"
+	# One family image serves both bank sizes, so it must fit the XV2-2's
+	# 52 MiB bank (392 usable LEBs) with the vault (8) and an 8 MiB overlay (67).
+	root_bytes=$(tar -xOf "$sysupgrade" sysupgrade-cambiumnetworks_jaguar/root | wc -c)
+	lebs=$(( ($(wc -c < "$kernel") + 126975) / 126976 + (root_bytes + 126975) / 126976 + 8 + 67 ))
+	[ "$lebs" -le 392 ] ||
+		fail "Jaguar image needs $lebs LEBs; the XV2-2's 52 MiB bank has 392"
+	echo "Jaguar image uses $lebs of 392 LEBs in an XV2-2 bank"
 	;;
 esac
 
@@ -233,6 +240,14 @@ find "$bin_dir" -maxdepth 1 -type f \( -name '*cambiumnetworks_*' -o -name 'prof
 cp -R "$bin_dir/packages" "$output/feed/targets/$target/$subtarget/"
 cp -R "bin/packages/$arch/base" "$output/feed/packages/$arch/"
 cp files/etc/cambium-openwrt-release "$output/images/cambium-openwrt-release"
+# Jaguar A/B is under hardware test: its sysupgrade image and a RAM build of
+# the persistent trees go only to the CI artifact (test-only/), never to a
+# release, until trial boot, rollback and reverse switching are validated.
+if [ "$family" = jaguar ]; then
+	mkdir -p "$output/test-only"
+	mv "$output/images/"*cambiumnetworks_jaguar-persistent-squashfs-sysupgrade.bin "$output/test-only/"
+	cp "$bin_dir/"*cambiumnetworks_jaguar-persistent-initramfs-uImage.itb "$output/test-only/"
+fi
 # Machine-readable model/SKU/configuration/image manifest; also fails if
 # cambium/families.json names a configuration the built FITs lack.
 old_ifs=$IFS; IFS='
