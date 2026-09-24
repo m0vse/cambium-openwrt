@@ -5,7 +5,11 @@ name: Cambium snapshot
 
 on:
   schedule:
+    # GitHub may start scheduled runs hours late or skip them. The 06:17 run
+    # is a backstop: it does not sync, and only builds families missing from
+    # the current commit's snapshot, so it does nothing after a good night.
     - cron: '17 2 * * *'
+    - cron: '17 6 * * *'
   workflow_dispatch:
     inputs:
       sync:
@@ -74,7 +78,7 @@ jobs:
 
       - name: Rebase Cambium commits onto upstream
         id: sync
-        if: github.event_name == 'schedule' || inputs.sync
+        if: (github.event_name == 'schedule' && github.event.schedule != '17 6 * * *') || inputs.sync
         run: cambium/scripts/sync-upstream.sh
 
       - name: Report rebase conflict
