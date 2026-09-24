@@ -132,6 +132,9 @@ jobs:
       - name: Test the installer against every family
         run: sh cambium/tests/cambium-install.sh
 
+      - name: Test the stock-style hostname
+        run: sh cambium/tests/cambium-hostname.sh
+
       - name: Test the Jaguar A/B logic
         run: sh cambium/tests/jaguar-ab.sh
 
