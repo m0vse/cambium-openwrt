@@ -441,7 +441,7 @@ define Device/cambiumnetworks_jaguar-persistent
 	# A/B banks: kernel (0), rootfs (1), rootfs_data (2) and the per-bank
 	# device-data vault (3), which the jaguar sysupgrade copies between banks.
 	IMAGES := factory.ubi sysupgrade.bin
-	IMAGE/factory.ubi := cambium-jaguar-ubi
+	IMAGE/factory.ubi := cambium-ab-ubi
 	IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
 	BOARD_NAME := cambiumnetworks_jaguar
 	# Upstream's own cambiumnetworks,xe3-4 image shares the XE3-4 board name,
