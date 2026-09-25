@@ -731,6 +731,12 @@ new_ap; run_board_data >/dev/null 2>&1; : > "$S/calls"
 check "legacy guard: unhealthy start returns to OEM" 0 guard
 assert "legacy unhealthy start rebooted" grep -q reboot "$S/calls"
 assert "legacy unhealthy start wrote no environment" never_wrote setenv
+# A single-bank install whose default boot is OpenWrt itself (the XV3-8 on
+# 25 Sep): rebooting would only boot OpenWrt again, every few minutes.
+new_ap cambiumnetworks,xv3-8; run_board_data >/dev/null 2>&1
+sed -i.bak 's/^bootcmd=.*/bootcmd=aq_load_fw; nand device 0; ubi part rootfs; bootm 0x60000000#config@hk02/' "$S/env"; : > "$S/calls"
+check "unhealthy committed single-bank install: guard reports failure" 1 guard
+assert "unhealthy committed install is not rebooted" never_wrote 'reboot|setenv'
 new_ap cambiumnetworks,xe3-4; rm -rf "$S/dt/cambium-platform"; : > "$S/calls"
 check "guard ignores upstream XE3-4 images" 0 guard
 assert "upstream XE3-4 untouched by the guard" never_wrote 'setenv|reboot'
@@ -835,6 +841,14 @@ assert "Thor vault status" [ "$(cat "$S/bdstatus")" = vault ]
 assert "Thor IPQ8074 board file installed" [ -s "$S/fw/ath11k/IPQ8074/hw2.0/board.bin" ]
 assert "Thor OEM bank unchanged by the import" [ "$(bank_hash 1)" = "$oem_before" ]
 
+# A single-bank install upgraded in place to the A/B image: its bank has no
+# vault and the stock bank is writable, yet the board file is still read
+# from it (read-only), as on the XV3-8 on 25 Sep.
+new_ap $T; rm -f "$S/flash/mtd0/3."*; (. "$S/bin/_sim"; refresh ubi0 0); oem_before=$(bank_hash 1)
+check "no vault, writable stock bank: board data imported" 0 run_board_data
+assert "no vault: status imported" [ "$(cat "$S/bdstatus")" = imported ]
+assert "no vault: IPQ8074 board file installed" [ -s "$S/fw/ath11k/IPQ8074/hw2.0/board.bin" ]
+assert "no vault: stock bank unchanged" [ "$(bank_hash 1)" = "$oem_before" ]
 new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2"; : > "$S/calls"
 check "Thor legacy guard re-arms slot 0 (no image variable)" 0 guard
 assert "Thor legacy one-shot is the module's guarded command" [ "$(env_get bootcmd)" = "$(in_lib eval "ab_board $T; ab_guarded_command 0")" ]
