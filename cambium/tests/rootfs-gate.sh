@@ -15,7 +15,8 @@ trap 'rm -rf "$W"' EXIT HUP INT TERM
 pass=0 fail=0
 
 full="openwisp-config openwisp-monitoring wireguard-tools kmod-wireguard luci
-	luci-ssl uhttpd wpad-mbedtls cambium-openwisp-led cambium-sage-support base-files"
+	luci-ssl uhttpd wpad-mbedtls cambium-openwisp-led kmod-leds-gpio
+	kmod-gpio-button-hotplug cambium-sage-support base-files"
 
 # root NAME PACKAGES...: an unpacked root whose apk database lists PACKAGES,
 # with the OpenWISP and uHTTPd init scripts.
@@ -41,13 +42,13 @@ said() {
 
 root good $full
 check "a full managed-AP root passes" 0 "$W/good" cambium-sage-support
-if [ "$(sed -n 's/^luci-ssl //p' "$W/manifest")" = 1.0-r1 ] && [ "$(wc -l < "$W/manifest")" -eq 11 ]; then
+if [ "$(sed -n 's/^luci-ssl //p' "$W/manifest")" = 1.0-r1 ] && [ "$(wc -l < "$W/manifest")" -eq 13 ]; then
 	pass=$((pass + 1)); else fail=$((fail + 1)); echo "FAIL: the manifest lists every package with its version"; fi
 
 # The published Sage 2026.09.25.0 root: the shared base only.
 root base base-files busybox dropbear wpad-basic-mbedtls ubi-utils
 check "the shared base root fails" 1 "$W/base" cambium-sage-support
-said "every missing package and service is named" 'missing: openwisp-config openwisp-monitoring wireguard-tools kmod-wireguard luci luci-ssl uhttpd wpad-mbedtls cambium-openwisp-led cambium-sage-support$'
+said "every missing package and service is named" 'missing: openwisp-config openwisp-monitoring wireguard-tools kmod-wireguard luci luci-ssl uhttpd wpad-mbedtls cambium-openwisp-led kmod-leds-gpio kmod-gpio-button-hotplug cambium-sage-support$'
 
 root nowg $(echo $full | sed 's/kmod-wireguard //')
 check "a root without kmod-wireguard fails" 1 "$W/nowg" cambium-sage-support
@@ -56,6 +57,10 @@ said "the missing kernel module is named" 'missing: kmod-wireguard$'
 root noinit $full; rm "$W/noinit/etc/init.d/uhttpd"
 check "a root without the uHTTPd init script fails" 1 "$W/noinit" cambium-sage-support
 said "the missing service is named" 'missing: /etc/init.d/uhttpd$'
+
+root noled $(echo $full | sed 's/kmod-leds-gpio //')
+check "a root without the GPIO LED driver fails (Thor, 25 Sep)" 1 "$W/noled" cambium-sage-support
+said "the missing LED driver is named" 'missing: kmod-leds-gpio$'
 
 root basic $full wpad-basic-mbedtls
 check "a root that still has wpad-basic-mbedtls fails" 1 "$W/basic" cambium-sage-support
