@@ -111,5 +111,16 @@ for fam in sage thor jaguar cheetah; do
 	fi
 done
 
+# Anything that reads the managed state (e.g. Sage's upgrade commit, which
+# waits for OpenWISP on managed APs) must read the file this service writes.
+stale=$(grep -rn -- '-openwisp-managed' "$top/package" | grep -v '/tmp/cambium-openwisp-managed' || true)
+if [ -z "$stale" ]; then
+	pass=$((pass + 1))
+else
+	fail=$((fail + 1))
+	echo "FAIL: scripts read an OpenWISP state file the LED service no longer writes:"
+	echo "$stale" | sed 's/^/    /'
+fi
+
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
