@@ -142,6 +142,9 @@ jobs:
       - name: Test the management VLAN defaults (every family)
         run: sh cambium/tests/cambium-vlan.sh
 
+      - name: Test the persistent image release gate
+        run: sh cambium/tests/rootfs-gate.sh
+
       - name: Watch for a new OpenWrt stable branch
         continue-on-error: true
         env:
@@ -223,6 +226,12 @@ jobs:
             gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev \
             python3-setuptools python3-dev rsync swig unzip zlib1g-dev file \
             wget zstd device-tree-compiler
+
+      - name: Install the UBIFS reader for the release gate
+        run: |
+          python3 -m venv "$RUNNER_TEMP/ubi"
+          "$RUNNER_TEMP/ubi/bin/pip" install --quiet ubi_reader==0.8.12
+          echo "UBIREADER_EXTRACT=$RUNNER_TEMP/ubi/bin/ubireader_extract_files" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v5
         with:
