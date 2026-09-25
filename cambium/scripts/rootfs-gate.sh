@@ -22,9 +22,12 @@ label=${3:?usage: rootfs-gate.sh ROOT MANIFEST LABEL [EXTRA_PACKAGE...]}
 shift 3
 
 # Every persistent image is a managed access point: OpenWISP, LuCI over
-# uHTTPd, WireGuard, the full wpad and the shared status LED.
+# uHTTPd, WireGuard, the full wpad, the shared status LED and the GPIO LED
+# and button drivers it and failsafe need (target defaults are not always
+# carried into per-device images: Thor lost both).
 required="openwisp-config openwisp-monitoring wireguard-tools kmod-wireguard
-	luci luci-ssl uhttpd wpad-mbedtls cambium-openwisp-led $*"
+	luci luci-ssl uhttpd wpad-mbedtls cambium-openwisp-led
+	kmod-leds-gpio kmod-gpio-button-hotplug $*"
 required_files="etc/init.d/openwisp-config etc/init.d/uhttpd"
 forbidden="wpad-basic-mbedtls"
 
