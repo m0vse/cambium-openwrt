@@ -181,12 +181,12 @@
           "recovery": {
             "config": "config@5",
             "status": "validated",
-            "note": "Same hardware as the E410: boots the E410 configuration, as on the validated units. config@17 (the E410B tree) is built but not used, because the E410 upgrade and mark-good helpers match only cambium,e410."
+            "note": "Same hardware as the E410. The initial deployment deliberately keeps the legacy E410-compatible configuration (config@5), the boot path validated on these units, for backward compatibility. The E410B-aware sysupgrade path (board cambiumnetworks,e410b, SKU 21) can boot the E410B tree, config@17."
           },
           "persistent": {
             "config": "config@ap.dk01.1-c2",
             "status": "validated",
-            "note": "Same hardware as the E410: boots the E410 configuration, as on the validated units. config@17 (the E410B tree) is built but not used, because the E410 upgrade and mark-good helpers match only cambium,e410."
+            "note": "Same hardware as the E410. The initial deployment deliberately keeps the legacy E410-compatible configuration (config@ap.dk01.1-c2), the boot path validated on these units, for backward compatibility; the OEM migration helper (sage-migration-mark-good) still matches only cambium,e410. After that, the E410B-aware sysupgrade and its commit service (board cambiumnetworks,e410b, SKU 21) can boot the E410B tree, config@17."
           },
           "sysupgrade": {
             "status": "validated",
