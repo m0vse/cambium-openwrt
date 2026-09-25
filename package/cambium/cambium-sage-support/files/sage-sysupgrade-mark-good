@@ -29,7 +29,7 @@ fi
 # LAN and radio health alone, so a stock image does not silently roll back.
 openwisp_healthy() {
 	[ -n "$(uci -q get openwisp.http.url)" ] || return 0
-	[ -f /tmp/sage-openwisp-managed ] &&
+	[ -f /tmp/cambium-openwisp-managed ] &&
 		/etc/init.d/openwisp-config running >/dev/null 2>&1 &&
 		/etc/init.d/openwisp-monitoring running >/dev/null 2>&1
 }
