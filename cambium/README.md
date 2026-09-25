@@ -194,10 +194,12 @@ snapshot is tagged `snapshot-YYYY.MM.DD.N`.
 
 ## Daily snapshots
 
-`.github/workflows/cambium-snapshot.yml` runs daily at 02:17 UTC, with a
-backstop at 06:17 UTC because GitHub may start scheduled runs hours late or
-skip them. The backstop does not sync; it only builds families missing from
-the current commit's snapshot, so after a good night it does nothing:
+`.github/workflows/cambium-snapshot.yml` runs daily at 19:17 UTC (20:17
+BST). GitHub may start scheduled runs hours late or skip them, so an evening
+start still finishes by the morning; if none ran, start it by hand (Run
+workflow, with sync ticked). A run builds when the rebase changed the
+branch, when forced, or when a family is missing from the current commit's
+snapshot:
 
 1. **Sync** – `scripts/sync-upstream.sh` rebases the Cambium commits onto
    upstream `main` and force-pushes the default branch. On a conflict the
