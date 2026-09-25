@@ -215,18 +215,36 @@ layout_jaguar() {
 	XE3-4:06000000:06000000|XE3-4TN:06000000:06000000) ;;
 	*) die "$MODEL with rootfs $S0 and rootfs_1 $S1 bytes (hex) is not a known Jaguar layout (XV2-2: 03400000; others: 06000000). Run cambium-report.sh and open an issue" ;;
 	esac
+	# Bank 1 follows bank 0 directly.
+	bank_offset "$R0" 0 rootfs
+	bank_offset "$R1" $((0x$S0)) rootfs_1
+}
+# bank_offset MTD WANT NAME: the partition must start at NAND offset WANT
+# (bytes) where the kernel reports offsets.
+bank_offset() {
+	local off
+	off=$(cat "$R/sys/class/mtd/mtd$1/offset" 2>/dev/null)
+	[ -z "$off" ] || [ "$off" = "$2" ] ||
+		die "$MODEL $3 starts at NAND offset $off, not $(printf '0x%x' "$2"): not the captured $FAMILY layout. Run cambium-report.sh and open an issue"
 }
 layout_thor() {
 	slots
-	[ "$S0" = 06000000 ] || die "$MODEL rootfs is $S0 bytes (hex), not 06000000: this layout has not been captured. Run cambium-report.sh and open an issue"
+	[ "$S0:$S1" = 06000000:06000000 ] || die "$MODEL rootfs is $S0 and rootfs_1 $S1 bytes (hex), not 06000000 each: this layout has not been captured. Run cambium-report.sh and open an issue"
+	bank_offset "$R0" 0 rootfs
+	bank_offset "$R1" 100663296 rootfs_1
 	require_stock_on_rootfs_1
 }
 layout_cheetah() {
-	local off
+	local t
 	slots
-	[ "$S0" = 06000000 ] || die "$MODEL rootfs is $S0 bytes (hex), not 06000000: not the captured Cheetah layout. Run cambium-report.sh and open an issue"
-	off=$(cat "$R/sys/class/mtd/mtd$R0/offset" 2>/dev/null)
-	[ -z "$off" ] || [ "$off" = 524288 ] || die "$MODEL rootfs starts at NAND offset $off, not 0x80000: not the captured Cheetah layout"
+	[ "$S0:$S1" = 06000000:06000000 ] || die "$MODEL rootfs is $S0 and rootfs_1 $S1 bytes (hex), not 06000000 each: not the captured Cheetah layout. Run cambium-report.sh and open an issue"
+	# 0:TRAINING (512 KiB at the start of the NAND) comes before rootfs.
+	t=$(mtd_idx 0:TRAINING)
+	[ -n "$t" ] && [ "$(mtd_size 0:TRAINING)" = 00080000 ] ||
+		die "$MODEL has no 512 KiB 0:TRAINING partition: not the captured Cheetah layout. Run cambium-report.sh and open an issue"
+	bank_offset "$t" 0 0:TRAINING
+	bank_offset "$R0" 524288 rootfs
+	bank_offset "$R1" 101187584 rootfs_1
 	require_stock_on_rootfs_1
 }
 # Sage: one UBI device with linux0/rootfs0 and linux1/rootfs1; I is the
