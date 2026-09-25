@@ -89,6 +89,13 @@ legacy_guard() {
 		log "healthy; guarded OpenWrt boot of slot $slot rearmed"
 		return 0
 	fi
+	# The guarded one-shot restored the stock default before booting, so a
+	# reboot returns to the stock firmware. A committed OpenWrt default (a
+	# single-bank install) would only boot OpenWrt again, every few minutes.
+	[ "$(ab_getenv bootcmd)" = "$AB_STOCK_BOOTCMD" ] || {
+		log 'startup checks failed, but the default boot is not the stock firmware; not rebooting'
+		return 1
+	}
 	log 'startup checks failed; rebooting to OEM'
 	do_reboot
 }
