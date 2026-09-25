@@ -363,8 +363,8 @@
             "status": "untested"
           },
           "sysupgrade": {
-            "status": "untested",
-            "note": "A/B with automatic rollback; untested on this model"
+            "status": "none",
+            "note": "Not yet: the family sysupgrade.bin leaves out cambiumnetworks,xe3-4 because upstream OpenWrt's own XE3-4 image uses the same board name and would accept it. Upgrade by reinstalling until the image can tell the two apart"
           }
         },
         {
