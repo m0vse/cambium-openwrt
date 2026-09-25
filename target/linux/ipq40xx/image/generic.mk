@@ -35,11 +35,16 @@ define Device/UbiFit
 	IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
 endef
 
+# The UBIFS root is made from this device's own root filesystem: with
+# per-device root filesystems, $(TARGET_DIR) is the shared base without the
+# device's package list (LuCI, OpenWISP, WireGuard and its support packages).
+# IMAGE_ROOTFS names the device's root.squashfs+pkg=ID; mkfs_target_dir maps
+# that ID to its populated target-dir-ID (or to $(TARGET_DIR) without one).
 define Build/e410-rootfs-ubifs
 	rm -f $@
 	$(STAGING_DIR_HOST)/bin/mkfs.ubifs \
 		-m 2048 -e 126976 -c 372 --space-fixup --compr=zlib \
-		--squash-uids -r $(TARGET_DIR) -o $@
+		--squash-uids -r $(call mkfs_target_dir,$(subst +,$(space),$(notdir $(IMAGE_ROOTFS)))) -o $@
 endef
 
 define Device/DniImage
