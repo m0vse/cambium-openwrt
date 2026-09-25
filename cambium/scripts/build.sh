@@ -232,41 +232,25 @@ for root in $roots; do
 	[ -z "$leaked" ] || fail "$root contains OEM board data: $leaked"
 done
 
-# The persistent images must carry the managed-AP packages their device
-# package list selects. A Sage UBIFS root was once made from the shared base
-# root filesystem instead of the device's own, and shipped without LuCI,
+# Release gate: unpack each persistent image's actual root filesystem, write
+# its installed-package manifest and fail unless the managed-AP packages and
+# services are present. A Sage UBIFS root was once made from the shared base
+# root filesystem instead of the device's own and shipped without LuCI,
 # OpenWISP, WireGuard or its support package.
-required="luci-ssl uhttpd openwisp-config openwisp-monitoring wireguard-tools
-	wpad-mbedtls cambium-openwisp-led cambium-$family-support"
-# has_package ROOT NAME: the root filesystem ROOT lists package NAME.
-has_package() {
-	case "$(head -c 4 "$1")" in
-	hsqs) grep -qx "$2" "$1.packages" ;;
-	# UBIFS keeps directory entry names uncompressed.
-	*) LC_ALL=C grep -aq "$2\.list" "$1" ;;
-	esac
+gate() { # gate ROOT IMAGE_NAME LABEL
+	UNSQUASHFS=staging_dir/host/bin/unsquashfs4 UBIREADER_EXTRACT=${UBIREADER_EXTRACT:-ubireader_extract_files} \
+		sh cambium/scripts/rootfs-gate.sh "$1" "$work/manifests/$2.manifest" "$3" \
+		cambium-$family-support $([ "$family" = sage ] || echo cambium-ab) ||
+		fail "the $3 root filesystem failed the package gate"
 }
-check_packages() {
-	local root=$1 what=$2 p missing=
-	if [ "$(head -c 4 "$root")" = hsqs ]; then
-		staging_dir/host/bin/unsquashfs4 -l -d x "$root" |
-			sed -n 's|^x/lib/apk/packages/\(.*\)\.list$|\1|p' > "$root.packages"
-		[ -s "$root.packages" ] || fail "cannot list the packages in $what"
-	fi
-	for p in $required; do
-		has_package "$root" "$p" || missing="$missing $p"
-	done
-	[ -z "$missing" ] || fail "$what lacks packages:$missing"
-	! has_package "$root" wpad-basic-mbedtls || fail "$what has wpad-basic-mbedtls instead of wpad-mbedtls"
-	echo "$what carries the managed-AP packages"
-}
+mkdir -p "$work/manifests"
 sysupgrade=$(image "*cambiumnetworks_$family-persistent-squashfs-sysupgrade.bin")
 tar -xOf "$sysupgrade" "$(tar -tf "$sysupgrade" | grep '/root$' | head -n 1)" > "$work/persistent-root" ||
 	fail "cannot read the root filesystem of ${sysupgrade##*/}"
-check_packages "$work/persistent-root" "${sysupgrade##*/}"
+gate "$work/persistent-root" "${sysupgrade##*/}" "$name persistent sysupgrade.bin"
 if [ "$family" = sage ]; then
-	check_packages "$(image '*cambiumnetworks_sage-persistent-squashfs-rootfs.ubifs')" \
-		"the Sage rootfs.ubifs"
+	rootfs=$(image '*cambiumnetworks_sage-persistent-squashfs-rootfs.ubifs')
+	gate "$rootfs" "${rootfs##*/}" "Sage persistent rootfs.ubifs"
 fi
 
 log "Collecting to $output"
@@ -280,6 +264,8 @@ find "$bin_dir" -maxdepth 1 -type f \( -name '*cambiumnetworks_*' -o -name 'prof
 	! \( -name '*-initramfs-*' ! -name '*-recovery-initramfs-*' ! -name '*-installer-initramfs-*' \) \
 	-exec cp {} "$output/images/" \;
 cp -R "$bin_dir/packages" "$output/feed/targets/$target/$subtarget/"
+# The installed-package manifests the release gate wrote.
+cp "$work/manifests/"*.manifest "$output/images/"
 cp -R "bin/packages/$arch/base" "$output/feed/packages/$arch/"
 cp files/etc/cambium-openwrt-release "$output/images/cambium-openwrt-release"
 # The kernel and rootfs content of each factory image the installer writes
