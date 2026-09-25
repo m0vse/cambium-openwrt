@@ -329,12 +329,17 @@ vault_main() {
 }
 
 legacy_main() {
-	local mtd
+	local mtd writable=
 	[ -z "$(missing_files)" ] && { echo present > "$STATUS"; return 0; }
 
+	# An A/B image's device tree leaves both banks writable. Without a vault
+	# (e.g. a single-bank install upgraded in place to an A/B image) the
+	# stock bank is still the only source, and is only read, mounted
+	# read-only.
+	command -v ab_family >/dev/null 2>&1 && ab_family && writable=allow-writable
 	for mtd in $(oem_mtds); do
 		BLOCK=; BLOCK_VOL=; ATTACHED=
-		mount_oem_mtd "$mtd" && install_from_dir "$MNT" OEM
+		mount_oem_mtd "$mtd" $writable && install_from_dir "$MNT" OEM
 		cleanup
 		[ -z "$(missing_files)" ] && break
 	done
