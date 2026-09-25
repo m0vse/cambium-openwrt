@@ -192,6 +192,9 @@ tool ip <<'EOF'
 #!/bin/sh
 . "$(dirname "$0")/_sim"
 [ -f "$S/net_ok" ] || exit 0
+# Only br-lan and the interfaces present under $S/net have an address.
+dev=$(echo "$*" | sed -n 's/.* dev \([^ ]*\).*/\1/p')
+[ "$dev" = br-lan ] || [ -d "$S/net/$dev" ] || exit 0
 case "$*" in
 *address*) echo '    inet 192.0.2.10/24 brd 192.0.2.255 scope global br-lan' ;;
 *route*) echo 'default via 192.0.2.1 dev br-lan' ;;
@@ -200,6 +203,13 @@ EOF
 command -v sha256sum >/dev/null 2>&1 || tool sha256sum <<'EOF'
 #!/bin/sh
 exec shasum -a 256 "$@"
+EOF
+# uci: network.lan.device from $S/lan_device, when a test sets one.
+tool uci <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+[ "$*" = "-q get network.lan.device" ] && [ -f "$S/lan_device" ] || exit 1
+cat "$S/lan_device"
 EOF
 cat > "$S/functions.sh" <<'EOF'
 find_mtd_index() {
@@ -261,7 +271,7 @@ set_sku() { printf "\\000\\000\\000\\$1" > "$S/dt/cambium-platform/board-sku"; }
 new_ap() {
 	local board=${1:-cambiumnetworks,xv2-2t1} active=${2:-0} other=${3:-oem} i
 	rm -rf "$S/sys" "$S/dev" "$S/flash" "$S/dt" "$S/fw" "$S/bdwork"* "$S/work" "$S/oem_root" "$S/net" "$S/ieee80211"
-	rm -f "$S/calls" "$S/opcount" "$S/fail_at" "$S/corrupt" "$S/bank_lebs" "$S/bdstatus" "$S/net_ok"
+	rm -f "$S/calls" "$S/opcount" "$S/fail_at" "$S/corrupt" "$S/bank_lebs" "$S/bdstatus" "$S/net_ok" "$S/lan_device"
 	mkdir -p "$S/sys/ubi" "$S/dev" "$S/flash" "$S/dt/cambium-platform" "$S/fw"
 	touch "$S/calls"
 	echo "$board" > "$S/board"
@@ -831,6 +841,20 @@ assert "Thor legacy one-shot is the module's guarded command" [ "$(env_get bootc
 new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1"; : > "$S/calls"
 check "Thor with two of its three radios is unhealthy" 0 guard
 assert "Thor unhealthy start returns to the stock firmware" grep -q reboot "$S/calls"
+# The guard checks the device the lan network is configured on: a missing
+# VLAN bridge fails the check rather than passing on br-lan.
+new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2"
+echo br-lan.1 > "$S/lan_device"; : > "$S/calls"
+check "configured br-lan.1 missing: unhealthy" 0 guard
+assert "missing br-lan.1 returns to the stock firmware" grep -q reboot "$S/calls"
+new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2" "$S/net/br-lan.1"
+echo br-lan.1 > "$S/lan_device"; : > "$S/calls"
+check "configured br-lan.1 present: healthy" 0 guard
+assert "present br-lan.1 re-arms OpenWrt" never_wrote reboot
+new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2" "$S/net/br-lan.1"
+echo br-lan > "$S/lan_device"; : > "$S/calls"
+check "a network left on br-lan is checked on br-lan" 0 guard
+assert "br-lan configuration re-arms OpenWrt" never_wrote reboot
 # A validated single-bank install: OpenWrt is the committed default.
 new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2"
 sed -i.bak 's/^bootcmd=.*/bootcmd=aq_load_fw; nand device 0; ubi part rootfs; bootm 0x60000000#config@hk02/' "$S/env"; : > "$S/calls"
