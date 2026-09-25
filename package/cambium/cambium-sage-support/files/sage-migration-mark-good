@@ -26,7 +26,7 @@ case "$root_hash" in ''|'!'|'*') die 'root password is blank or locked' ;; esac
 # Managed deployments must be reachable by their controller before the slot is
 # committed; standalone APs (no controller URL configured) skip this check.
 if [ -n "$(uci -q get openwisp.http.url)" ]; then
-	[ -f /tmp/sage-openwisp-managed ] || die 'authenticated OpenWISP connectivity is not current'
+	[ -f /tmp/cambium-openwisp-managed ] || die 'authenticated OpenWISP connectivity is not current'
 	/etc/init.d/openwisp-config running >/dev/null 2>&1 || die 'openwisp-config is not running'
 	/etc/init.d/openwisp-monitoring running >/dev/null 2>&1 || die 'openwisp-monitoring is not running'
 fi
