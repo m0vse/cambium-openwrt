@@ -25,6 +25,8 @@ mkdir -p "$W/bin"
 cat > "$W/bin/uci" <<'EOS'
 #!/bin/sh
 [ "$1" = -q ] && shift
+# The hostname already configured: $SIM/current, else OpenWrt's default.
+[ "$1" = get ] && { if [ -f "$SIM/current" ]; then cat "$SIM/current"; else echo OpenWrt; fi; exit 0; }
 [ "$1" = set ] && echo "${2#*=}" > "$SIM/hostname"
 exit 0
 EOS
@@ -48,7 +50,7 @@ export PATH="$W/bin:$PATH" SIM=$W CAMBIUM_ROOT=$W/root \
 
 # ap BOARD [ethaddr] [board.json lan macaddr] [lan port MAC]
 ap() {
-	rm -rf "$W/root" "$W/hostname"
+	rm -rf "$W/root" "$W/hostname" "$W/current"
 	mkdir -p "$W/root/proc/device-tree/cambium-platform" "$W/root/dev" "$W/root/etc" "$W/root/sys/class/net/lan1"
 	echo "$1" > "$W/board"
 	printf '%s\n' 'dev:    size   erasesize  name' 'mtd5: 00010000 00010000 "0:APPSBLENV"' > "$W/root/proc/mtd"
@@ -74,6 +76,12 @@ ap cambiumnetworks,xe3-4 '' '' 00:04:56:de:ad:01; expect "no ethaddr or board MA
 ap cambiumnetworks,xe3-4 '' '' '';                expect "no MAC anywhere: hostname untouched" ''
 ap cambiumnetworks,xe3-4 00:04:56:12:34:56; rm -rf "$W/root/proc/device-tree/cambium-platform"
 expect "upstream image (no cambium-platform): untouched" ''
+# After a sysupgrade that keeps settings, a hostname set by hand or by
+# OpenWISP stays; only OpenWrt's default (or none) is replaced.
+ap cambium,e410 ab:ab:ab:ab:ab:ab; echo PHIL-LOFT > "$W/current"
+expect "a hostname set by hand is kept" ''
+ap cambium,e410 ab:ab:ab:ab:ab:ab; : > "$W/current"
+expect "an empty hostname gets the stock form" E410-ABABAB
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
