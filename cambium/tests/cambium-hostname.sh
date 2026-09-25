@@ -80,6 +80,8 @@ expect "upstream image (no cambium-platform): untouched" ''
 # OpenWISP stays; only OpenWrt's default (or none) is replaced.
 ap cambium,e410 ab:ab:ab:ab:ab:ab; echo PHIL-LOFT > "$W/current"
 expect "a hostname set by hand is kept" ''
+ap cambium,e410 af:af:af:af:c6:2b; echo PHIL-STUDIO > "$W/current"
+expect "PHIL-STUDIO is not renamed E410-AFC62B" ''
 ap cambium,e410 ab:ab:ab:ab:ab:ab; : > "$W/current"
 expect "an empty hostname gets the stock form" E410-ABABAB
 
