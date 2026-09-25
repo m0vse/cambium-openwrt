@@ -66,7 +66,9 @@ XV2-2 and XV2-2T1 and untested on the XV2-2T0, XE3-4 and XE3-4TN, where
 `CAMBIUM_HARDWARE_TRIAL=1` (the installer's `--trial`) is set. A RAM build
 of the persistent trees (`...jaguar-persistent-initramfs-uImage.itb`) is
 kept out of releases, in each build's `cambium-jaguar` Actions artifact under
-`test-only/`.
+`test-only/`. The family `sysupgrade.bin` does not list `cambiumnetworks,xe3-4`:
+upstream OpenWrt's own XE3-4 image uses that board name and would accept it,
+so the XE3-4 has no sysupgrade until the image can tell the two apart.
 
 - **Banks.** `rootfs` (slot 0) and `rootfs_1` (slot 1). Jaguar: 96 MiB banks
   (slot 1 at `0x6000000`) on the 256 MiB-NAND models, 52 MiB banks (slot 1
