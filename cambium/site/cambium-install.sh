@@ -137,7 +137,7 @@ fetch() {
 		[ "$rc" = 0 ] || {
 			rm -f "$out.part"
 			case "$src" in https://*)
-				die "cannot download ${src%/}/$name (wget exit $rc: $(grep . "$WORK/err" | tail -n 1)). If this firmware's wget has no https, serve the release files over http from your computer (python3 -m http.server 8000) and use --from http://COMPUTER_IP:8000" ;;
+				die "cannot download ${src%/}/$name (wget exit $rc: $(grep . "$WORK/err" | tail -n 1)). If this firmware's wget has no https, serve the release files over http from your computer (python3 cambium-serve.py 8000, in the folder holding them) and use --from http://COMPUTER_IP:8000" ;;
 			esac
 			die "cannot download ${src%/}/$name (wget exit $rc: $(grep . "$WORK/err" | tail -n 1))"
 		} ;;
