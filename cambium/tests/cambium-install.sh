@@ -255,7 +255,16 @@ ap() {
 	printf '%s\n' 'dev:    size   erasesize  name' \
 		"mtd$r0: $bank 00020000 \"rootfs\"" "mtd$r1: $bank 00020000 \"rootfs_1\"" \
 		'mtd20: 00010000 00010000 "0:APPSBLENV"' 'mtd21: 00080000 00010000 "0:ART"' > "$RT/proc/mtd"
-	[ "$fam" = cheetah ] && { mkdir -p "$RT/sys/class/mtd/mtd$r0"; echo 524288 > "$RT/sys/class/mtd/mtd$r0/offset"; }
+	# NAND offsets as the kernel reports them.
+	mkdir -p "$RT/sys/class/mtd/mtd$r0" "$RT/sys/class/mtd/mtd$r1"
+	case "$fam" in
+	cheetah)
+		echo 'mtd0: 00080000 00020000 "0:TRAINING"' >> "$RT/proc/mtd"
+		mkdir -p "$RT/sys/class/mtd/mtd0"; echo 0 > "$RT/sys/class/mtd/mtd0/offset"
+		echo 524288 > "$RT/sys/class/mtd/mtd$r0/offset"; echo 101187584 > "$RT/sys/class/mtd/mtd$r1/offset" ;;
+	*)
+		echo 0 > "$RT/sys/class/mtd/mtd$r0/offset"; printf '%d\n' "0x$bank" > "$RT/sys/class/mtd/mtd$r1/offset" ;;
+	esac
 	for i in $r0 $r1; do
 		mkdir -p "$W/flash/mtd$i"; echo ubi_rootfs > "$W/flash/mtd$i/0.name"
 		echo $((100 * LEB)) > "$W/flash/mtd$i/0.size"; echo "oem-slot-mtd$i" > "$W/flash/mtd$i/0.data"
@@ -332,6 +341,9 @@ check "XV2-2 --format-inactive" 0 inst --from "$W/rel" --yes --backed-up --forma
 assert "--format-inactive erases the inactive slot, then stages" [ "$(writes)" = 'attach(plain) mtd2;detach mtd2;format mtd2 ;attach(plain) mtd2;mkvol mtd2 openwrt;update mtd2 openwrt;setenv changing_bootcmd;setenv bootcmd;reboot;' ]
 assert "--format-inactive leaves the running slot" [ "$(cat "$W/flash/mtd1/0.data")" = oem-slot-mtd1 ]
 
+ap jaguar XV2-2 20 0 03400000; echo 100663296 > "$RT/sys/class/mtd/mtd2/offset"
+check "XV2-2 with rootfs_1 at another offset refused" 1 inst --from "$W/rel" --yes --backed-up ram
+assert "XV2-2 offset refusal is named" said 'rootfs_1 starts at NAND offset 100663296, not 0x3400000'
 ap jaguar XV2-2 20 1 06000000
 check "XV2-2 with 96 MiB slots refused" 1 inst --from "$W/rel" --yes --backed-up ram
 assert "layout refusal names the sizes" said 'not a known Jaguar layout'
@@ -414,6 +426,13 @@ assert "stock default bootcmd, no marker" [ "$(env_get bootcmd):$(env_get changi
 printf '%s\n' 'changing_bootcmd=1' 'bootcmd=run thor_stable0' 'thor_ab_version=1' > "$W/env"
 check "stock refused once converted" 1 inst --yes --no-reboot stock
 assert "the converted refusal is explained" said 'both firmware banks run OpenWrt'
+ap thor XV3-8 19 1; sed -i.bak 's/^mtd2: 06000000/mtd2: 03400000/' "$RT/proc/mtd"
+check "Thor with a smaller rootfs_1 refused" 1 inst --from "$W/rel" --yes --backed-up ram
+assert "Thor refusal names both banks" said 'rootfs_1 03400000 bytes'
+ap thor XV3-8 19 1; echo 104857600 > "$RT/sys/class/mtd/mtd2/offset"
+check "Thor with rootfs_1 at another offset refused" 1 inst --from "$W/rel" --yes --backed-up ram
+assert "Thor offset refusal is named" said 'rootfs_1 starts at NAND offset 104857600, not 0x6000000'
+assert "Thor layout refusals wrote nothing" nothing_written
 ap thor XV3-8 19 0
 check "Thor refuses stock on rootfs" 1 inst --from "$W/rel" --yes --backed-up ram
 ap thor XE5-8 30 1
@@ -435,6 +454,13 @@ assert "Cheetah first boot sets bootargs for rootfs" [ "$(env_get bootcmd)" = \
 	'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot; bootipq' ]
 assert "Cheetah install hashed the kernel and rootfs back" said 'kernel volume reads back as built'
 assert "Cheetah wrote only rootfs" [ -z "$(grep -E '(format|mkvol|rmvol|update) mtd3' "$W/calls")" ]
+ap cheetah XV2-21X 35 1; sed -i.bak '/0:TRAINING/d' "$RT/proc/mtd"
+check "Cheetah without 0:TRAINING refused" 1 inst --from "$W/rel" --yes --backed-up --trial install
+assert "0:TRAINING refusal is named" said 'no 512 KiB 0:TRAINING partition'
+ap cheetah XV2-21X 35 1; echo 100663296 > "$RT/sys/class/mtd/mtd3/offset"
+check "Cheetah with rootfs_1 at another offset refused" 1 inst --from "$W/rel" --yes --backed-up --trial install
+assert "Cheetah offset refusal is named" said 'rootfs_1 starts at NAND offset 100663296, not 0x6080000'
+assert "Cheetah layout refusals wrote nothing" nothing_written
 ap cheetah XV2-21X 35 1; touch "$W/fail_mkvol"
 check "a failing ubimkvol stops the RAM staging" 1 inst --from "$W/rel" --yes --backed-up ram
 assert "the failure names the step, status and error" said 'FAILED: ubimkvol openwrt (.*) on ubi1 (exit 255: ubimkvol: error!: cannot UBI create volume)'
