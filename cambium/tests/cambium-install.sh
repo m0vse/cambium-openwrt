@@ -466,7 +466,7 @@ check "Sage E510 install refused (untested)" 1 inst --from "$W/rel" --yes --back
 # --- sources and hashes ----------------------------------------------------------------------
 ap jaguar XV2-2T1 31 1
 check "https without TLS explains the http fallback" 1 inst --release snapshot-2026.09.24.2 ram
-assert "the fallback is suggested" said 'python3 -m http.server'
+assert "the fallback is cambium-serve.py" said 'python3 cambium-serve.py 8000'
 ap jaguar XV2-2T1 31 1
 check "http source" 0 inst --from http://192.0.2.5:8000 --yes --backed-up ram
 # Stock firmware root logins need the challenge/response, so scp cannot fetch
