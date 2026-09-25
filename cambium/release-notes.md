@@ -19,7 +19,8 @@ SKU. Hardware status per model:
 | | | XE5-8 | untested | not built: flash layout not yet captured | none |
 | Jaguar (IPQ6018) | 7.2-r1 | XV2-2T1 | validated | validated (A/B build) | A/B, validated |
 | | | XV2-2 (128 MiB NAND, 52 MiB slots) | validated | validated (A/B build) | A/B, validated |
-| | | XV2-2T0, XE3-4, XE3-4TN | untested | untested: RAM boot only | A/B, untested |
+| | | XV2-2T0, XE3-4TN | untested | untested: RAM boot only | A/B, untested |
+| | | XE3-4 | untested | untested: RAM boot only | not yet: shares its board name with upstream's XE3-4 image |
 | Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | untested: now the A/B build | A/B, untested |
 | | | XV2-22H, XV2-23T | untested | untested: RAM boot only | A/B, untested |
 | Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X, X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
