@@ -3,7 +3,9 @@
 # while the controller answers this device's checksum request, green
 # otherwise. Families name the LEDs differently (blue:status / green:status
 # on Sage, Thor and Cheetah; jaguar:status:blue / jaguar:status:green on
-# Jaguar); boards without a blue and green status LED are left alone.
+# Jaguar); boards without a blue and green status LED keep their LEDs as they
+# are. The managed state file is kept up to date either way: Sage's upgrade
+# commit waits for it on OpenWISP-managed access points.
 set -u
 
 leds=${CAMBIUM_OPENWISP_LEDS:-/sys/class/leds}
@@ -19,10 +21,11 @@ find_led() {
 	done
 	return 1
 }
-blue_led=$(find_led 'blue:status jaguar:status:blue') || exit 0
-green_led=$(find_led 'green:status jaguar:status:green') || exit 0
+blue_led=$(find_led 'blue:status jaguar:status:blue') || blue_led=
+green_led=$(find_led 'green:status jaguar:status:green') || green_led=
 
 set_managed() {
+	[ -n "$blue_led" ] && [ -n "$green_led" ] || return 0
 	printf '%s\n' none >"$blue_led/trigger"
 	printf '%s\n' none >"$green_led/trigger"
 	if [ "$1" = 1 ]; then
