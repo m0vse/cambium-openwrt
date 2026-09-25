@@ -232,6 +232,43 @@ for root in $roots; do
 	[ -z "$leaked" ] || fail "$root contains OEM board data: $leaked"
 done
 
+# The persistent images must carry the managed-AP packages their device
+# package list selects. A Sage UBIFS root was once made from the shared base
+# root filesystem instead of the device's own, and shipped without LuCI,
+# OpenWISP, WireGuard or its support package.
+required="luci-ssl uhttpd openwisp-config openwisp-monitoring wireguard-tools
+	wpad-mbedtls cambium-openwisp-led cambium-$family-support"
+# has_package ROOT NAME: the root filesystem ROOT lists package NAME.
+has_package() {
+	case "$(head -c 4 "$1")" in
+	hsqs) grep -qx "$2" "$1.packages" ;;
+	# UBIFS keeps directory entry names uncompressed.
+	*) LC_ALL=C grep -aq "$2\.list" "$1" ;;
+	esac
+}
+check_packages() {
+	local root=$1 what=$2 p missing=
+	if [ "$(head -c 4 "$root")" = hsqs ]; then
+		staging_dir/host/bin/unsquashfs4 -l -d x "$root" |
+			sed -n 's|^x/lib/apk/packages/\(.*\)\.list$|\1|p' > "$root.packages"
+		[ -s "$root.packages" ] || fail "cannot list the packages in $what"
+	fi
+	for p in $required; do
+		has_package "$root" "$p" || missing="$missing $p"
+	done
+	[ -z "$missing" ] || fail "$what lacks packages:$missing"
+	! has_package "$root" wpad-basic-mbedtls || fail "$what has wpad-basic-mbedtls instead of wpad-mbedtls"
+	echo "$what carries the managed-AP packages"
+}
+sysupgrade=$(image "*cambiumnetworks_$family-persistent-squashfs-sysupgrade.bin")
+tar -xOf "$sysupgrade" "$(tar -tf "$sysupgrade" | grep '/root$' | head -n 1)" > "$work/persistent-root" ||
+	fail "cannot read the root filesystem of ${sysupgrade##*/}"
+check_packages "$work/persistent-root" "${sysupgrade##*/}"
+if [ "$family" = sage ]; then
+	check_packages "$(image '*cambiumnetworks_sage-persistent-squashfs-rootfs.ubifs')" \
+		"the Sage rootfs.ubifs"
+fi
+
 log "Collecting to $output"
 rm -rf "$output"
 mkdir -p "$output/images" "$output/feed/targets/$target/$subtarget" "$output/feed/packages/$arch"
