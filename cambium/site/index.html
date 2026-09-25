@@ -265,9 +265,11 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram      # checks, bac
   <p>Check the backups are in <code>uploads/</code> on your computer, then run
   it for real; it reboots into OpenWrt once:</p>
 <pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes ram</pre>
-  <p>Served with plain <code>python3 -m http.server</code> instead, the
-  installer cannot upload; copy <code>/tmp/cambium-install/backup/</code> off
-  yourself and add <code>--backed-up</code>. A TFTP server that accepts
+  <p>Use <code>cambium-serve.py</code>, not a plain
+  <code>python3 -m http.server</code>: a plain server cannot receive the
+  backups, and the installer stops and says so. If you must use one, copy
+  <code>/tmp/cambium-install/backup/</code> off yourself and add
+  <code>--backed-up</code>. A TFTP server that accepts
   uploads also works with <code>--tftp COMPUTER_IP</code> (Sage's RAM boot
   always needs <code>--tftp</code>: its U-Boot loads the image from that
   server as <code>sage-recovery.itb</code>).</p>
