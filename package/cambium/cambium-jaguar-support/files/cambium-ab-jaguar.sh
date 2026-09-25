@@ -21,6 +21,8 @@ ab_jaguar_board() {
 	AB_SLOT1_OFFSET=0x6000000
 	AB_BANK_LEBS=724
 	AB_PROTECTED='NVRAM crashLog 0:ART'
+	# Managed on the VLAN-1 bridge (17_jaguar_bridge_section).
+	AB_LAN='br-lan.1 br-lan'
 	case "$1" in
 	cambiumnetworks,xv2-2)
 		# 128 MiB Winbond NAND: 416-PEB banks, 20 reserved + 4.

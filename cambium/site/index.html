@@ -191,6 +191,10 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
     <li>Persistent images include LuCI, WPA-Enterprise (<code>wpad-mbedtls</code>),
     802.11r/k/v roaming (<code>usteer</code>), WireGuard, OpenVPN, LLDP and the
     OpenWISP agents. Anything else can be added from the package feeds.</li>
+    <li>The LAN bridge filters VLANs: the LAN ports carry only untagged
+    VLAN 1, the management network (<code>br-lan.1</code>), so tagged traffic
+    on the same trunk cannot swamp DHCP. OpenWISP's device template adds
+    tagged VLANs where they are wanted.</li>
     <li>The status LED is blue while the access point's OpenWISP controller
     answers it, and green otherwise, on every family.</li>
     <li><code>/etc/openwrt_release</code> shows the upstream OpenWrt version;
