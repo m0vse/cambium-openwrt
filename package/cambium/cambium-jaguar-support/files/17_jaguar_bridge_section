@@ -1,0 +1,60 @@
+#!/bin/sh
+
+# First boot accepts untagged/PVID VLAN 1 for DHCP management; tagged traffic
+# (e.g. a busy VLAN 101 on the same trunk) no longer reaches the LAN bridge.
+# OpenWISP adds tagged VLANs only through the device-specific template.
+case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+cambiumnetworks,xv2-2) ports='lan1' ;;
+cambiumnetworks,xv2-2t0|cambiumnetworks,xv2-2t1|\
+cambiumnetworks,xe3-4|cambiumnetworks,xe3-4tn) ports='lan1 lan2' ;;
+*) exit 0 ;;
+esac
+
+if [ "$(uci -q get network.device_br_lan.vlan_filtering)" = '1' ] &&
+   [ "$(uci -q get network.lan.device)" = 'br-lan.1' ]; then
+	exit 0
+fi
+
+bridge_section=device_br_lan
+if [ -z "$(uci -q get network.device_br_lan.name)" ]; then
+	bridge_section=device_lan
+fi
+if [ -z "$(uci -q get "network.$bridge_section.name")" ]; then
+	bridge_section=
+	for index in 0 1 2 3 4 5 6 7; do
+		if [ "$(uci -q get "network.@device[$index].name")" = 'br-lan' ]; then
+			bridge_section="@device[$index]"
+			break
+		fi
+	done
+fi
+
+[ -n "$bridge_section" ] || exit 1
+[ "$(uci -q get "network.$bridge_section.name")" = 'br-lan' ] || exit 1
+[ "$(uci -q get "network.$bridge_section.ports")" = "$ports" ] || exit 1
+[ "$(uci -q get network.lan.proto)" = 'dhcp' ] || exit 1
+[ "$(uci -q get network.lan.device)" = 'br-lan' ] || exit 1
+[ -z "$(uci -q get network.vlan_br_lan_101.vlan)" ] || exit 1
+
+if [ "$bridge_section" != 'device_br_lan' ]; then
+	uci rename "network.$bridge_section=device_br_lan" || exit 1
+fi
+
+uci set network.device_br_lan.vlan_filtering='1'
+uci set network.vlan_br_lan_1=bridge-vlan
+uci set network.vlan_br_lan_1.device='br-lan'
+uci set network.vlan_br_lan_1.vlan='1'
+uci -q delete network.vlan_br_lan_1.ports
+for port in $ports; do
+	uci add_list network.vlan_br_lan_1.ports="$port:u*"
+done
+uci set network.lan.device='br-lan.1'
+if [ "$(uci -q get network.lan6.device)" = 'br-lan' ]; then
+	uci set network.lan6.device='br-lan.1'
+fi
+uci commit network
+if [ "$(uci -q get openwisp.http.management_interface)" = 'br-lan' ]; then
+	uci set openwisp.http.management_interface='br-lan.1'
+	uci commit openwisp
+fi
+exit 0
