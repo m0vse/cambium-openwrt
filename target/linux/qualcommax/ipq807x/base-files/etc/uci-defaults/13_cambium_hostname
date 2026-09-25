@@ -1,11 +1,16 @@
 #!/bin/sh
 # Keep the stock firmware's hostname on Cambium APs: the model and the last
 # six hex digits of the U-Boot ethaddr, in upper case, e.g. E410-ABABAB or
-# XV2-21X-BEA5BE. Upstream images without the cambium-platform node are left
-# alone.
+# XV2-21X-BEA5BE. Only OpenWrt's default hostname is replaced: a hostname
+# set by hand or by OpenWISP survives a sysupgrade that keeps settings.
+# Upstream images without the cambium-platform node are left alone.
 
 R=${CAMBIUM_ROOT:-}
 [ -e "$R/proc/device-tree/cambium-platform" ] || exit 0
+case "$(uci -q get system.@system[0].hostname)" in
+''|OpenWrt) ;;
+*) exit 0 ;;
+esac
 . "${CAMBIUM_FUNCTIONS:-/lib/functions.sh}"
 . "${CAMBIUM_SYSTEM_FUNCTIONS:-/lib/functions/system.sh}"
 
