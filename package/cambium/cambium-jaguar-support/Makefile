@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cambium-jaguar-support
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Phil Taylor <phil@m0vse.uk>
 
@@ -16,16 +16,18 @@ define Package/cambium-jaguar-support
 endef
 
 define Package/cambium-jaguar-support/description
-  The Jaguar (XV2-2 / XE3-4 family) module for cambium-ab: board table,
-  firmware bank layouts and U-Boot boot commands.
+  The Jaguar (XV2-2 / XE3-4 family) module for cambium-ab (board table,
+  firmware bank layouts and U-Boot boot commands) and management bridge
+  defaults for Cambium Jaguar access points.
 endef
 
 define Build/Compile
 endef
 
 define Package/cambium-jaguar-support/install
-	$(INSTALL_DIR) $(1)/lib/functions
+	$(INSTALL_DIR) $(1)/lib/functions $(1)/etc/uci-defaults
 	$(INSTALL_DATA) ./files/cambium-ab-jaguar.sh $(1)/lib/functions/cambium-ab-jaguar.sh
+	$(INSTALL_BIN) ./files/17_jaguar_bridge_section $(1)/etc/uci-defaults/
 endef
 
 $(eval $(call BuildPackage,cambium-jaguar-support))
