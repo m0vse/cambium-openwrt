@@ -82,16 +82,22 @@ for pair in 'blue:status green:status' 'jaguar:status:blue jaguar:status:green';
 	leds "$1" "$2"; expect "$1 not managed" unmanaged "$1" "$2" 0 1 ''
 done
 
-# A board without the blue and green status LEDs is left alone.
+# A board without the blue and green status LEDs keeps its LEDs as they
+# are, but the managed state is still recorded: Sage's upgrade commit waits
+# for it (a Sage image without the LED driver never committed).
 leds green:status white:power
 echo managed > "$W/answer"
 sh "$script" >/dev/null 2>&1
-if [ "$(cat "$W/leds/green:status/trigger" "$W/leds/green:status/brightness" | tr '\n' ' ')" = 'heartbeat 1 ' ] && [ ! -e "$W/managed" ]; then
+if [ "$(cat "$W/leds/green:status/trigger" "$W/leds/green:status/brightness" | tr '\n' ' ')" = 'heartbeat 1 ' ]; then
 	pass=$((pass + 1))
 else
 	fail=$((fail + 1))
 	echo "FAIL: no blue LED: the green LED was changed"
 fi
+if [ -e "$W/managed" ]; then pass=$((pass + 1)); else fail=$((fail + 1)); echo "FAIL: no LEDs: the managed state was not recorded"; fi
+rm -rf "$W/leds"; mkdir -p "$W/leds"; echo unmanaged > "$W/answer"; touch "$W/managed"
+sh "$script" >/dev/null 2>&1
+if [ ! -e "$W/managed" ]; then pass=$((pass + 1)); else fail=$((fail + 1)); echo "FAIL: no LEDs: a lost controller still counted as managed"; fi
 
 # The init script starts the shared service on every family.
 if grep -q 'procd_set_param command /usr/sbin/cambium-openwisp-led' "$script.init" && ! grep -q board_name "$script.init"; then
