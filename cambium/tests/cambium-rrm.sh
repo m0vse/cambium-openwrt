@@ -296,8 +296,16 @@ mkdir -p "$W/rrm/lock"
 check "while another measurement runs" 1 agent --once
 assert "it waits, then says so" grep -q "another measurement is still running" "$W/out"
 assert "and leaves the other run's lock alone" [ -d "$W/rrm/lock" ]
+sh -c : & dead=$!; wait "$dead"
+echo "$dead" > "$W/rrm/lock/pid"
+check "a lock whose process has gone" 0 agent --once
+assert "is taken over at once, and released after the run" [ ! -e "$W/rrm/lock" ]
+mkdir -p "$W/rrm/lock"; echo $$ > "$W/rrm/lock/pid"
+check "a lock whose process is running" 1 agent --once
+assert "is left alone" [ -f "$W/rrm/lock/pid" ]
+rm -f "$W/rrm/lock/pid"
 touch -t 202001010000 "$W/rrm/lock"
-check "a lock left by a run that died" 0 agent --once
+check "an old lock that never recorded its process" 0 agent --once
 assert "is taken over, and released after the run" [ ! -e "$W/rrm/lock" ]
 assert "no temporary output is left behind" [ -z "$(ls "$W/rrm" | grep '^latest.json.')" ]
 
