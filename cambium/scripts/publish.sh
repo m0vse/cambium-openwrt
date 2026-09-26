@@ -82,6 +82,9 @@ cp "$(dirname "$0")/../site/cambium-serve.py" "$stage/assets/cambium-serve.py"
 	echo "- Built:$(echo "$built" | sed 's/ /, /g; s/^,//')"
 	[ -z "$failed" ] || echo "- **Failed (not included):**$(echo "$failed" | sed 's/ /, /g; s/^,//')"
 	echo "- Package feeds: $FEED_URL/$BUILD_ID/"
+	echo "- Changes per family: $FEED_URL/changelog.html"
+	echo
+	python3 "$(dirname "$0")/changelog.py" unreleased "$(dirname "$0")/../changelog"
 	echo
 	cat "$(dirname "$0")/../release-notes.md"
 } > "$stage/notes.md"

@@ -206,6 +206,14 @@ under the family key (`SAGE_BUILD_ID`, `THOR_BUILD_ID`, `CHEETAH_BUILD_ID`,
 `JAGUAR_BUILD_ID`), together with the source and upstream commits. Each
 snapshot is tagged `snapshot-YYYY.MM.DD.N`.
 
+## Changelogs
+
+`changelog/` has one changelog per family and `common.md` for changes to
+every family, newest first. Add an entry under `## Unreleased` with each
+change; the next snapshot's release notes include those entries, and the
+site renders all of them as `changelog.html`. After a snapshot is
+published, rename `Unreleased` to its build ID (see `changelog/README.md`).
+
 ## Daily snapshots
 
 `.github/workflows/cambium-snapshot.yml` runs daily at 19:17 UTC (20:17
