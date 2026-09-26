@@ -248,6 +248,18 @@ sysupgrade=$(image "*cambiumnetworks_$family-persistent-squashfs-sysupgrade.bin"
 tar -xOf "$sysupgrade" "$(tar -tf "$sysupgrade" | grep '/root$' | head -n 1)" > "$work/persistent-root" ||
 	fail "cannot read the root filesystem of ${sysupgrade##*/}"
 gate "$work/persistent-root" "${sysupgrade##*/}" "$name persistent sysupgrade.bin"
+if [ "$family" = thor ]; then
+	# The scanning-radio test image: same checks, plus its ath10k driver.
+	scan=$(image '*cambiumnetworks_thor-scan-test-squashfs-sysupgrade.bin')
+	tar -xOf "$scan" "$(tar -tf "$scan" | grep '/root$' | head -n 1)" > "$work/scan-root" ||
+		fail "cannot read the root filesystem of ${scan##*/}"
+	UNSQUASHFS=staging_dir/host/bin/unsquashfs4 \
+		sh cambium/scripts/rootfs-gate.sh "$work/scan-root" "$work/manifests/${scan##*/}.manifest" \
+		"Thor scan-radio test sysupgrade.bin" cambium-thor-support cambium-ab kmod-ath10k-ct \
+		ath10k-firmware-qca9887-ct || fail "the Thor scan-radio test image failed the package gate"
+	tar -xOf "$scan" "$(tar -tf "$scan" | grep '/kernel$' | head -n 1)" > "$work/scan-kernel.itb"
+	THOR_FLAVOR=ab sh "$verify" "$work/scan-kernel.itb"
+fi
 if [ "$family" = sage ]; then
 	rootfs=$(image '*cambiumnetworks_sage-persistent-squashfs-rootfs.ubifs')
 	gate "$rootfs" "${rootfs##*/}" "Sage persistent rootfs.ubifs"
@@ -262,10 +274,17 @@ mkdir -p "$output/images" "$output/feed/targets/$target/$subtarget" "$output/fee
 find "$bin_dir" -maxdepth 1 -type f \( -name '*cambiumnetworks_*' -o -name 'profiles.json' \
 	-o -name '*.buildinfo' -o -name 'sha256sums' -o -name '*imagebuilder*' \) \
 	! \( -name '*-initramfs-*' ! -name '*-recovery-initramfs-*' ! -name '*-installer-initramfs-*' \) \
+	! -name '*-scan-test-*' \
 	-exec cp {} "$output/images/" \;
 cp -R "$bin_dir/packages" "$output/feed/targets/$target/$subtarget/"
-# The installed-package manifests the release gate wrote.
-cp "$work/manifests/"*.manifest "$output/images/"
+# The installed-package manifests the release gate wrote (test images'
+# manifests go with the test images).
+for m in "$work/manifests/"*.manifest; do
+	case "$m" in
+	*-scan-test-*) ;;
+	*) cp "$m" "$output/images/" ;;
+	esac
+done
 cp -R "bin/packages/$arch/base" "$output/feed/packages/$arch/"
 cp files/etc/cambium-openwrt-release "$output/images/cambium-openwrt-release"
 # The kernel and rootfs content of each factory image the installer writes
@@ -285,8 +304,15 @@ if [ -f "$module" ]; then
 	cp package/cambium/cambium-ab/files/cambium-ab-upgrade.sh "$output/images/cambium-ab-upgrade.sh"
 	cp "$module" "$output/images/cambium-ab-$family.sh"
 fi
-# A RAM build of the Jaguar persistent trees, for hardware tests of the A/B
-# trees, goes only to the CI artifact (test-only/), never to a release.
+# Test images go only to the CI artifact (test-only/), never to a release:
+# a RAM build of the Jaguar persistent trees, and the Thor scanning-radio
+# sysupgrade image.
+if [ "$family" = thor ]; then
+	mkdir -p "$output/test-only"
+	cp "$bin_dir/"*cambiumnetworks_thor-scan-test-squashfs-sysupgrade.bin \
+		"$work/manifests/"*-scan-test-*.manifest "$output/test-only/"
+	(cd "$output/test-only" && sha256sum -- * > test-only-SHA256SUMS)
+fi
 if [ "$family" = jaguar ]; then
 	mkdir -p "$output/test-only"
 	cp "$bin_dir/"*cambiumnetworks_jaguar-persistent-initramfs-uImage.itb "$output/test-only/"
