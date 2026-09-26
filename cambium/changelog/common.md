@@ -4,6 +4,12 @@ Changes that apply to every family.
 
 ## Unreleased
 
+- The RRM agent marks the AP's own networks in its scan results with
+  `"own": true`, so they can be told apart from real neighbours. They stay
+  in the list because hearing them confirms they are on the air.
+
+## 2026.09.26.2
+
 - Release notes list only the changes of the families built in that
   snapshot (and the changes common to all).
 - New RRM measurement agent (`cambium-rrm-agent`) on every family, the

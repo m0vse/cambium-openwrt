@@ -6,9 +6,10 @@
 # RRM_SCAN_RADIOS for boards with a dedicated scanning radio. Callers
 # provide board_name().
 #
-# Test hooks: RRM_SYS, RRM_OUT, RRM_MODULES.
+# Test hooks: RRM_SYS, RRM_NET, RRM_OUT, RRM_MODULES.
 
 RRM_SYS=${RRM_SYS:-/sys/class/ieee80211}
+RRM_NET=${RRM_NET:-/sys/class/net}
 RRM_OUT=${RRM_OUT:-/tmp/cambium-rrm}
 RRM_SCAN_RADIOS=${RRM_SCAN_RADIOS:-}
 
@@ -118,9 +119,19 @@ rrm_scan() {
 	[ "$tries" -lt 3 ]
 }
 
-# One JSON object per network in $RRM_OUT/scan.txt, comma-separated.
+# The MAC addresses of this AP's own Wi-Fi interfaces (its BSSIDs).
+rrm_own_bssids() {
+	local n
+	for n in "$RRM_NET"/*; do
+		[ -e "$n/phy80211" ] && cat "$n/address"
+	done 2>/dev/null | tr 'A-F' 'a-f' | tr '\n' ' '
+}
+
+# One JSON object per network in $RRM_OUT/scan.txt, comma-separated. The
+# AP's own networks are included, marked "own": the scanning radio hearing
+# them shows they are on the air.
 rrm_neighbours_json() {
-	awk '
+	awk -v own=" $(rrm_own_bssids) " '
 	function esc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); gsub(/[[:cntrl:]]/, "", s); return s }
 	function chan(f) {
 		if (f == 2484) return 14
@@ -131,9 +142,10 @@ rrm_neighbours_json() {
 	}
 	function flush() {
 		if (bssid == "") return
-		printf "%s    {\"bssid\": \"%s\", \"ssid\": \"%s\", \"freq\": %s, \"channel\": %s, \"signal\": %s, \"last_seen_ms\": %s}",
+		printf "%s    {\"bssid\": \"%s\", \"ssid\": \"%s\", \"freq\": %s, \"channel\": %s, \"signal\": %s, \"last_seen_ms\": %s, \"own\": %s}",
 			(n++ ? ",\n" : ""), bssid, esc(ssid), (freq == "" ? "null" : freq), (freq == "" ? "null" : chan(freq)),
-			(signal == "" ? "null" : signal), (seen == "" ? "null" : seen)
+			(signal == "" ? "null" : signal), (seen == "" ? "null" : seen),
+			(index(own, " " tolower(bssid) " ") ? "true" : "false")
 		bssid = ""
 	}
 	/^BSS / { flush(); bssid = substr($2, 1, 17); ssid = ""; freq = ""; signal = ""; seen = "" }
