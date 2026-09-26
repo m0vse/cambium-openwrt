@@ -20,6 +20,9 @@ Changes that apply to every family.
   and key `openwisp-config` registered with, so the server can build
   statistics from them. An AP not registered with OpenWISP sends nothing.
   Turn it off with `uci set cambium_rrm.agent.upload=0`.
+- The RRM agent runs one measurement at a time: a `cambium-rrm-agent
+  --once` by hand waits for the service's current run, instead of the two
+  sharing the scanning interface and writing a mixed-up report.
 - One set of first-boot defaults for every family, in recovery images as
   well: the AP never offers DHCP or IPv6 router advertisements to the site
   (Sage had no such step, so its router advertisements are now off too),
