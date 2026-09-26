@@ -258,12 +258,12 @@
           },
           "persistent": {
             "config": "config@hk02",
-            "status": "untested",
-            "note": "The persistent image is now the A/B build (both banks writable, device-data vault, one FIT configuration per bank), not yet run on hardware; the earlier single-bank image was validated"
+            "status": "validated",
+            "note": "A/B build (both banks writable, device-data vault, one FIT configuration per bank), installed from the stock firmware and converted on an XV3-8"
           },
           "sysupgrade": {
-            "status": "untested",
-            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks; not yet run on hardware"
+            "status": "validated",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks; an OpenWISP sysupgrade switched an XV3-8 from bank 0 to bank 1"
           }
         },
         {
