@@ -108,6 +108,12 @@ Survey data from wlan3_5_low
 EOF
 	;;
 "dev "*" survey dump") ;;
+"dev "*" scan ap-force")
+	# A serving radio's own scan.
+	echo "$2" >> "$SIM/state/apscans"
+	[ -f "$SIM/state/apfail" ] && { echo 'command failed: Operation not supported (-95)' >&2; exit 1; }
+	printf 'BSS 00:11:22:33:44:55(on %s)\n\tfreq: 2437.0\n\tsignal: -70.00 dBm\n\tSSID: Next door\n' "$2"
+	;;
 "dev scan0 info") [ -f "$SIM/state/scan0" ] ;;
 "phy phy0 interface add scan0 type managed") touch "$SIM/state/scan0" ;;
 "dev scan0 del") rm -f "$SIM/state/scan0" ;;
@@ -137,6 +143,18 @@ EOF
 *) echo "unexpected iw $*" >&2; exit 1 ;;
 esac
 EOS
+# The clock: "DATE HH:MM EPOCH" in $SIM/clock, else the real one.
+cat > "$W/bin/date" <<'EOS'
+#!/bin/sh
+[ -f "$SIM/clock" ] || exec /bin/date "$@"
+read -r d t e < "$SIM/clock"
+case "$1" in
++%s) echo "$e" ;;
+'+%Y-%m-%d %H:%M') echo "$d $t" ;;
+*) exec /bin/date "$@" ;;
+esac
+EOS
+printf '#!/bin/sh\necho "$*" >> "$SIM/log"\n' > "$W/bin/logger"
 cat > "$W/bin/ip" <<'EOS'
 #!/bin/sh
 echo "ip $*" >> "$SIM/calls"
@@ -183,7 +201,8 @@ jcheck "phy3 survey from the in-use channel" '[r["survey"] for r in d["radios"] 
 jcheck "no survey is null, not an error" '[r["survey"] for r in d["radios"] if r["phy"] == "phy1"] == [None]'
 jcheck "driver recorded" 'all(r["driver"] == "ath11k" for r in d["radios"])'
 jcheck "four networks heard" 'len(d["neighbours"]) == 4'
-jcheck "neighbour fields and channel numbers" 'd["neighbours"][1] == {"bssid": "fa:11:65:d6:a5:70", "ssid": "Shine Systems", "freq": 2412, "channel": 1, "signal": -14, "last_seen_ms": None, "own": True} and d["neighbours"][2]["channel"] == 149 and d["neighbours"][3]["channel"] == 100'
+jcheck "neighbours come from the scanning radio, at the measurement time" 'all(x["radio"] == "phy0" and x["time"] == d["time"] for x in d["neighbours"])'
+jcheck "neighbour fields and channel numbers" '{k: v for k, v in d["neighbours"][1].items() if k not in ("radio", "time")} == {"bssid": "fa:11:65:d6:a5:70", "ssid": "Shine Systems", "freq": 2412, "channel": 1, "signal": -14, "last_seen_ms": None, "own": True} and d["neighbours"][2]["channel"] == 149 and d["neighbours"][3]["channel"] == 100'
 jcheck "quotes and backslashes in an SSID survive" 'd["neighbours"][2]["ssid"] == "Joe'"'"'s \"5G\" \\office"'
 jcheck "only the AP's own Wi-Fi addresses are marked own" '[x["own"] for x in d["neighbours"]] == [False, True, False, False]'
 jcheck "a hidden SSID is empty" 'd["neighbours"][3]["ssid"] == ""'
@@ -211,6 +230,48 @@ assert "nothing is scanned or created" sh -c "! grep -E 'scan|interface add' '$W
 setup cambiumnetworks,xv3-8
 check "XV3-8 without its scanning radio" 0 agent --once
 jcheck "no scanning radio found" 'd["scan_radio"] is None'
+
+# --- scans by the serving radios at scan_times -----------------------------------------------
+setup cambiumnetworks,xv2-21x
+echo 'cambium_rrm.agent.scan_times=04:00 02:00' > "$W/uci"
+at() { echo "$1 $2 $3" > "$W/clock"; }
+scans() { cat "$W/state/apscans" 2>/dev/null | tr '\n' ' ' | sed 's/ $//'; }
+at 2026-09-27 01:30 1000
+check "before the first scan time" 0 agent --once
+jcheck "no scan yet: no neighbours" 'd["neighbours"] is None'
+assert "no radio has scanned" [ -z "$(scans)" ]
+at 2026-09-27 02:05 2000
+check "at 02:05" 0 agent --once
+assert "the radios without clients scan, once each" [ "$(scans)" = "wlan3_5 wlan1_24" ]
+assert "the radio with clients waits" grep -q "phy3 has 3 clients" "$W/log"
+jcheck "their networks, with radio and time" 'sorted((x["radio"], x["time"], x["ssid"], x["channel"]) for x in d["neighbours"]) == [("phy1", 2000, "Next door", 6), ("phy2", 2000, "Next door", 6)]'
+at 2026-09-27 02:10 2300
+check "at 02:10" 0 agent --once
+assert "one scan per scan time" [ "$(scans)" = "wlan3_5 wlan1_24" ]
+jcheck "the results are kept between scans" 'len(d["neighbours"]) == 2'
+at 2026-09-27 04:20 9000
+check "at 04:20, the last scan time" 0 agent --once
+assert "at the last time, the radio with clients scans too" [ "$(scans)" = "wlan3_5 wlan1_24 wlan3_5 wlan1_24 wlan3_5_low" ]
+jcheck "three radios' networks, the latest scan of each" 'sorted((x["radio"], x["time"]) for x in d["neighbours"]) == [("phy1", 9000), ("phy2", 9000), ("phy3", 9000)]'
+at 2026-09-27 05:30 13000
+check "at 05:30" 0 agent --once
+assert "over an hour after a scan time: no scan" [ "$(scans | wc -w)" -eq 5 ]
+jcheck "the last results are still reported" 'len(d["neighbours"]) == 3'
+touch "$W/state/apfail"
+at 2026-09-28 02:01 90000
+check "a scan that fails" 0 agent --once
+assert "it is retried, then given up" [ "$(scans | wc -w)" -eq 11 ]
+assert "the failure is logged" grep -q "phy1 scan failed: command failed: Operation not supported" "$W/log"
+jcheck "the earlier results are kept" 'sorted(x["time"] for x in d["neighbours"]) == [9000, 9000, 9000]'
+rm -f "$W/state/apfail"
+# With a dedicated scanning radio, scan_times does not apply.
+setup cambiumnetworks,xv3-8 scan
+echo 'cambium_rrm.agent.scan_times=02:00' > "$W/uci"
+at 2026-09-27 02:05 2000
+check "XV3-8 at a scan time" 0 agent --once
+assert "its serving radios never scan" [ -z "$(scans)" ]
+jcheck "its neighbours are the scanning radio's" 'len(d["neighbours"]) == 4 and all(x["radio"] == "phy0" for x in d["neighbours"])'
+rm -f "$W/clock" "$W/uci"
 
 # --- the scanning radio in /etc/config/wireless ---------------------------------------------
 hotplug() { ACTION=add DEVPATH="/devices/$PCIE/ieee80211/phy0" RRM_SYSROOT=$W/sys sh "$pkg/20-cambium-scan-radio"; }

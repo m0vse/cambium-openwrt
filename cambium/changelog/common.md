@@ -7,6 +7,15 @@ Changes that apply to every family.
 - The RRM agent marks the AP's own networks in its scan results with
   `"own": true`, so they can be told apart from real neighbours. They stay
   in the list because hearing them confirms they are on the air.
+- The RRM agent can scan for neighbouring networks on every family, at
+  set times (`cambium_rrm.agent.scan_times`, e.g. `02:00 03:00 04:00`; off
+  by default). Each scan takes a serving radio off its channel for a few
+  seconds. A radio with clients waits for the next time, but always scans
+  at the last one. DFS channels are included. Each neighbour now records
+  which radio heard it and when, and the results stay in
+  `/tmp/cambium-rrm/latest.json` until that radio's next scan. On Thor the
+  scanning radio still scans every five minutes, and `scan_times` is not
+  used.
 - One set of first-boot defaults for every family, in recovery images as
   well: the AP never offers DHCP or IPv6 router advertisements to the site
   (Sage had no such step, so its router advertisements are now off too),
