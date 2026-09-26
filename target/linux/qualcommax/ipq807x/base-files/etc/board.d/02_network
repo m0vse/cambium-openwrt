@@ -65,7 +65,13 @@ ipq807x_setup_interfaces()
 		ucidef_set_interface_lan "lan" "dhcp"
 		;;
 	cambiumnetworks,xv3-8)
-		ucidef_set_interface_lan "lan-multigig" "dhcp"
+		# The auxiliary 1 GbE port (lan) exists only where the device
+		# tree enables it.
+		if [ -d /sys/class/net/lan ]; then
+			ucidef_set_interface_lan "lan-multigig lan" "dhcp"
+		else
+			ucidef_set_interface_lan "lan-multigig" "dhcp"
+		fi
 		;;
 	cambiumnetworks,xe5-8)
 		ucidef_set_interface_lan "lan" "dhcp"

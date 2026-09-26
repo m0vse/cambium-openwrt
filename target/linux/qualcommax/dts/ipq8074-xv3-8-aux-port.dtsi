@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/*
+ * The XV3-8's auxiliary 1 GbE port: QCA8075 PHY 3 on switch port 4 over
+ * PSGMII (UNIPHY0), as on the Netgear WAX630. It was switched off during
+ * bring-up while the multi-gigabit port was isolated.
+ */
+
+&uniphy0 {
+	status = "okay";
+};
+
+&qca8075_package {
+	status = "okay";
+};
+
+&swport4 {
+	status = "okay";
+};
