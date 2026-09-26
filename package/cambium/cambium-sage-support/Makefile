@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cambium-sage-support
-PKG_RELEASE:=5
+PKG_RELEASE:=6
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Phil Taylor <phil@m0vse.uk>
 
@@ -29,7 +29,7 @@ define Package/cambium-sage-support/install
 	$(INSTALL_DIR) $(1)/usr/sbin $(1)/etc/uci-defaults $(1)/lib/functions
 	$(INSTALL_BIN) ./files/sage-migration-mark-good ./files/sage-migration-rollback-oem $(1)/usr/sbin/
 	$(INSTALL_DATA) ./files/cambium-ab-sage.sh $(1)/lib/functions/cambium-ab-sage.sh
-	$(INSTALL_DATA) ./files/96-sage-vlan-management ./files/99-sage-defaults $(1)/etc/uci-defaults/
+	$(INSTALL_DATA) ./files/96-sage-vlan-management $(1)/etc/uci-defaults/
 endef
 
 $(eval $(call BuildPackage,cambium-sage-support))
