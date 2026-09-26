@@ -30,6 +30,10 @@ Changes that apply to every family.
 - The RRM agent escapes backslashes in network names correctly under
   BusyBox's awk: a hidden network whose name `iw` prints as `\x00…` made
   the whole report invalid JSON. Such a name is now reported as hidden.
+- The RRM agent stops at once when its service is stopped or restarted,
+  instead of being killed after its wait between measurements, and a
+  measurement lock left by a run that was killed is taken over as soon as
+  that run's process is gone.
 - One set of first-boot defaults for every family, in recovery images as
   well: the AP never offers DHCP or IPv6 router advertisements to the site
   (Sage had no such step, so its router advertisements are now off too),
