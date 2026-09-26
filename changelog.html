@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cambium OpenWrt changes</title>
+<meta name="description" content="What changed in each Cambium OpenWrt family, snapshot by snapshot.">
+<style>
+:root {
+  --bg: #fbfbf9; --fg: #1d1f21; --muted: #5d6166; --line: #dfe1e3;
+  --card: #ffffff; --accent: #0b6e4f; --accent-soft: #e3f2ec;
+  --warn: #8a5a00; --warn-soft: #fdf3dc; --bad: #9b2c2c; --bad-soft: #fbe7e7;
+  --code: #f2f3f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a; --fg: #e6e7e8; --muted: #a0a4a9; --line: #2e3237;
+    --card: #1c1f23; --accent: #5cc9a0; --accent-soft: #1b3a2f;
+    --warn: #e7b85c; --warn-soft: #3a2f16; --bad: #f08a8a; --bad-soft: #3d2020;
+    --code: #23272c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { border-bottom: 1px solid var(--line); background: var(--card); }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+header .wrap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 24px; padding-top: 20px; padding-bottom: 14px; }
+header h1 { margin: 0; font-size: 1.5rem; }
+header h1 span { color: var(--accent); }
+nav { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .95rem; }
+nav a { color: var(--muted); text-decoration: none; }
+nav a:hover { color: var(--accent); }
+main { padding: 8px 0 48px; }
+section { margin-top: 36px; }
+h2 { font-size: 1.3rem; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.05rem; margin: 22px 0 8px; }
+a { color: var(--accent); }
+p, li { max-width: 72ch; }
+code, pre { font: .9em/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code); border-radius: 4px; }
+code { padding: 1px 5px; }
+pre { padding: 12px 14px; overflow-x: auto; }
+.lead { font-size: 1.08rem; color: var(--muted); }
+.note { border-left: 4px solid var(--warn); background: var(--warn-soft); padding: 10px 14px; border-radius: 4px; margin: 16px 0; }
+.note.danger { border-color: var(--bad); background: var(--bad-soft); }
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .93rem; background: var(--card); }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; background: var(--code); }
+td.fam { font-weight: 600; white-space: nowrap; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.ok { background: var(--accent-soft); color: var(--accent); }
+.untested { background: var(--warn-soft); color: var(--warn); }
+.none { background: var(--code); color: var(--muted); }
+ol.steps > li { margin-bottom: 14px; }
+.downloads td, .downloads th { white-space: nowrap; }
+footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; padding: 18px 0 30px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1><a href="./" style="color:inherit;text-decoration:none">Cambium <span>OpenWrt</span></a></h1>
+    <nav><a href="#common">Common</a> <a href="#sage">Sage</a> <a href="#thor">Thor</a> <a href="#jaguar">Jaguar</a> <a href="#cheetah">Cheetah</a> <a href="./">Back to the guide</a></nav>
+  </div>
+</header>
+<main class="wrap">
+<p class="lead">Newest first. Each heading is the snapshot a change first shipped in;
+<em>Unreleased</em> changes are on <code>main</code> and ship in the next snapshot.</p>
+<section id="common">
+<h2>Common</h2>
+<p class="lead">Changes that apply to every family.</p>
+<h3 id="common-unreleased">Unreleased</h3>
+<ul>
+<li>Release notes list only the changes of the families built in that snapshot (and the changes common to all).</li>
+<li>New RRM measurement agent (<code>cambium-rrm-agent</code>) on every family, the first step towards automatic channel and power planning. Every five minutes it records each radio's channel, width, noise, busy time and client count into <code>/tmp/cambium-rrm/latest.json</code>. These are passive readings the radio already keeps: nothing leaves the operating channel and clients are not affected. Only a family with a dedicated scanning radio (Thor) also scans for neighbouring networks, and only with that radio. Turn it off with <code>uci set cambium_rrm.agent.enabled=0</code>.</li>
+<li>An AP whose VLAN trunk OpenWISP set up now has its IPv6 management interface (<code>lan6</code>) on untagged VLAN 1 as well, like a fresh install. The trunk templates configure only IPv4, which left <code>lan6</code> on the filtered bridge where it received nothing. OpenWISP can still override it.</li>
+</ul>
+<h3 id="common-2026-09-26-0">2026.09.26.0</h3>
+<ul>
+<li>The OpenWISP status LED service records the managed state even on a unit without status LEDs, so an upgrade commit that waits for OpenWISP is never blocked by a missing LED driver.</li>
+</ul>
+<h3 id="common-2026-09-25-1">2026.09.25.1</h3>
+<ul>
+<li>Every persistent image passes a release gate before publishing: the build unpacks the image's own root filesystem and fails unless LuCI, uHTTPd, OpenWISP, WireGuard, the full wpad and the family's support packages are installed. An installed-package manifest is published beside each image.</li>
+<li>The daily snapshot runs once, at 19:17 UTC, instead of at 02:17 with a 06:17 backstop.</li>
+<li>Installer advice for serving the release files names <code>cambium-serve.py</code>.</li>
+<li>The installer checks both firmware banks' sizes and NAND offsets on every family before writing, and Cheetah's <code>0:TRAINING</code> partition.</li>
+<li>The A/B boot guard checks DHCP on the interface the LAN is configured on, so a missing VLAN bridge fails the health check instead of passing on <code>br-lan</code>.</li>
+</ul>
+<h3 id="common-2026-09-25-0">2026.09.25.0</h3>
+<ul>
+<li>The stock firmware's hostname, the model and the last six hex digits of the MAC address (for example <code>E410-ABABAB</code>), on every family.</li>
+<li>One shared A/B firmware bank package (<code>cambium-ab</code>) with the same commands on every family: <code>cambium-ab-status</code>, <code>cambium-ab-convert</code> and the boot guard.</li>
+<li>One shared OpenWISP status LED service (<code>cambium-openwisp-led</code>): blue while the controller answers, green otherwise.</li>
+<li>The installer uploads its backups to the computer serving the release (<code>cambium-serve.py</code>), so the stock firmware's root password is never needed; gluebi volumes no longer confuse its partition lookup.</li>
+<li><code>cambium-install.sh stock</code> makes the stock firmware the default boot again on an unconverted install.</li>
+</ul>
+<h3 id="common-2026-09-24-3">2026.09.24.3</h3>
+<ul>
+<li>One-command installer (<code>cambium-install.sh</code>) for every family: <code>ram</code>, <code>install</code> and <code>update-upgrader</code>, with backups, checksum and read-back checks and an exact reason for every failure.</li>
+</ul>
+<h3 id="common-2026-09-24-2">2026.09.24.2</h3>
+<ul>
+<li>Untested models are offered only the RAM (recovery) image, with a read-only hardware report (<code>cambium-report.sh</code>) to send back.</li>
+</ul>
+<h3 id="common-2026-09-24-0">2026.09.24.0</h3>
+<ul>
+<li>Project site on GitHub Pages with the models, statuses and install procedures for every family.</li>
+<li>Family manifest (<code>families.json</code>) and a SKU-based selector (<code>select-config.sh</code>) that picks each model's boot configuration.</li>
+<li>Recovery (RAM) images published only for recovery devices.</li>
+</ul>
+<h3 id="common-2026-09-23-0">2026.09.23.0</h3>
+<ul>
+<li>First automated snapshot: one recovery and one persistent image per family, built daily from upstream OpenWrt <code>main</code> with the Cambium patches rebased on top.</li>
+</ul>
+</section>
+<section id="sage">
+<h2>Sage</h2>
+<p class="lead">E410, E410B, E510 (validated layout); E430H, E430W, E600, E700 (RAM boot only).</p>
+<h3 id="sage-unreleased">Unreleased</h3>
+<ul>
+<li>E410 and E410B sysupgrade marked validated on the shared A/B code.</li>
+</ul>
+<h3 id="sage-2026-09-26-0">2026.09.26.0</h3>
+<ul>
+<li>Sage moves onto the shared A/B code: <code>cambium-ab-status</code>, the shared boot guard and automatic rollback, as on the other families. The layout is unchanged (volume pairs <code>linux0</code>/<code>rootfs0</code> and <code>linux1</code>/<code>rootfs1</code>, writable UBIFS roots). An E410 on an earlier image upgrades with a normal sysupgrade and adopts its earlier upgrade state on first boot. Managed APs still commit only once OpenWISP answers. <code>sage-sysupgrade-mark-good</code> is replaced by the boot guard.</li>
+</ul>
+<h3 id="sage-2026-09-25-2">2026.09.25.2</h3>
+<ul>
+<li>The GPIO LED and reset-button drivers are included in the persistent image.</li>
+</ul>
+<h3 id="sage-2026-09-25-1">2026.09.25.1</h3>
+<ul>
+<li><strong>Fix:</strong> the persistent image is built from the Sage device's own root filesystem. Every earlier snapshot's Sage persistent image (2026.09.24.1 to 2026.09.25.0) lacked LuCI, uHTTPd, OpenWISP, WireGuard and <code>cambium-sage-support</code>; do not install those.</li>
+<li><strong>Fix:</strong> an upgrade keeps a hostname set by hand or by OpenWISP.</li>
+<li>E410B notes explain why it installs with the E410 configuration.</li>
+</ul>
+<h3 id="sage-2026-09-25-0">2026.09.25.0</h3>
+<ul>
+<li><strong>Fix:</strong> the upgrade commit reads the shared OpenWISP managed state.</li>
+</ul>
+<h3 id="sage-2026-09-24-0">2026.09.24.0</h3>
+<ul>
+<li>One family image for all Sage models, each booting its own device tree; A/B sysupgrade refuses the models whose layout has not been captured.</li>
+<li>A migration commits without OpenWISP on unmanaged APs.</li>
+<li>The E410B is treated as the validated E410.</li>
+</ul>
+<h3 id="sage-before-the-snapshots-19-23-september-2026">Before the snapshots (19–23 September 2026)</h3>
+<ul>
+<li>19 September: E410 RAM boot, then the first persistent A/B build, keeping the stock UBI volume pairs.</li>
+<li>20 September: installed E410s migrated from the stock firmware and onto OpenWISP, with VLAN-filtered management.</li>
+<li>21 September: release 2026.09.21.1.</li>
+<li>23 September: one Sage family image for all seven models.</li>
+</ul>
+</section>
+<section id="thor">
+<h2>Thor</h2>
+<p class="lead">XV3-8 (validated); XE5-8 (RAM boot only).</p>
+<h3 id="thor-unreleased">Unreleased</h3>
+<ul>
+<li>The XV3-8's QCA9887 scanning radio is enabled in the persistent image (PCIe 1, ath10k, with this unit's own calibration from ART). It serves no clients: it has one disabled <code>scan</code> section in <code>/etc/config/wireless</code> and no networks, so it stays out of LuCI's and OpenWISP's radio lists. The RRM agent scans with it every five minutes, through an interface that exists only during the scan. The three serving radios keep their settings (they are matched by hardware path, so their phy numbers moving up does not matter). Tested on an XV3-8 with a scan every minute alongside normal service.</li>
+<li>The XV3-8's auxiliary 1 GbE port (<code>lan</code>) is enabled. A fresh install bridges it with <code>lan-multigig</code>, with untagged VLAN 1 on both. An upgraded AP keeps its saved network settings, so the port stays unused until its config adds it (for an OpenWISP-managed AP, the XV3-8 trunk template). Tested on an XV3-8: the link comes up at 1 Gb/s full duplex.</li>
+<li>Both XV3-8 test images (scanning radio, auxiliary port) are retired: the released image now has both.</li>
+</ul>
+<h3 id="thor-2026-09-26-1">2026.09.26.1</h3>
+<ul>
+<li>Test images for the XV3-8's QCA9887 scanning radio and its auxiliary 1 GbE port, as CI artifacts only (<code>test-only/</code>), never released. The released image is unchanged.</li>
+</ul>
+<h3 id="thor-2026-09-26-0">2026.09.26.0</h3>
+<ul>
+<li>XV3-8 A/B build and sysupgrade marked validated: installed from the stock firmware, converted, and switched banks through OpenWISP.</li>
+</ul>
+<h3 id="thor-2026-09-25-2">2026.09.25.2</h3>
+<ul>
+<li><strong>Fix:</strong> the GPIO LED and reset-button drivers are included; earlier fork snapshots had no status LEDs and no failsafe button.</li>
+<li><strong>Fix:</strong> a single-bank XV3-8 upgraded in place keeps its Wi-Fi board data and is not rebooted repeatedly by the boot guard.</li>
+</ul>
+<h3 id="thor-2026-09-25-1">2026.09.25.1</h3>
+<ul>
+<li><strong>Fix:</strong> an upgrade keeps a hostname set by hand or by OpenWISP.</li>
+</ul>
+<h3 id="thor-2026-09-25-0">2026.09.25.0</h3>
+<ul>
+<li>XV3-8 moves onto the shared A/B banks (<code>rootfs</code> and <code>rootfs_1</code>), with a FIT configuration per bank (<code>config@hk02</code>, <code>config@hk02-bank1</code>) and a device-data vault. Installs work from the stock firmware directly, or through the RAM installer when it lacks <code>ubiformat</code>. Single-bank installs keep working after an in-place upgrade and move to A/B by reinstalling.</li>
+</ul>
+<h3 id="thor-2026-09-24-0">2026.09.24.0</h3>
+<ul>
+<li>The persistent image is named after the family, and the RAM installer is published as <code>thor-installer</code>.</li>
+</ul>
+<h3 id="thor-before-the-snapshots-20-23-september-2026">Before the snapshots (20–23 September 2026)</h3>
+<ul>
+<li>20 September: XV3-8 RAM boot, the multi-gigabit primary port, the three integrated radios, the persistent single-bank install, status LEDs and the reset button.</li>
+<li>20–21 September: OpenWISP management, the radio policy service, and VLAN filtering on the LAN bridge so a busy tagged VLAN cannot starve DHCP.</li>
+<li>XE5-8: recovery (RAM) image only; its flash layout is not captured.</li>
+</ul>
+</section>
+<section id="jaguar">
+<h2>Jaguar</h2>
+<p class="lead">XV2-2, XV2-2T1 (validated); XV2-2T0, XE3-4, XE3-4TN (RAM boot only).</p>
+<h3 id="jaguar-2026-09-25-1">2026.09.25.1</h3>
+<ul>
+<li><strong>Fix:</strong> an upgrade keeps a hostname set by hand or by OpenWISP.</li>
+<li>The XE3-4 has no sysupgrade yet: upstream OpenWrt's XE3-4 image shares its board name.</li>
+</ul>
+<h3 id="jaguar-2026-09-25-0">2026.09.25.0</h3>
+<ul>
+<li>VLAN filtering on the LAN bridge: only untagged VLAN 1 on <code>lan1</code> (and <code>lan2</code>), management on <code>br-lan.1</code>.</li>
+<li>A/B validated on the XV2-2 and XV2-2T1, and moved onto the shared <code>cambium-ab</code> package; the <code>jaguar-ab-*</code> commands become <code>cambium-ab-*</code>.</li>
+</ul>
+<h3 id="jaguar-2026-09-24-3">2026.09.24.3</h3>
+<ul>
+<li><strong>Fix:</strong> the A/B sysupgrade creates its UBI device nodes in stage 2 (the first XV2-2 upgrade stopped after formatting the inactive bank).</li>
+<li>Installs work in either slot; <code>update-upgrader</code> installs a release's A/B scripts on a running system.</li>
+</ul>
+<h3 id="jaguar-2026-09-24-2">2026.09.24.2</h3>
+<ul>
+<li>A/B firmware banks with a trial boot, automatic rollback, a one-time conversion and a per-bank device-data vault; the XV2-2's 128 MiB NAND with two 52 MiB banks.</li>
+</ul>
+<h3 id="jaguar-before-the-snapshots-22-23-september-2026">Before the snapshots (22–23 September 2026)</h3>
+<ul>
+<li>22 September: XV2-2T1 first RAM boot, then the reset button, LEDs and radios, and a persistent trial.</li>
+<li>23 September: persistent image qualified on the XV2-2T1.</li>
+</ul>
+</section>
+<section id="cheetah">
+<h2>Cheetah</h2>
+<p class="lead">XV2-21X (validated); XV2-22H, XV2-23T (RAM boot only).</p>
+<h3 id="cheetah-2026-09-26-0">2026.09.26.0</h3>
+<ul>
+<li>XV2-21X A/B build and sysupgrade marked validated: installed from the stock firmware, converted, and switched banks through OpenWISP.</li>
+</ul>
+<h3 id="cheetah-2026-09-25-1">2026.09.25.1</h3>
+<ul>
+<li><strong>Fix:</strong> an upgrade keeps a hostname set by hand or by OpenWISP.</li>
+<li>The installer checks the <code>0:TRAINING</code> partition and both banks' offsets.</li>
+</ul>
+<h3 id="cheetah-2026-09-25-0">2026.09.25.0</h3>
+<ul>
+<li>Cheetah moves onto the shared A/B banks (96 MiB at <code>0x80000</code> and <code>0x6080000</code>), with the bank selected by the boot command's kernel arguments and a device-data vault. Management on <code>br-lan.1</code> with VLAN filtering.</li>
+</ul>
+<h3 id="cheetah-2026-09-24-0">2026.09.24.0</h3>
+<ul>
+<li>One persistent image for all three models, each booting its own device tree.</li>
+</ul>
+<h3 id="cheetah-before-the-snapshots-21-22-september-2026">Before the snapshots (21–22 September 2026)</h3>
+<ul>
+<li>21 September: XV2-21X hardware capture and first RAM boot; Ethernet fixed by the MDIO1 clock reference.</li>
+<li>22 September: Wi-Fi, LEDs and reset button; persistent one-stock-slot release 2026.09.22.2 with a boot guard, onboarded to OpenWISP.</li>
+</ul>
+</section>
+</main>
+</body>
+</html>

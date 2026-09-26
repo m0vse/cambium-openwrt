@@ -1,0 +1,517 @@
+{
+  "_comment": "Source of truth for Cambium families, models, board SKUs and FIT configurations. Used by build.sh (per-release manifest and FIT cross-check), select-config.sh and the project site. status values: validated, untested, not-built, no-build, refused (built, but must not be installed on this model). Only validated models may use the persistent or installer image; select-config.sh gives untested models the recovery (RAM) image only.",
+  "families": [
+    {
+      "family": "gambit",
+      "name": "Gambit",
+      "platform": "MIPS (OpenWrt ath79), Wi-Fi 5",
+      "stock_firmware": "4.2.3.3-r10",
+      "built": false,
+      "models": [
+        {
+          "model": "E400",
+          "sku": 6,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
+          }
+        },
+        {
+          "model": "E500",
+          "sku": 7,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
+          }
+        },
+        {
+          "model": "E501S",
+          "sku": 9,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
+          }
+        },
+        {
+          "model": "E502S",
+          "sku": 12,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
+          }
+        }
+      ]
+    },
+    {
+      "family": "sage",
+      "name": "Sage",
+      "platform": "IPQ4019, Wi-Fi 5",
+      "stock_firmware": "4.2.3.3-r10",
+      "built": true,
+      "target": "ipq40xx/generic",
+      "devices": {
+        "recovery": "cambiumnetworks_sage-recovery",
+        "persistent": "cambiumnetworks_sage-persistent"
+      },
+      "models": [
+        {
+          "model": "E410",
+          "sku": 10,
+          "recovery": {
+            "config": "config@5",
+            "status": "validated"
+          },
+          "persistent": {
+            "config": "config@ap.dk01.1-c2",
+            "status": "validated",
+            "note": "E410 legacy boot alias of config@5, as used by the validated A/B boot commands"
+          },
+          "sysupgrade": {
+            "status": "validated",
+            "note": "A/B with automatic rollback on the shared cambium-ab code: an E410 upgraded from the earlier Sage code was adopted on first boot, then switched pairs through the shared writer and guard"
+          }
+        },
+        {
+          "model": "E600",
+          "sku": 11,
+          "recovery": {
+            "config": "config@10",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@10",
+            "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "refused",
+            "note": "different NAND controller; layout not yet captured"
+          }
+        },
+        {
+          "model": "E430W",
+          "sku": 13,
+          "recovery": {
+            "config": "config@13",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@13",
+            "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "refused",
+            "note": "different NAND controller; layout not yet captured"
+          }
+        },
+        {
+          "model": "E700",
+          "sku": 14,
+          "recovery": {
+            "config": "config@14",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@14",
+            "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "refused",
+            "note": "different NAND controller; layout not yet captured"
+          }
+        },
+        {
+          "model": "E430H",
+          "sku": 15,
+          "recovery": {
+            "config": "config@15",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@15",
+            "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "refused",
+            "note": "different NAND controller; layout not yet captured"
+          }
+        },
+        {
+          "model": "E510",
+          "sku": 16,
+          "recovery": {
+            "config": "config@16",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@16",
+            "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "untested",
+            "note": "A/B with automatic rollback; same layout as the E410"
+          }
+        },
+        {
+          "model": "E410B",
+          "sku": 21,
+          "recovery": {
+            "config": "config@5",
+            "status": "validated",
+            "note": "Same hardware as the E410. The initial deployment deliberately keeps the legacy E410-compatible configuration (config@5), the boot path validated on these units, for backward compatibility. The E410B-aware sysupgrade path (board cambiumnetworks,e410b, SKU 21) can boot the E410B tree, config@17."
+          },
+          "persistent": {
+            "config": "config@ap.dk01.1-c2",
+            "status": "validated",
+            "note": "Same hardware as the E410. The initial deployment deliberately keeps the legacy E410-compatible configuration (config@ap.dk01.1-c2), the boot path validated on these units, for backward compatibility; the OEM migration helper (sage-migration-mark-good) still matches only cambium,e410. After that, the E410B-aware sysupgrade and its commit service (board cambiumnetworks,e410b, SKU 21) can boot the E410B tree, config@17."
+          },
+          "sysupgrade": {
+            "status": "validated",
+            "note": "A/B with automatic rollback on the shared cambium-ab code: an E410 upgraded from the earlier Sage code was adopted on first boot, then switched pairs through the shared writer and guard"
+          }
+        }
+      ]
+    },
+    {
+      "family": "lila",
+      "name": "Lila",
+      "platform": "MIPS (OpenWrt ath79), Wi-Fi 5",
+      "stock_firmware": "4.2.3.3-r10",
+      "built": false,
+      "models": [
+        {
+          "model": "E425W",
+          "sku": 17,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
+          }
+        },
+        {
+          "model": "E505",
+          "sku": 18,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
+          }
+        }
+      ]
+    },
+    {
+      "family": "thor",
+      "name": "Thor",
+      "platform": "IPQ8074, Wi-Fi 6",
+      "stock_firmware": "7.2-r1",
+      "built": true,
+      "target": "qualcommax/ipq807x",
+      "devices": {
+        "recovery": "cambiumnetworks_thor-recovery",
+        "installer": "cambiumnetworks_thor-installer",
+        "persistent": "cambiumnetworks_thor-persistent"
+      },
+      "models": [
+        {
+          "model": "XV3-8",
+          "sku": 19,
+          "recovery": {
+            "config": "config@hk02",
+            "status": "validated"
+          },
+          "installer": {
+            "config": "config@hk02",
+            "status": "validated"
+          },
+          "persistent": {
+            "config": "config@hk02",
+            "status": "validated",
+            "note": "A/B build (both banks writable, device-data vault, one FIT configuration per bank), installed from the stock firmware and converted on an XV3-8"
+          },
+          "sysupgrade": {
+            "status": "validated",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks; an OpenWISP sysupgrade switched an XV3-8 from bank 0 to bank 1"
+          }
+        },
+        {
+          "model": "XE5-8",
+          "sku": 30,
+          "recovery": {
+            "config": "config@hk01.c6",
+            "status": "untested"
+          },
+          "installer": {
+            "status": "not-built",
+            "note": "flash layout not yet captured"
+          },
+          "persistent": {
+            "status": "not-built",
+            "note": "flash layout not yet captured"
+          },
+          "sysupgrade": {
+            "status": "none",
+            "note": "no persistent image yet"
+          }
+        }
+      ]
+    },
+    {
+      "family": "jaguar",
+      "name": "Jaguar",
+      "platform": "IPQ6018, Wi-Fi 6/6E",
+      "stock_firmware": "7.2-r1",
+      "built": true,
+      "target": "qualcommax/ipq60xx",
+      "devices": {
+        "recovery": "cambiumnetworks_jaguar-recovery",
+        "persistent": "cambiumnetworks_jaguar-persistent"
+      },
+      "models": [
+        {
+          "model": "XV2-2",
+          "sku": 20,
+          "recovery": {
+            "config": "config@cp01-c1",
+            "status": "validated",
+            "note": "RAM boot validated 2026-09-24 from inactive slot 1: NAND (BCH4), both radios and wired LAN. 128 MiB NAND with two 52 MiB banks, slot 1 at 0x3400000."
+          },
+          "persistent": {
+            "config": "config@cp01-c1",
+            "status": "validated",
+            "note": "A/B image installed into slot 1 and converted to two OpenWrt banks on one unit (2026-09-24); a sysupgrade -n then switched it to slot 0 with its device-data vault intact"
+          },
+          "sysupgrade": {
+            "status": "validated",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks: a sysupgrade -n switched this model from slot 1 to slot 0, vault intact"
+          }
+        },
+        {
+          "model": "XV2-2T0",
+          "sku": 22,
+          "recovery": {
+            "config": "config@cp01-c1-1",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@cp01-c1-1",
+            "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "untested",
+            "note": "A/B with automatic rollback; untested on this model"
+          }
+        },
+        {
+          "model": "XV2-2T1",
+          "sku": 31,
+          "recovery": {
+            "config": "config@cp01-c1-2",
+            "status": "validated"
+          },
+          "persistent": {
+            "config": "config@cp01-c1-2",
+            "status": "validated",
+            "note": "A/B image installed into slot 0 with cambium-install.sh (2026-09-24): factory image read back, device-data vault filled, guarded boot re-armed; then converted to two OpenWrt banks"
+          },
+          "sysupgrade": {
+            "status": "validated",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks: a sysupgrade switched this model from slot 0 to slot 1, vault intact"
+          }
+        },
+        {
+          "model": "XE3-4",
+          "sku": 32,
+          "recovery": {
+            "config": "config@cp01-c3-xv3-4",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@cp01-c3-xv3-4",
+            "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "none",
+            "note": "Not yet: the family sysupgrade.bin leaves out cambiumnetworks,xe3-4 because upstream OpenWrt's own XE3-4 image uses the same board name and would accept it. Upgrade by reinstalling until the image can tell the two apart"
+          }
+        },
+        {
+          "model": "XE3-4TN",
+          "sku": 33,
+          "recovery": {
+            "config": "config@cp01-c3-2",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@cp01-c3-2",
+            "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "untested",
+            "note": "A/B with automatic rollback; untested on this model"
+          }
+        }
+      ]
+    },
+    {
+      "family": "cheetah",
+      "name": "Cheetah",
+      "platform": "IPQ5018, Wi-Fi 6",
+      "stock_firmware": "7.2-r1",
+      "built": true,
+      "target": "qualcommax/ipq50xx",
+      "devices": {
+        "recovery": "cambiumnetworks_cheetah-recovery",
+        "persistent": "cambiumnetworks_cheetah-persistent"
+      },
+      "models": [
+        {
+          "model": "XV2-22H",
+          "sku": 34,
+          "recovery": {
+            "config": "config@mp03.3-cheetah",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@mp03.3-cheetah",
+            "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "untested",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks; not yet run on hardware"
+          }
+        },
+        {
+          "model": "XV2-21X",
+          "sku": 35,
+          "recovery": {
+            "config": "config@mp03.3-ocelot",
+            "status": "validated"
+          },
+          "persistent": {
+            "config": "config@mp03.3-ocelot",
+            "status": "validated",
+            "note": "A/B build (both banks writable, device-data vault, bootargs set by the boot command), installed from the stock firmware and converted on an XV2-21X"
+          },
+          "sysupgrade": {
+            "status": "validated",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks; an OpenWISP sysupgrade switched an XV2-21X from bank 0 to bank 1"
+          }
+        },
+        {
+          "model": "XV2-23T",
+          "sku": 36,
+          "recovery": {
+            "config": "config@mp03.3-lynx",
+            "status": "untested"
+          },
+          "persistent": {
+            "config": "config@mp03.3-lynx",
+            "status": "untested"
+          },
+          "sysupgrade": {
+            "status": "untested",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks; not yet run on hardware"
+          }
+        }
+      ]
+    },
+    {
+      "family": "miami",
+      "name": "Miami",
+      "platform": "IPQ5332, Wi-Fi 7 (new OpenWrt target needed)",
+      "stock_firmware": "7.2-r1",
+      "built": false,
+      "models": [
+        {
+          "model": "X7-55X",
+          "sku": 42,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
+          }
+        },
+        {
+          "model": "X7-56X",
+          "sku": 43,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
+          }
+        },
+        {
+          "model": "X7-35X",
+          "sku": 44,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
+          }
+        },
+        {
+          "model": "X7-53X",
+          "sku": 49,
+          "recovery": {
+            "status": "no-build"
+          },
+          "persistent": {
+            "status": "no-build"
+          },
+          "sysupgrade": {
+            "status": "no-build",
+            "note": "no OpenWrt build yet"
+          }
+        }
+      ]
+    }
+  ]
+}

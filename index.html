@@ -1,0 +1,836 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cambium OpenWrt</title>
+<meta name="description" content="Community OpenWrt builds for Cambium Networks enterprise Wi-Fi access points.">
+<style>
+:root {
+  --bg: #fbfbf9; --fg: #1d1f21; --muted: #5d6166; --line: #dfe1e3;
+  --card: #ffffff; --accent: #0b6e4f; --accent-soft: #e3f2ec;
+  --warn: #8a5a00; --warn-soft: #fdf3dc; --bad: #9b2c2c; --bad-soft: #fbe7e7;
+  --code: #f2f3f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a; --fg: #e6e7e8; --muted: #a0a4a9; --line: #2e3237;
+    --card: #1c1f23; --accent: #5cc9a0; --accent-soft: #1b3a2f;
+    --warn: #e7b85c; --warn-soft: #3a2f16; --bad: #f08a8a; --bad-soft: #3d2020;
+    --code: #23272c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { border-bottom: 1px solid var(--line); background: var(--card); }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+header .wrap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 24px; padding-top: 20px; padding-bottom: 14px; }
+header h1 { margin: 0; font-size: 1.5rem; }
+header h1 span { color: var(--accent); }
+nav { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .95rem; }
+nav a { color: var(--muted); text-decoration: none; }
+nav a:hover { color: var(--accent); }
+main { padding: 8px 0 48px; }
+section { margin-top: 36px; }
+h2 { font-size: 1.3rem; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.05rem; margin: 22px 0 8px; }
+a { color: var(--accent); }
+p, li { max-width: 72ch; }
+code, pre { font: .9em/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code); border-radius: 4px; }
+code { padding: 1px 5px; }
+pre { padding: 12px 14px; overflow-x: auto; }
+.lead { font-size: 1.08rem; color: var(--muted); }
+.note { border-left: 4px solid var(--warn); background: var(--warn-soft); padding: 10px 14px; border-radius: 4px; margin: 16px 0; }
+.note.danger { border-color: var(--bad); background: var(--bad-soft); }
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .93rem; background: var(--card); }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; background: var(--code); }
+td.fam { font-weight: 600; white-space: nowrap; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.ok { background: var(--accent-soft); color: var(--accent); }
+.untested { background: var(--warn-soft); color: var(--warn); }
+.none { background: var(--code); color: var(--muted); }
+ol.steps > li { margin-bottom: 14px; }
+.downloads td, .downloads th { white-space: nowrap; }
+footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; padding: 18px 0 30px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Cambium <span>OpenWrt</span></h1>
+    <nav>
+      <a href="#downloads">Downloads</a>
+      <a href="#hardware">Hardware</a>
+      <a href="#how">How it works</a>
+      <a href="#install">Install</a>
+      <a href="#upgrade">Upgrade &amp; rollback</a>
+      <a href="#safety">Safety</a>
+      <a href="#help">Help wanted</a>
+      <a href="changelog.html">Changes</a>
+      <a href="https://github.com/m0vse/cambium-openwrt">Source</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section>
+  <p class="lead">Community OpenWrt builds for Cambium Networks enterprise Wi-Fi
+  access points (cnPilot and XV/XE series). Each build is upstream OpenWrt
+  <code>main</code> with a small, reviewable stack of Cambium hardware patches
+  on top, rebuilt automatically every day.</p>
+  <p>The aim is to keep capable enterprise access points useful on open,
+  maintained firmware, managed by OpenWrt directly or by an
+  <a href="https://openwisp.org/">OpenWISP</a> controller. This project is not
+  affiliated with or endorsed by Cambium Networks.</p>
+  <div class="note"><strong>Development snapshots.</strong> Images are built
+  and checked automatically but are not tested on hardware for every build.
+  Only the models marked <span class="pill ok">validated</span> below have run
+  on real hardware. Always keep a way back to the stock firmware.</div>
+</section>
+
+<section id="downloads">
+  <h2>Downloads</h2>
+  <p>What changed in each snapshot is in the <a href="changelog.html">changelog</a>,
+  per family; each release's notes list that snapshot's changes too.</p>
+  <p>Each snapshot is a GitHub release with one recovery and one persistent
+  image per family, the family ImageBuilder and checksums, plus
+  <code>select-config.sh</code> and <code>cambium-manifest.json</code>: a
+  machine-readable list of every model, SKU, FIT configuration, validation
+  status and image (with SHA-256) in that snapshot. The matching
+  package feed (kernel modules and Cambium packages) is served from this site
+  and is already configured in each image.</p>
+  <div id="builds" class="table-scroll"><p>Loading the latest snapshots&hellip;
+  If nothing appears, see the
+  <a href="https://github.com/m0vse/cambium-openwrt/releases">releases page</a>.</p></div>
+</section>
+
+<section id="hardware">
+  <h2>Supported hardware</h2>
+  <p>Access points are grouped by Cambium's hardware families. Each family
+  image contains the device tree of every model in it and boots the one that
+  matches the access point's board SKU, so there is exactly one recovery and
+  one persistent image per family. Families are listed oldest first. The
+  stock firmware column is the latest published Cambium version, which
+  should be running before an install. <strong>Sysupgrade</strong> is
+  whether an installed OpenWrt can be upgraded in place with
+  <code>sysupgrade</code> (from LuCI, the command line or OpenWISP); where it
+  cannot, upgrade by reinstalling the persistent image.</p>
+  <div class="note danger"><strong>Untested models: RAM boot only.</strong>
+  Models in a family do not always share a flash layout, so on any model
+  not marked <em>validated</em> use only the recovery (RAM) image, then
+  <a href="#report">send a hardware report</a>. The persistent image,
+  installer and sysupgrade are for validated models only;
+  <code>select-config.sh</code> refuses them on the others. Each report
+  moves a model closer to validation.</div>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Family</th><th>Stock firmware</th><th>Model</th><th>SKU</th><th>Recovery (RAM)</th><th>Persistent</th><th>Sysupgrade</th></tr></thead>
+    <tbody>
+      <tr><td class="fam">Gambit<br><small>MIPS, Wi-Fi 5</small></td><td>4.2.3.3-r10</td><td>E400, E500, E501S, E502S</td><td>6, 7, 9, 12</td><td colspan="3"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
+      <tr><td class="fam" rowspan="7">Sage<br><small>IPQ4019, Wi-Fi 5</small></td><td rowspan="7">4.2.3.3-r10</td><td>E410</td><td>10</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
+      <tr><td>E410B</td><td>21</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> same hardware as the E410; uses the E410 configuration</td><td><span class="pill ok">validated</span></td></tr>
+      <tr><td>E430H</td><td>15</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">refused</span> different NAND controller</td></tr>
+      <tr><td>E430W</td><td>13</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">refused</span> different NAND controller</td></tr>
+      <tr><td>E510</td><td>16</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
+      <tr><td>E600</td><td>11</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">refused</span> different NAND controller</td></tr>
+      <tr><td>E700</td><td>14</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">refused</span> different NAND controller</td></tr>
+      <tr><td class="fam">Lila<br><small>MIPS, Wi-Fi 5</small></td><td>4.2.3.3-r10</td><td>E425W, E505</td><td>17, 18</td><td colspan="3"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
+      <tr><td class="fam" rowspan="2">Thor<br><small>IPQ8074, Wi-Fi 6</small></td><td rowspan="2">7.2-r1</td><td>XV3-8</td><td>19</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> A/B build</td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
+      <tr><td>XE5-8</td><td>30</td><td><span class="pill untested">untested</span></td><td><span class="pill none">not built</span> flash layout not yet captured</td><td><span class="pill none">none yet</span> no persistent image yet</td></tr>
+      <tr><td class="fam" rowspan="5">Jaguar<br><small>IPQ6018, Wi-Fi 6/6E</small></td><td rowspan="5">7.2-r1</td><td>XV2-2T1</td><td>31</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> A/B build</td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
+      <tr><td>XV2-2</td><td>20</td><td><span class="pill ok">validated</span> 128&nbsp;MiB NAND, two 52&nbsp;MiB slots</td><td><span class="pill ok">validated</span> A/B build</td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
+      <tr><td>XV2-2T0</td><td>22</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
+      <tr><td>XE3-4</td><td>32</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">not yet</span> upstream's XE3-4 image shares its board name, so the sysupgrade image leaves it out</td></tr>
+      <tr><td>XE3-4TN</td><td>33</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
+      <tr><td class="fam" rowspan="3">Cheetah<br><small>IPQ5018, Wi-Fi 6</small></td><td rowspan="3">7.2-r1</td><td>XV2-21X</td><td>35</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> A/B build</td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
+      <tr><td>XV2-22H</td><td>34</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
+      <tr><td>XV2-23T</td><td>36</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
+      <tr><td class="fam">Miami<br><small>IPQ5332, Wi-Fi 7</small></td><td>7.2-r1</td><td>X7-35X, X7-53X, X7-55X, X7-56X</td><td>44, 49, 42, 43</td><td colspan="3"><span class="pill none">no build yet</span> needs hardware and a new OpenWrt target</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><strong>Untested</strong> models are included for controlled trials on
+  units you can recover locally. A model that RAM-boots the recovery image
+  has a reasonable chance of running the persistent image, but neither has
+  run on that hardware yet. Reports from such trials are very welcome.</p>
+</section>
+
+<section id="how">
+  <h2>How it works</h2>
+  <h3>Two images per family</h3>
+  <p><strong>Recovery</strong> is a RAM-only image: it boots from memory,
+  writes nothing, and a power cycle returns the access point to its stock
+  firmware. Use it to check that a model works before installing anything.
+  <strong>Persistent</strong> is installed into the access point's
+  <em>inactive</em> firmware slot. Cambium access points keep two firmware
+  slots; OpenWrt only ever uses one of them, and the stock firmware stays
+  intact in the other as a fallback.</p>
+  <h3>No Cambium files are distributed</h3>
+  <p>The radios need a Wi-Fi board file from Cambium's firmware. These images
+  do not include any. On first boot, the access point copies the board file
+  its own stock firmware uses from the retained stock slot, read-only. Radio
+  calibration is read from the access point's own calibration partition as
+  usual. Neither is ever modified. If the stock slot is missing, the radios
+  stay off and wired networking still works.</p>
+  <h3>Safe boot</h3>
+  <p>On every family, each boot of a newly installed image is a one-off:
+  until the access point has come up healthy (network, and radios where
+  validated), the next reboot returns to the stock firmware. Only a healthy
+  system arms OpenWrt as the default, so a failed install recovers itself
+  with a power cycle.</p>
+  <h3>Defaults</h3>
+  <ul>
+    <li>Stock OpenWrt login: no SSH keys are included and <code>root</code>
+    has no password until you set one.</li>
+    <li>The LAN port is a DHCP <em>client</em>. The access point never serves
+    DHCP or router advertisements onto your network.</li>
+    <li>The hostname is the stock firmware's: the model and the last six hex
+    digits of the access point's MAC address, e.g. <code>E410-ABABAB</code> or
+    <code>XV2-21X-BEA5BE</code>.</li>
+    <li>Persistent images include LuCI, WPA-Enterprise (<code>wpad-mbedtls</code>),
+    802.11r/k/v roaming (<code>usteer</code>), WireGuard, OpenVPN, LLDP and the
+    OpenWISP agents. Anything else can be added from the package feeds.</li>
+    <li>The LAN bridge filters VLANs: the LAN ports carry only untagged
+    VLAN 1, the management network (<code>br-lan.1</code>), so tagged traffic
+    on the same trunk cannot swamp DHCP. OpenWISP's device template adds
+    tagged VLANs where they are wanted.</li>
+    <li>The status LED is blue while the access point's OpenWISP controller
+    answers it, and green otherwise, on every family.</li>
+    <li><code>/etc/openwrt_release</code> shows the upstream OpenWrt version;
+    <code>/etc/cambium-openwrt-release</code> records the family build ID and
+    source commits.</li>
+  </ul>
+</section>
+
+<section id="install">
+  <h2>Installing</h2>
+  <div class="note danger"><strong>Read first.</strong> Everything is done
+  from a root shell on the stock firmware: the models ported so far have no
+  interactive U-Boot prompt, so there is no serial-console route to boot an
+  image. A serial console is still useful for watching boot messages. Back
+  up everything before writing anything, and never erase or overwrite the
+  bootloader, U-Boot environment or ART (calibration) partitions.</div>
+
+  <h3>Overview</h3>
+  <ol class="steps">
+    <li><strong>Get a root shell on the stock firmware.</strong> Cambium's
+    firmware protects its root shell with a per-device challenge and unlock
+    code. The tool that answers it is <strong>not published</strong>; please
+    <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>
+    to ask about access. Every later step runs in this root shell.</li>
+    <li><strong>Use <a href="#installer">the installer</a></strong> for the
+    steps below: one command each, with every check built in.</li>
+    <li><strong>Check the model and slot.</strong> Confirm the board SKU and
+    which slot the stock firmware runs from (below). Stop if either is not
+    what your family expects.</li>
+    <li><strong>Back up</strong> the inactive firmware slot, the U-Boot
+    environment and the ART partition, and copy the backups off the access
+    point.</li>
+    <li><strong>RAM-boot the recovery image</strong> through a
+    self-restoring one-shot boot command. The stock firmware slot is not
+    touched; the next reboot or power cycle returns to it.</li>
+    <li><strong>Untested model? Stop here</strong> and
+    <a href="#report">send a hardware report</a> from the booted recovery
+    image. Everything after this step is for validated models only.</li>
+    <li><strong>Install the persistent image</strong> into the inactive slot,
+    boot it once, check it, then make it the default.</li>
+    <li><strong>Optionally, convert to two OpenWrt banks</strong> (Thor, Jaguar,
+    Cheetah) for <code>sysupgrade</code>. This removes the stock firmware, so
+    only convert once you are sure you will not need it again.</li>
+  </ol>
+
+  <h3 id="installer">The installer: one command per step</h3>
+  <p><code>cambium-install.sh</code> (from the release, or
+  <a href="cambium-install.sh">this site</a>) runs the procedures below for
+  every family from the stock firmware's root shell: it identifies the
+  model, checks the flash layout, running slot and boot environment,
+  fetches and verifies the images against the release checksums, backs up
+  what it will touch, writes, reads back and arms the self-restoring boot.
+  It writes nothing until every check has passed and you add
+  <code>--yes</code>, and it stops at the first problem with the exact
+  reason (the failing command, its exit status and its error) and a log in
+  <code>/tmp/cambium-install/install.log</code>.</p>
+  <p>On your computer, put every release file in one folder (images,
+  <code>SHA256SUMS</code>, <code>select-config.sh</code>,
+  <code>cambium-install.sh</code> and <a href="cambium-serve.py">cambium-serve.py</a>)
+  and serve it over http (the stock firmware's <code>wget</code> may not do
+  https). <code>cambium-serve.py</code> also receives the backups the
+  installer uploads, into an <code>uploads</code> folder, so you never need
+  the stock firmware's root password:</p>
+<pre>cd cambium                              # the folder with the release files
+python3 cambium-serve.py 8000</pre>
+  <p>On the access point, fetch the script and do a check run. It backs up
+  what it will touch, uploads the backups to your computer and checks each
+  upload's SHA-256, but writes nothing to flash:</p>
+<pre>wget -O /tmp/cambium-install.sh http://COMPUTER_IP:8000/cambium-install.sh
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram      # checks, backs up and uploads the backups; writes nothing</pre>
+  <p>Check the backups are in <code>uploads/</code> on your computer, then run
+  it for real; it reboots into OpenWrt once:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes ram</pre>
+  <p>Use <code>cambium-serve.py</code>, not a plain
+  <code>python3 -m http.server</code>: a plain server cannot receive the
+  backups, and the installer stops and says so. If you must use one, copy
+  <code>/tmp/cambium-install/backup/</code> off yourself and add
+  <code>--backed-up</code>. A TFTP server that accepts
+  uploads also works with <code>--tftp COMPUTER_IP</code> (Sage's RAM boot
+  always needs <code>--tftp</code>: its U-Boot loads the image from that
+  server as <code>sage-recovery.itb</code>).</p>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Command</th><th>Does</th></tr></thead>
+    <tbody>
+      <tr><td><code>ram</code></td><td>RAM-boots the recovery image once, every family. Any later reboot returns to the stock firmware. On a model that is not validated, stop here and <a href="#report">send a report</a>.</td></tr>
+      <tr><td><code>install</code></td><td>Installs the persistent image on a validated model and arms its guarded first boot (Sage: a one-shot trial, then <code>sage-migration-mark-good --confirm</code> in OpenWrt). Thor: if its stock firmware has no <code>ubiformat</code>, it RAM-boots the installer instead; run the same <code>install</code> command again inside it.</td></tr>
+      <tr><td><code>stock</code></td><td>In an installed OpenWrt that still has the stock firmware in its other slot (not converted to A/B): makes the stock firmware the default boot again, e.g. to reinstall a single-bank Thor as A/B.</td></tr>
+      <tr><td><code>--trial</code></td><td>Hardware trial of a persistent image not yet validated on the model, e.g. the Jaguar A/B build.</td></tr>
+      <tr><td><code>--persistent-test</code></td><td>Jaguar: RAM-boot the A/B persistent trees (the test-only image) with no bank attached.</td></tr>
+      <tr><td><code>--format-inactive</code></td><td>Lets <code>ram</code> erase the inactive slot (after backing it up) when its stock firmware copy leaves too little free space for the RAM image, as on a stock XV2-2.</td></tr>
+      <tr><td><code>update-upgrader</code></td><td>Thor, Jaguar and Cheetah, in the installed A/B OpenWrt: installs the release's A/B upgrade scripts on the running system, which is what <code>sysupgrade</code> uses. Run it before an A/B sysupgrade.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>The per-family steps below are what the script does, for reference and
+  for doing it by hand.</p>
+
+  <h3>Common steps (stock firmware root shell)</h3>
+  <p>Copy images to the access point's <code>/tmp</code> from a TFTP server
+  on your network, then check them against the release's
+  <code>SHA256SUMS</code>:</p>
+<pre>tftp -b 8192 -g -l /tmp/IMAGE -r IMAGE SERVER_IP
+sha256sum /tmp/IMAGE</pre>
+  <h3>Before you start: latest stock firmware, ideally in both slots</h3>
+  <p>Update the access point to the latest published Cambium firmware for
+  its family (the <em>Stock firmware</em> column in the
+  <a href="#hardware">hardware table</a>; these are the versions the
+  procedures were validated on). Ideally install it <strong>twice</strong>:
+  each Cambium upgrade writes the slot that is not running and then switches
+  to it, so a second upgrade leaves the same current version in both slots.
+  The slot OpenWrt does not use keeps a current stock firmware for rollback,
+  and it is where OpenWrt reads the Wi-Fi board file from.</p>
+
+  <h3>First: which slot is the stock firmware running from?</h3>
+  <p>Every access point has two firmware slots. OpenWrt is only ever staged
+  and installed in the slot the stock firmware is <strong>not</strong>
+  running from, so establish that before anything else:</p>
+<pre>od -An -tx1 /proc/device-tree/cambium-platform/board-sku   # hex SKU, e.g. 00000013 = 19 (XV3-8)
+fw_printenv image                         # the slot U-Boot booted
+cat /proc/cmdline                         # ubi.mtd=... or root=ubi0:rootfsN names the running slot
+cat /proc/mtd                             # partition numbers and names
+cat /sys/class/ubi/ubi0/mtd_num           # the MTD of the running slot</pre>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Family</th><th>Running slot shows as</th><th>Stock firmware must be on</th><th>OpenWrt goes into</th></tr></thead>
+    <tbody>
+      <tr><td class="fam">Sage</td><td><code>root=ubi0:rootfs0</code> or <code>rootfs1</code>; <code>image</code> matches</td><td>either slot</td><td>the other UBI volume pair (<code>linuxN</code>/<code>rootfsN</code>)</td></tr>
+      <tr><td class="fam">Thor</td><td><code>ubi.mtd=rootfs_1</code>; <code>ubi0</code> on <code>mtd2</code></td><td><code>rootfs_1</code> (<code>mtd2</code>)</td><td><code>rootfs</code> (<code>mtd1</code>)</td></tr>
+      <tr><td class="fam">Jaguar</td><td><code>ubi.mtd=rootfs</code> or <code>rootfs_1</code>; <code>ubi0</code> on its MTD</td><td>either slot (XV2-2: usually <code>rootfs</code>; XV2-2T1: <code>rootfs_1</code>)</td><td>the other slot</td></tr>
+      <tr><td class="fam">Cheetah</td><td><code>ubi.mtd=rootfs_1</code>; <code>ubi0</code> on <code>mtd3</code></td><td><code>rootfs_1</code> (<code>mtd3</code>)</td><td><code>rootfs</code> (<code>mtd2</code>)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Thor and Cheetah images always run OpenWrt from <code>rootfs</code>
+  and keep <code>rootfs_1</code> read-only for the stock firmware. If the
+  stock firmware is running from <code>rootfs</code> on one of these, do not
+  install: that would overwrite the running copy of the stock firmware.
+  Upgrade the stock firmware once more instead, which switches it to
+  <code>rootfs_1</code>, and check again. Jaguar installs into whichever
+  slot is inactive. If the partition
+  numbers or names differ from the table, stop and
+  <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>.</p>
+  <h3>Selecting the FIT configuration</h3>
+  <p>Each boot command must name the FIT configuration for the exact model.
+  Rather than choosing it by hand, copy <code>select-config.sh</code> (from
+  the release, or <a href="select-config.sh">this site</a>) to
+  <code>/tmp</code> on the access point. It reads the board SKU and prints
+  the model and configuration for the image you are about to boot, warns if
+  that model is untested, and prints nothing (so the boot commands below
+  write nothing) for an unknown SKU or an image that is not built for the
+  model:</p>
+<pre>sh /tmp/select-config.sh recovery     # or installer, persistent</pre>
+  <p>The command blocks below run it for you. <strong>Check the printed
+  <code>MODEL</code> is your access point before rebooting.</strong> The
+  <a href="#bootconfigs">table at the end</a> lists every configuration.</p>
+
+  <h3 id="report">Untested models: RAM boot and send a report</h3>
+  <p>On a model that is not <em>validated</em> in the
+  <a href="#hardware">hardware table</a>, do only this: collect a report on
+  the stock firmware, RAM-boot the recovery image with your family's steps
+  below, collect a report in the booted image, and
+  <a href="https://github.com/m0vse/cambium-openwrt/issues/new/choose">open
+  a <em>Cambium hardware report</em> issue</a> with both files attached.
+  Do not install the persistent image. <code>cambium-report.sh</code> (from
+  the release, or <a href="cambium-report.sh">this site</a>) only reads: it
+  never writes flash or the U-Boot environment and copies no firmware,
+  calibration or board-data contents. It masks MAC addresses (keeping the
+  vendor half) and serial numbers; read the file before posting it.</p>
+  <p><strong>On the stock firmware</strong>, first, so the flash layout is
+  known even if the RAM boot fails:</p>
+<pre>tftp -b 8192 -g -l /tmp/cambium-report.sh -r cambium-report.sh SERVER_IP
+sh /tmp/cambium-report.sh                      # writes /tmp/cambium-report-sku*.txt
+cd /tmp &amp;&amp; for f in cambium-report-sku*.txt; do tftp -p -l "$f" -r "$f" SERVER_IP; done</pre>
+  <p>If your family's steps below find a partition layout that differs
+  from the one they expect, <strong>stop there</strong>: do not stage or
+  RAM-boot anything, and send the stock-firmware report.</p>
+  <p><strong>In the booted recovery image</strong> (OpenWrt in RAM; the LAN
+  port takes an address by DHCP and <code>root</code> has no password), from
+  your computer:</p>
+<pre>scp -O cambium-report.sh root@AP_IP:/tmp/
+ssh root@AP_IP sh /tmp/cambium-report.sh
+scp -O 'root@AP_IP:/tmp/cambium-report-sku*.txt' .</pre>
+  <p>Also note in the issue whether each Ethernet port linked and got an
+  address, what the LEDs did and whether the radios came up. A serial
+  console log of the boot is very welcome. Rebooting or power cycling
+  returns the access point to the stock firmware.</p>
+
+  <details open>
+  <summary><strong>Sage</strong> &mdash; validated on the E410 and E410B (stock firmware 4.2.3.3)</summary>
+  <p><a href="changelog.html#sage">Sage changelog</a>: what changed in each snapshot.</p>
+  <div class="note danger"><strong>E410 and E410B only.</strong> The backup,
+  install and commit commands below write raw UBI volumes laid out as on the
+  E410/E410B, and the commit helper refuses any other model. The E510 shares
+  that layout but has not been installed yet; the E600, E700, E430W and
+  E430H use a different NAND controller. On those models, use only the
+  recovery (RAM) trial and <a href="#report">send a report</a>.</div>
+  <p>The stock firmware runs from slot <code>image=0</code> or
+  <code>1</code>; OpenWrt goes into the other one. The examples assume
+  <code>image=0</code>, so slot 1 (<code>/dev/ubi0_2</code> kernel,
+  <code>/dev/ubi0_3</code> root) is written. For <code>image=1</code>, use
+  <code>/dev/ubi0_0</code>/<code>/dev/ubi0_1</code> and swap 0 and 1 in the
+  commands.</p>
+  <p><strong>Back up</strong> the environment and the inactive slot:</p>
+<pre>dd if=/dev/mtd5ro of=/tmp/appsblenv.bin
+dd if=/dev/mtd7ro of=/tmp/art.bin
+dd if=/dev/ubi0_2 of=/tmp/oem-linux1.bin bs=126976
+dd if=/dev/ubi0_3 of=/tmp/oem-rootfs1.bin bs=126976
+sha256sum /tmp/*.bin    # copy all four files off the AP</pre>
+  <p><strong>RAM boot.</strong> Sage U-Boot loads the recovery image over
+  TFTP. Put <code>...sage-recovery-initramfs-zImage.itb</code> on your TFTP
+  server as <code>sage-recovery.itb</code>. The command restores the stock
+  <code>bootcmd</code> before trying anything:</p>
+<pre>CONFIG=; eval "$(sh /tmp/select-config.sh recovery)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
+fw_setenv ipaddr AP_IP
+fw_setenv serverip SERVER_IP
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; saveenv; tftpboot 0x84000000 sage-recovery.itb &amp;&amp; bootm 0x84000000#'"$CONFIG"'; bootipq'
+fw_printenv bootcmd
+sync; reboot</pre>
+  <p><strong>Install.</strong> Copy <code>...sage-persistent-squashfs-kernel.itb</code>
+  and <code>...sage-persistent-squashfs-rootfs.ubifs</code> to
+  <code>/tmp</code>, write them into the inactive pair and read them back:</p>
+<pre>CONFIG=; eval "$(sh /tmp/select-config.sh persistent)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
+[ -n "$CONFIG" ] &amp;&amp;
+ubiupdatevol /dev/ubi0_2 /tmp/KERNEL.itb &amp;&amp;
+ubiupdatevol /dev/ubi0_3 /tmp/ROOTFS.ubifs
+sync
+head -c "$(wc -c &lt; /tmp/KERNEL.itb)" /dev/ubi0_2 | sha256sum    # must match KERNEL.itb
+head -c "$(wc -c &lt; /tmp/ROOTFS.ubifs)" /dev/ubi0_3 | sha256sum  # must match ROOTFS.ubifs
+fw_setenv owrt_trial_slot 1
+fw_setenv owrt_fallback_slot 0</pre>
+  <p>Arm a one-shot trial of slot 1 that saves the stock slot as the
+  default first:</p>
+<pre>CONFIG=; eval "$(sh /tmp/select-config.sh persistent)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
+[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; setenv image 0; setenv bootcount 0; saveenv; setenv image 1; setenv bootargs "mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs${image} rootfstype=ubifs rootwait"; nand device 1 &amp;&amp; setenv mtdids nand1=nand1 &amp;&amp; setenv mtdparts "mtdparts=nand1:0x8000000@0x0(fs)" &amp;&amp; ubi part fs &amp;&amp; ubi read 0x84000000 linux${image} &amp;&amp; bootm 0x84000000#'"$CONFIG"'; setenv image 0; bootipq'
+fw_setenv image 0
+fw_setenv bootcount 0
+fw_printenv bootcmd
+sync; reboot</pre>
+  <p><strong>Commit.</strong> In OpenWrt, set a root password, check the LAN
+  and both radios, then keep OpenWrt with the stock slot as fallback:</p>
+<pre>passwd
+sage-migration-mark-good --confirm</pre>
+  <p>Until then, any reboot returns to the stock firmware. To go back later:
+  <code>sage-migration-rollback-oem --confirm-oem</code>, then reboot.
+  Later upgrades use <code>sysupgrade</code>.</p>
+  </details>
+
+  <details id="thor">
+  <summary><strong>Thor</strong> &mdash; validated on the XV3-8 (stock firmware 7.2-r1). Not for the XE5-8.</summary>
+  <p><a href="changelog.html#thor">Thor changelog</a>: what changed in each snapshot.</p>
+  <p>The Thor persistent image is the A/B build: two OpenWrt banks, with
+  <code>sysupgrade</code> writing the inactive one and automatic rollback,
+  as on Jaguar and Cheetah. Its FIT has one configuration per bank
+  (<code>config@hk02</code> for <code>rootfs</code>,
+  <code>config@hk02-bank1</code> for <code>rootfs_1</code>). On an XV3-8 it
+  has been installed from the stock firmware, converted to two OpenWrt banks,
+  and switched from bank 0 to bank 1 by an OpenWISP sysupgrade.</p>
+  <p>OpenWrt goes into <code>rootfs</code>, so the stock firmware must be
+  running from <code>rootfs_1</code> (UBI device 0 on <code>mtd2</code>);
+  if it runs from <code>rootfs</code>, upgrade the stock firmware once more
+  first. Thor U-Boot has no working network, so RAM images are staged in an
+  <code>openwrt</code> volume in <code>rootfs</code>; its default command is
+  <code>aq_load_fw&amp;&amp;bootipq</code> and it rejects any other
+  <code>bootcmd</code> unless <code>changing_bootcmd=1</code> was saved
+  first. The installer handles all of this.</p>
+  <div class="note danger">Do not install on the XE5-8: its flash layout
+  has not been captured.</div>
+  <h4>RAM boot</h4>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram        # check run; writes nothing
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes ram</pre>
+  <h4>Install</h4>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 install
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes install</pre>
+  <p>With <code>ubiformat</code> on the stock firmware, this writes the
+  factory image into <code>rootfs</code>, hashes it back and arms the guarded
+  first boot. Without it, the installer RAM-boots once; SSH to it as
+  <code>root</code> and run the same <code>install</code> command there. In
+  OpenWrt, set a root password; <code>cat /tmp/cambium-board-data.status</code>
+  should say <code>vault</code>. Converting to two OpenWrt banks is optional:
+  it enables <code>sysupgrade</code> but removes the stock firmware, so do it
+  only once you are sure you will not need to go back. It works as on
+  <a href="#jaguar">Jaguar</a>.</p>
+  <h4>Single-bank Thor installs</h4>
+  <p>An XV3-8 installed with the earlier single-bank image boots OpenWrt
+  directly and has no device-data vault, so it cannot be converted in
+  place. Its existing <code>sysupgrade</code> still installs the new image
+  into the same bank, but to move it to A/B, reinstall it once. From its
+  OpenWrt:</p>
+<pre>sh /tmp/cambium-install.sh --yes stock        # the stock firmware becomes the default boot; reboots</pre>
+  <p>then run the install above from the stock firmware.</p>
+  </details>
+
+  <details id="jaguar">
+  <summary><strong>Jaguar</strong> &mdash; validated on the XV2-2T1 and XV2-2 (stock firmware 7.2-r1)</summary>
+  <p><a href="changelog.html#jaguar">Jaguar changelog</a>: what changed in each snapshot.</p>
+  <p>The Jaguar persistent image is the A/B build: two OpenWrt banks, with
+  <code>sysupgrade</code> writing the inactive one and automatic rollback.
+  On the XV2-2 and XV2-2T1 it is installed with the installer, and the XV2-2
+  has been converted to two OpenWrt banks and switched banks with a
+  sysupgrade, its device-data vault intact. On the XV2-2T0, XE3-4 and
+  XE3-4TN the install is untested and needs <code>--trial</code>; only trial
+  a unit you can recover. The persistent RAM test image is only in the
+  build's <code>cambium-jaguar</code> Actions artifact
+  (<code>test-only/</code>, with its <code>test-only-SHA256SUMS</code>).</p>
+  <p>Jaguar models differ: the XV2-2 has a 128&nbsp;MiB NAND with two
+  52&nbsp;MiB banks (slot 1 at <code>0x3400000</code>), the others two
+  96&nbsp;MiB banks (slot 1 at <code>0x6000000</code>). The installer checks
+  the layout against the model and works in whichever slot the stock
+  firmware is <em>not</em> running from, in either direction: the XV2-2
+  usually runs its stock firmware from <code>rootfs</code>, the XV2-2T1 from
+  <code>rootfs_1</code>. Use the <a href="#installer">installer</a> for every
+  step below that writes flash.</p>
+
+  <h4>RAM boot</h4>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram        # check run: layout, slot, image hashes; backs up and uploads; writes nothing
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes ram</pre>
+  <p>On a stock XV2-2 the inactive slot's firmware copy leaves too little free
+  space for the RAM image (23 free eraseblocks on the tested unit). The check
+  run then says how many are free and needed; to erase that slot (it is
+  backed up) and stage the image there, add <code>--format-inactive</code>:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --format-inactive --yes ram</pre>
+  <p>In the booted image (DHCP on the LAN port, <code>root</code> without a
+  password), <a href="#report">run the hardware report</a>. Any reboot or
+  power cycle returns to the stock firmware.</p>
+
+  <h4>Persistent RAM test</h4>
+  <p>The A/B trees in RAM, with no firmware bank attached (put the test-only
+  <code>...jaguar-persistent-initramfs-uImage.itb</code> in the served
+  folder):</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --trial --persistent-test --yes ram</pre>
+  <p>In it, confirm the model, that both firmware banks show the writable
+  flag (<code>0x400</code> set) and that NVRAM, crash log and ART do not. Run
+  nothing that writes flash in it:</p>
+<pre>cat /tmp/sysinfo/board_name /proc/cmdline         # the model; no ubi.mtd= on the command line
+for i in $(sed -n 's/^mtd\([0-9]*\):.*"\(rootfs\|rootfs_1\|NVRAM\|0:NVRAM\|crashLog\|crashlog\|0:ART\)"$/\1/p' /proc/mtd); do
+  echo "mtd$i $(cat /sys/class/mtd/mtd$i/name) flags=$(cat /sys/class/mtd/mtd$i/flags)"; done
+ls /sys/class/ubi    # nothing attached</pre>
+
+  <h4>Persistent install</h4>
+  <p>Writes <code>factory.ubi</code> over the inactive slot, hashes its kernel
+  and root filesystem back, and arms the guarded first boot. Until
+  conversion, every boot first restores the stock <code>bootcmd</code>;
+  OpenWrt re-arms its boot after each healthy start, and an unhealthy start
+  returns to the stock firmware:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 install                                  # check run
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes install          # add --trial on the XV2-2T0, XE3-4 and XE3-4TN</pre>
+  <p>In OpenWrt, set a root password and check the device-data vault, the
+  guard and the radios. On this first boot the board file is copied from
+  the stock firmware's slot into this bank's vault:</p>
+<pre>passwd
+cat /etc/cambium-openwrt-release
+cat /tmp/cambium-board-data.status      # vault: board file copied into this bank's vault
+cambium-ab-status                        # mode=oem-fallback, running = the slot OpenWrt was installed in
+logread -e cambium-ab-guard              # "healthy; guarded OpenWrt boot of slot N rearmed" within 5 minutes
+iw dev</pre>
+
+  <h4>Convert to two OpenWrt banks (optional)</h4>
+  <p><strong>Conversion is optional.</strong> Until you convert, the stock
+  firmware stays in the other bank: an unhealthy start returns to it, and
+  <code>cambium-install.sh stock</code> makes it the default again. All you
+  give up is <code>sysupgrade</code>; upgrade by reinstalling from the stock
+  firmware instead. Convert only once you are sure you will not need the
+  stock firmware again.</p>
+  <p>Images built before 25 September 2026 name the commands below
+  <code>jaguar-ab-convert</code> and <code>jaguar-ab-status</code>; newer
+  ones <code>cambium-ab-convert</code> and <code>cambium-ab-status</code>,
+  the same on every family.</p>
+  <p>This replaces the stock firmware in the other bank with a copy of the
+  running OpenWrt bank, after which the access point has no stock firmware
+  on flash. Returning to stock then means writing your backup back, which
+  has not been tested yet: only convert a unit you can recover, and open an
+  issue first if unsure. From your computer, back up the stock bank as
+  OpenWrt sees it now (it is not attached, so it does not change):</p>
+<pre>ssh root@AP_IP 'grep -q "ubi.mtd=rootfs_1" /proc/cmdline &amp;&amp; S=rootfs || S=rootfs_1; sed -n "s/^mtd\([0-9]*\):.*\"$S\"\$/\1/p" /proc/mtd' &gt; stock-mtd
+N=$(cat stock-mtd); echo "stock firmware bank: mtd$N"
+ssh root@AP_IP "cat /sys/class/ubi/ubi*/mtd_num"   # mtd$N must not be listed
+ssh root@AP_IP "cat /dev/mtd$N" &gt; jaguar-oem-bank.bin
+sha256sum jaguar-oem-bank.bin
+ssh root@AP_IP "sha256sum /dev/mtd$N"            # must match; keep the file safe</pre>
+  <p>Then, in OpenWrt, convert with that hash:</p>
+<pre>cambium-ab-convert --oem-sha256 HASH --yes          # add --allow-untested on any model but the XV2-2 and XV2-2T1
+cambium-ab-status                                   # mode=ab, confirmed = the running slot
+reboot                                             # must come back on the same slot</pre>
+
+  <h4>A/B sysupgrade</h4>
+  <p><code>sysupgrade</code> runs the upgrade scripts of the <em>running</em>
+  system, not those in the new image. An AP installed from a build before
+  snapshot 2026.09.24 evening lacks the stage-2 fix (the first XV2-2 upgrade
+  formatted the inactive bank and then stopped), so install the current
+  release's Jaguar upgrade scripts on it first. The command checks, keeps
+  the old copies and verifies the new ones load:</p>
+<pre>wget -O /tmp/cambium-install.sh http://COMPUTER_IP:8000/cambium-install.sh
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 update-upgrader                  # check run
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes update-upgrader</pre>
+  <p>Then upgrade. It writes the inactive bank, reads it back, and arms a
+  one-shot trial of it; the old bank stays the default until the new one
+  passes its checks (slot, overlay, DHCP on the LAN, device-data vault),
+  within about five minutes of booting. If a step fails,
+  <code>cambium-ab-status</code> shows the failing command, its exit status
+  and its error in <code>last_failure</code>:</p>
+<pre>scp -O openwrt-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-squashfs-sysupgrade.bin root@AP_IP:/tmp/sysupgrade.bin
+ssh root@AP_IP sysupgrade -T /tmp/sysupgrade.bin     # the image check alone
+ssh root@AP_IP sysupgrade -v /tmp/sysupgrade.bin     # keeps settings; add -n to reset them
+ssh root@AP_IP cambium-ab-status                      # a few minutes later: running = confirmed = the new slot</pre>
+  <p><strong>Rollback.</strong> To check it on your own unit, upgrade and make the trial fail:
+  cut the power while the new bank is booting, before
+  <code>cambium-ab-status</code> would show it confirmed, or keep it from
+  getting a DHCP lease so its health check fails and it reboots after five
+  minutes. The access point must come back on the old bank with the failure
+  recorded:</p>
+<pre>ssh root@AP_IP cambium-ab-status     # state=rolled-back, last_failure=..., running and confirmed = the old slot
+ssh root@AP_IP fw_printenv bootcmd  # run jaguar_stableN for the old slot</pre>
+  <p>Settings follow the upgrade unless <code>-n</code> is given, and
+  <code>cat /tmp/cambium-board-data.status</code> still says
+  <code>vault</code> afterwards. Please report any failure in an issue.</p>
+  </details>
+
+  <details id="cheetah">
+  <summary><strong>Cheetah</strong> &mdash; validated on the XV2-21X (stock firmware 7.2-r1)</summary>
+  <p><a href="changelog.html#cheetah">Cheetah changelog</a>: what changed in each snapshot.</p>
+  <p>The Cheetah persistent image is now the same A/B build as Jaguar's: two
+  OpenWrt banks, <code>sysupgrade</code> writing the inactive one, and
+  automatic rollback. Its boot command sets the kernel arguments for the
+  bank. On an XV2-21X it has been installed from the stock firmware,
+  converted to two OpenWrt banks, and switched from bank 0 to bank 1 by an
+  OpenWISP sysupgrade. On the XV2-22H and XV2-23T it is untested, and the
+  install needs <code>--trial</code>; only trial a unit you can recover. Cheetah's banks are 96&nbsp;MiB, <code>rootfs</code> at NAND
+  <code>0x80000</code> and <code>rootfs_1</code> at <code>0x6080000</code>;
+  OpenWrt is installed into <code>rootfs</code>, so the stock firmware must
+  be running from <code>rootfs_1</code>. Use the
+  <a href="#installer">installer</a> for every step that writes flash.</p>
+
+  <h4>RAM boot</h4>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram        # check run: layout, slot, image hashes; backs up and uploads; writes nothing
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes ram</pre>
+  <p>In the booted image, <a href="#report">run the hardware report</a>. Any
+  reboot or power cycle returns to the stock firmware.</p>
+
+  <h4>Persistent install</h4>
+  <p>Writes <code>factory.ubi</code> over <code>rootfs</code>, hashes its
+  kernel and root filesystem back, and arms the guarded first boot. Until
+  conversion, every boot first restores the stock <code>bootcmd</code>;
+  OpenWrt re-arms its boot after each healthy start (on the XV2-21X that
+  includes both radios), and an unhealthy start returns to the stock
+  firmware:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 install              # check run; add --trial on the XV2-22H and XV2-23T
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes install</pre>
+  <p>In OpenWrt, set a root password and check the device-data vault, the
+  guard and the radios:</p>
+<pre>passwd
+cat /tmp/cambium-board-data.status      # vault: both board files copied into this bank's vault
+cambium-ab-status                       # family=cheetah, mode=oem-fallback, running=0
+logread -e cambium-ab-guard             # "healthy; guarded OpenWrt boot of slot 0 rearmed" within 5 minutes
+iw dev</pre>
+
+  <h4>Convert to two OpenWrt banks (optional)</h4>
+  <p><strong>Conversion is optional.</strong> Until you convert, the stock
+  firmware stays in the other bank: an unhealthy start returns to it, and
+  <code>cambium-install.sh stock</code> makes it the default again. All you
+  give up is <code>sysupgrade</code>; upgrade by reinstalling from the stock
+  firmware instead. Convert only once you are sure you will not need the
+  stock firmware again.</p>
+  <p>Replaces the stock firmware in <code>rootfs_1</code> with a copy of the
+  running OpenWrt bank; afterwards only your off-device backup can bring the
+  stock firmware back. From your computer, back up the stock bank:</p>
+<pre>N=$(ssh root@AP_IP "sed -n 's/^mtd\([0-9]*\):.*\"rootfs_1\"\$/\1/p' /proc/mtd"); echo "stock bank: mtd$N"
+ssh root@AP_IP "cat /dev/mtd$N" &gt; cheetah-oem-rootfs_1.bin
+sha256sum cheetah-oem-rootfs_1.bin
+ssh root@AP_IP "sha256sum /dev/mtd$N"            # must match; keep the file safe</pre>
+  <p>Then, in OpenWrt:</p>
+<pre>cambium-ab-convert --oem-sha256 HASH --yes          # add --allow-untested on the XV2-22H and XV2-23T
+cambium-ab-status                                  # mode=ab, confirmed=0
+reboot                                             # must come back on slot 0</pre>
+
+  <h4>A/B sysupgrade</h4>
+  <p>The same as Jaguar: the inactive bank is written and read back, a
+  one-shot trial boots it, and the guard commits it once healthy or the AP
+  returns to the old bank. <code>cambium-ab-status</code> shows the result,
+  and the failing command and its error in <code>last_failure</code> if a
+  step fails:</p>
+<pre>wget -O /tmp/sysupgrade.bin http://COMPUTER_IP:8000/openwrt-qualcommax-ipq50xx-cambiumnetworks_cheetah-persistent-squashfs-sysupgrade.bin
+sysupgrade -T /tmp/sysupgrade.bin
+sysupgrade /tmp/sysupgrade.bin                     # keeps settings; add -n to reset them
+cambium-ab-status                                  # a few minutes later: running = confirmed = the new slot</pre>
+  </details>
+
+  <h3>After the first boot (all families)</h3>
+  <p>Set a root password with <code>passwd</code>, then check
+  <code>cat /tmp/cambium-board-data.status</code> (should be
+  <code>vault</code> on Thor, Jaguar and Cheetah),
+  <code>cat /etc/cambium-openwrt-release</code> and the radios with
+  <code>iw dev</code>. Configure the network or OpenWISP as required.</p>
+
+  <h3 id="bootconfigs">Boot configurations</h3>
+  <p>Each one-shot command names a FIT configuration. Use the one for your
+  model:</p>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Family</th><th>Model &rarr; configuration</th></tr></thead>
+    <tbody>
+      <tr><td class="fam">Sage</td><td>E410 <code>config@5</code>, E600 <code>config@10</code>, E430W <code>config@13</code>, E700 <code>config@14</code>, E430H <code>config@15</code>, E510 <code>config@16</code>, E410B <code>config@5</code> / <code>config@ap.dk01.1-c2</code> (same as the E410)</td></tr>
+      <tr><td class="fam">Thor</td><td>XV3-8 <code>config@hk02</code> (A/B bank 1: <code>config@hk02-bank1</code>), XE5-8 <code>config@hk01.c6</code> (recovery only)</td></tr>
+      <tr><td class="fam">Jaguar</td><td>XV2-2 <code>config@cp01-c1</code>, XV2-2T0 <code>config@cp01-c1-1</code>, XV2-2T1 <code>config@cp01-c1-2</code>, XE3-4 <code>config@cp01-c3-xv3-4</code>, XE3-4TN <code>config@cp01-c3-2</code></td></tr>
+      <tr><td class="fam">Cheetah</td><td>XV2-21X <code>config@mp03.3-ocelot</code>, XV2-22H <code>config@mp03.3-cheetah</code>, XV2-23T <code>config@mp03.3-lynx</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="upgrade">
+  <h2>Upgrade &amp; rollback</h2>
+  <h3>Upgrading</h3>
+  <ul>
+    <li><strong>Sage</strong> uses <code>sysupgrade</code> with the family
+    <code>sysupgrade.bin</code>, from LuCI, the command line or OpenWISP, on
+    the E410, E410B and E510 (the E410-layout models). On the E600, E700, E430W
+    and E430H it refuses to write anything until their layout is captured.
+    Sage now uses the same A/B code as the other families: it writes the
+    volume pair OpenWrt is not running from, trial-boots it, and the guard
+    commits it once the network, both radios and (on a managed AP) OpenWISP
+    are healthy, or returns to the old pair; <code>cambium-ab-status</code>
+    shows the result. An E410 on an image from before this code (snapshot
+    2026.09.25.2 or earlier) needs nothing extra: its next
+    <code>sysupgrade</code> installs the new image, which adopts the earlier
+    upgrade state on its first healthy boot; this is validated on an E410,
+    which then also switched pairs through the shared code. <strong>The first
+    upgrade after migration replaces the
+    stock firmware</strong>; from then on the two pairs alternate between
+    OpenWrt versions. Go back to the stock firmware first if you might still
+    want it.</li>
+    <li><strong>Jaguar</strong>, after conversion to two OpenWrt banks, uses
+    <code>sysupgrade</code> with the family <code>sysupgrade.bin</code>, on
+    the XV2-2 and XV2-2T1: it writes the inactive bank, trial-boots it and
+    rolls back automatically if the new bank fails its checks. See the
+    <a href="#jaguar">Jaguar steps</a>.</li>
+    <li><strong>Thor</strong> (validated on the XV3-8) and <strong>Cheetah</strong>
+    (validated on the XV2-21X) have the same A/B <code>sysupgrade</code>
+    after conversion; see the <a href="#thor">Thor</a> and
+    <a href="#cheetah">Cheetah steps</a>.
+    Before conversion, a Thor, Jaguar or Cheetah is upgraded by reinstalling
+    the persistent image from the stock firmware (<code>cambium-install.sh
+    stock</code> returns to it). An XV3-8 still on the single-bank image
+    sysupgrades in place to the new image, then reinstalls once to move to
+    A/B.</li>
+    <li>Kernel modules must come from the same snapshot as the running image.
+    The feed for each snapshot is configured in the image; feeds for the two
+    most recent snapshots are kept online.</li>
+  </ul>
+  <h3>Going back to the stock firmware</h3>
+  <p>Until a Sage upgrade or a Jaguar conversion has replaced it, the stock
+  firmware is still in its slot. From OpenWrt:</p>
+<pre># Sage (after migration, before any sysupgrade)
+sage-migration-rollback-oem --confirm-oem
+
+# Thor, Jaguar and Cheetah before conversion (reboots)
+sh /tmp/cambium-install.sh --yes stock</pre>
+  <p>It restores the stock boot command and clears the
+  <code>changing_bootcmd</code> marker. The install never changes the U-Boot
+  <code>image</code> variable, so it still names the stock firmware's slot.</p>
+</section>
+
+<section id="safety">
+  <h2>Safety rules</h2>
+  <ol>
+    <li>Never erase or overwrite the bootloader, U-Boot environment or ART
+    partitions. Setting individual boot variables with
+    <code>fw_setenv</code> is part of the process; rewriting the partitions
+    is not.</li>
+    <li>Keep a verified backup of every unit before writing anything.</li>
+    <li>On a model that is not validated, use only the recovery (RAM) image
+    and <a href="#report">send a report</a>; never install the persistent
+    image on it.</li>
+    <li>Treat calibration and manufacturing data as unique to each unit; never
+    copy them between access points.</li>
+    <li>Keep the stock firmware slot intact until OpenWrt has proven itself on
+    that model.</li>
+    <li>Only RAM-boot units you can recover locally, and watch the boot on a
+    serial console if you can.</li>
+  </ol>
+</section>
+
+<section id="help">
+  <h2>Help wanted: hardware for validation</h2>
+  <p>Every model marked <span class="pill untested">untested</span> or
+  <span class="pill none">no build yet</span> is waiting for a unit to test
+  on. If you have one you could send for validation, spare, retired or
+  faulty-but-booting, it would be most welcome: each unit tested moves a
+  model to <span class="pill ok">validated</span> for everyone.</p>
+  <p>Please <a href="https://github.com/m0vse/cambium-openwrt/issues">open an
+  issue</a> with the model and its condition, and we can arrange the details.
+  Reports from your own units are just as welcome: RAM-boot the recovery
+  image and <a href="#report">send a hardware report</a>.</p>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    Built from <a href="https://github.com/m0vse/cambium-openwrt">m0vse/cambium-openwrt</a>,
+    a fork of <a href="https://openwrt.org/">OpenWrt</a>. OpenWrt is free
+    software licensed mainly under the GPL. Cambium Networks, cnPilot and
+    cnMaestro are trademarks of their owners; this project is independent of
+    them.
+  </div>
+</footer>
+
+<script>
+(function () {
+  var box = document.getElementById('builds');
+  var repo = 'https://github.com/m0vse/cambium-openwrt';
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+  fetch('builds.json', {cache: 'no-cache'}).then(function (r) {
+    if (!r.ok) throw new Error(r.status); return r.json();
+  }).then(function (data) {
+    var builds = (data && data.builds) || [];
+    if (!builds.length) throw new Error('empty');
+    var rows = builds.map(function (b, i) {
+      var feeds = (b.families || []).map(function (f) {
+        return '<a href="' + esc(b.build_id) + '/' + esc(f) + '/">' + esc(f) + '</a>';
+      }).join(', ');
+      return '<tr><td><a href="' + repo + '/releases/tag/snapshot-' + esc(b.build_id) + '">' +
+        esc(b.build_id) + '</a>' + (i === 0 ? ' <span class="pill ok">latest</span>' : '') +
+        '</td><td>' + esc((b.families || []).join(', ')) + '</td><td>' + feeds + '</td></tr>';
+    }).join('');
+    box.innerHTML = '<table class="downloads"><thead><tr><th>Snapshot</th><th>Families</th>' +
+      '<th>Package feeds</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<p>Older images: <a href="' + repo + '/releases">all releases</a>.</p>';
+  }).catch(function () {
+    box.innerHTML = '<p>See the <a href="' + repo + '/releases">releases page</a> for the latest images.</p>';
+  });
+})();
+</script>
+</body>
+</html>
