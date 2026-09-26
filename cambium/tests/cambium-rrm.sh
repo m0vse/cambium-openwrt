@@ -155,6 +155,12 @@ case "$1" in
 esac
 EOS
 printf '#!/bin/sh\necho "$*" >> "$SIM/log"\n' > "$W/bin/logger"
+# curl: records its arguments; answers with the HTTP code in $SIM/state/http.
+cat > "$W/bin/curl" <<'EOS'
+#!/bin/sh
+echo "$*" >> "$SIM/state/curl"
+cat "$SIM/state/http" 2>/dev/null || printf 000
+EOS
 cat > "$W/bin/ip" <<'EOS'
 #!/bin/sh
 echo "ip $*" >> "$SIM/calls"
@@ -272,6 +278,32 @@ check "XV3-8 at a scan time" 0 agent --once
 assert "its serving radios never scan" [ -z "$(scans)" ]
 jcheck "its neighbours are the scanning radio's" 'len(d["neighbours"]) == 4 and all(x["radio"] == "phy0" for x in d["neighbours"])'
 rm -f "$W/clock" "$W/uci"
+
+# --- sending the measurement to OpenWISP ------------------------------------------------------
+setup cambiumnetworks,xv2-21x
+: > "$W/uci"; rm -f "$W/log"
+check "an AP not registered with OpenWISP" 0 agent --once
+assert "sends nothing" [ ! -f "$W/state/curl" ]
+printf '%s\n' 'openwisp.http.url=https://ow.example/' 'openwisp.http.uuid=d0c5e1a2-0000-4000-8000-000000000001' \
+	'openwisp.http.key=s3cret' > "$W/uci"
+echo 201 > "$W/state/http"
+check "a registered AP" 0 agent --once
+assert "posts latest.json to its own RRM address" grep -q -- "--data-binary @$W/rrm/latest.json https://ow.example/api/v1/cambium/rrm/d0c5e1a2-0000-4000-8000-000000000001/" "$W/state/curl"
+assert "with its device key in a header, not the address" grep -q -- "-H X-Cambium-Key: s3cret" "$W/state/curl"
+assert "and certificate checks on" sh -c "! grep -q -- ' -k ' '$W/state/curl'"
+assert "the outcome is logged" [ "$(grep -c 'upload to OpenWISP: HTTP 201' "$W/log")" = 1 ]
+check "a second send" 0 agent --once
+assert "the same outcome is not logged again" [ "$(grep -c 'upload to OpenWISP' "$W/log")" = 1 ]
+echo 404 > "$W/state/http"
+check "a server without the endpoint" 0 agent --once
+assert "a new outcome is logged" grep -q 'upload to OpenWISP: HTTP 404' "$W/log"
+echo 'openwisp.http.verify_ssl=0' >> "$W/uci"
+check "with verify_ssl off" 0 agent --once
+assert "certificate checks follow openwisp-config" [ "$(tail -n 1 "$W/state/curl" | grep -c -- '-k ')" = 1 ]
+echo 'cambium_rrm.agent.upload=0' >> "$W/uci"; rm -f "$W/state/curl"
+check "with upload switched off" 0 agent --once
+assert "sends nothing" [ ! -f "$W/state/curl" ]
+rm -f "$W/uci"
 
 # --- the scanning radio in /etc/config/wireless ---------------------------------------------
 hotplug() { ACTION=add DEVPATH="/devices/$PCIE/ieee80211/phy0" RRM_SYSROOT=$W/sys sh "$pkg/20-cambium-scan-radio"; }
