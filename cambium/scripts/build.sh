@@ -251,22 +251,6 @@ sysupgrade=$(image "*cambiumnetworks_$family-persistent-squashfs-sysupgrade.bin"
 tar -xOf "$sysupgrade" "$(tar -tf "$sysupgrade" | grep '/root$' | head -n 1)" > "$work/persistent-root" ||
 	fail "cannot read the root filesystem of ${sysupgrade##*/}"
 gate "$work/persistent-root" "${sysupgrade##*/}" "$name persistent sysupgrade.bin"
-if [ "$family" = thor ]; then
-	# The hardware test images: the same checks as the persistent image,
-	# plus what each test adds.
-	for test in aux-test:"kmod-ath10k-ct ath10k-firmware-qca9887-ct"; do
-		name=${test%%:*}
-		img=$(image "*cambiumnetworks_thor-$name-squashfs-sysupgrade.bin")
-		tar -xOf "$img" "$(tar -tf "$img" | grep '/root$' | head -n 1)" > "$work/$name-root" ||
-			fail "cannot read the root filesystem of ${img##*/}"
-		UNSQUASHFS=staging_dir/host/bin/unsquashfs4 \
-			sh cambium/scripts/rootfs-gate.sh "$work/$name-root" "$work/manifests/${img##*/}.manifest" \
-			"Thor $name sysupgrade.bin" cambium-thor-support cambium-ab ${test#*:} ||
-			fail "the Thor $name image failed the package gate"
-		tar -xOf "$img" "$(tar -tf "$img" | grep '/kernel$' | head -n 1)" > "$work/$name-kernel.itb"
-		THOR_FLAVOR=ab sh "$verify" "$work/$name-kernel.itb"
-	done
-fi
 if [ "$family" = sage ]; then
 	rootfs=$(image '*cambiumnetworks_sage-persistent-squashfs-rootfs.ubifs')
 	gate "$rootfs" "${rootfs##*/}" "Sage persistent rootfs.ubifs"
@@ -312,14 +296,7 @@ if [ -f "$module" ]; then
 	cp "$module" "$output/images/cambium-ab-$family.sh"
 fi
 # Test images go only to the CI artifact (test-only/), never to a release:
-# a RAM build of the Jaguar persistent trees, and the Thor hardware test
-# sysupgrade images.
-if [ "$family" = thor ]; then
-	mkdir -p "$output/test-only"
-	cp "$bin_dir/"*cambiumnetworks_thor-*-test-squashfs-sysupgrade.bin \
-		"$work/manifests/"*-test-squashfs-*.manifest "$output/test-only/"
-	(cd "$output/test-only" && sha256sum -- * > test-only-SHA256SUMS)
-fi
+# a RAM build of the Jaguar persistent trees.
 if [ "$family" = jaguar ]; then
 	mkdir -p "$output/test-only"
 	cp "$bin_dir/"*cambiumnetworks_jaguar-persistent-initramfs-uImage.itb "$output/test-only/"
