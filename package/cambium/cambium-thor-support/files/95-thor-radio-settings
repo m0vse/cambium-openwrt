@@ -6,13 +6,6 @@ case "$ACTION" in
 		# defaults. Dropbear deliberately ignores authorized_keys unless the
 		# directory is writable only by root.
 		chmod 0700 /etc/dropbear 2>/dev/null || true
-		if [ -s /etc/dropbear/recovery_authorized_key ]; then
-			while IFS= read -r recovery_key; do
-				[ -n "$recovery_key" ] || continue
-				grep -qxF "$recovery_key" /etc/dropbear/authorized_keys 2>/dev/null ||
-					printf '\n%s\n' "$recovery_key" >>/etc/dropbear/authorized_keys
-			done </etc/dropbear/recovery_authorized_key
-		fi
 		chmod 0600 /etc/dropbear/authorized_keys 2>/dev/null || true
 		/usr/sbin/thor-radio-settings sync
 		;;
