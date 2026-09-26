@@ -2,7 +2,7 @@
 
 XV3-8 (validated); XE5-8 (RAM boot only).
 
-## Unreleased
+## 2026.09.26.2
 
 - The XV3-8's QCA9887 scanning radio is enabled in the persistent image
   (PCIe 1, ath10k, with this unit's own calibration from ART). It serves no
