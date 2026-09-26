@@ -59,9 +59,18 @@ ab_image_extract() {
 	# A FIT node name follows the FDT_BEGIN_NODE token, which ends in 0x01.
 	tr '\000' '\n' < "$AB_KERNEL" | grep -q "^$(printf '\001')$AB_FIT\$" ||
 		ab_fail "FIT lacks $AB_FIT for $AB_MODEL" || return 1
-	[ "$(head -c 4 "$AB_ROOT")" = hsqs ] || ab_fail "root is not SquashFS" || return 1
+	if [ "$AB_ROOT_MAGIC" = hsqs ]; then
+		[ "$(head -c 4 "$AB_ROOT")" = hsqs ] || ab_fail "root is not SquashFS" || return 1
+	else
+		[ "$(hexdump -n 4 -v -e '4/1 "%02x"' "$AB_ROOT")" = "$AB_ROOT_MAGIC" ] ||
+			ab_fail "root is not the $AB_NAME root filesystem type" || return 1
+	fi
 	AB_KERNEL_SIZE=$(wc -c < "$AB_KERNEL")
 	AB_ROOT_SIZE=$(wc -c < "$AB_ROOT")
+	if ab_hook image_fits; then
+		"ab_${AB_FAMILY}_image_fits" "$AB_KERNEL_SIZE" "$AB_ROOT_SIZE" || return 1
+		return 0
+	fi
 	[ $(( $(ab_lebs "$AB_KERNEL_SIZE") + $(ab_lebs "$AB_ROOT_SIZE") + \
 		$(ab_vault_lebs) + AB_MIN_DATA_LEBS )) -le "$AB_BANK_LEBS" ] ||
 		ab_fail "image does not fit this $AB_MODEL bank ($AB_BANK_LEBS LEBs) with the vault and overlay" || return 1
@@ -71,11 +80,13 @@ ab_image_extract() {
 ab_upgrade_preflight() {
 	local state
 	ab_identity || return 1
-	ab_converted ||
+	# A pair-layout family (Sage) has no conversion step: writing the other
+	# slot replaces whatever it held, as its first upgrade always has.
+	[ "$AB_LAYOUT" = pair ] || ab_converted ||
 		ab_fail "this AP still has one OEM slot; run cambium-ab-convert first" || return 1
 	ab_mtd_writable "$AB_TARGET_MTD" ||
 		ab_fail "target bank $AB_TARGET_PART is read-only (not an A/B image)" || return 1
-	[ "$(ab_getenv changing_bootcmd)" = 1 ] ||
+	[ "$AB_MARKER" != 1 ] || [ "$(ab_getenv changing_bootcmd)" = 1 ] ||
 		ab_fail "changing_bootcmd is not saved" || return 1
 	state=$(ab_getenv ${AB_ENV}_ab_state)
 	case "$state" in
@@ -180,6 +191,14 @@ cambium_ab_do_upgrade() {
 	rm -f "$batch"
 
 	echo "cambium-ab: writing slot $AB_TARGET ($AB_TARGET_PART) from slot $AB_ACTIVE"
+	if ab_hook write_target; then
+		"ab_${AB_FAMILY}_write_target" || return 1
+		sync
+		ab_arm_trial ||
+			{ ab_record_failure write-failed "cannot arm the trial of slot $AB_TARGET"; return 1; }
+		echo "cambium-ab: slot $AB_TARGET armed for one trial boot; slot $AB_ACTIVE stays the default until it is confirmed"
+		return 0
+	fi
 	ab_prepare_bank "$AB_KERNEL_SIZE" "$AB_ROOT_SIZE" ||
 		{ ab_record_failure write-failed "cannot format slot $AB_TARGET"; return 1; }
 	ab_step "ubiupdatevol kernel" ubiupdatevol "$dev/${AB_TARGET_UBI}_0" "$AB_KERNEL" &&
