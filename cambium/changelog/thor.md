@@ -13,8 +13,13 @@ XV3-8 (validated); XE5-8 (RAM boot only).
   settings (they are matched by hardware path, so their phy numbers moving
   up does not matter). Tested on an XV3-8 with a scan every minute
   alongside normal service.
-- The scanning-radio test image is retired; the auxiliary-port test image
-  now includes the scanning radio too.
+- The XV3-8's auxiliary 1 GbE port (`lan`) is enabled. A fresh install
+  bridges it with `lan-multigig`, with untagged VLAN 1 on both. An
+  upgraded AP keeps its saved network settings, so the port stays unused
+  until its config adds it (for an OpenWISP-managed AP, the XV3-8 trunk
+  template). Tested on an XV3-8: the link comes up at 1 Gb/s full duplex.
+- Both XV3-8 test images (scanning radio, auxiliary port) are retired: the
+  released image now has both.
 
 ## 2026.09.26.1
 
