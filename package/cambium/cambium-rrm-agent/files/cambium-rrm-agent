@@ -20,15 +20,40 @@
 . "${CAMBIUM_SYSTEM_FUNCTIONS:-/lib/functions/system.sh}"
 . "${CAMBIUM_RRM_LIB:-/lib/functions/cambium-rrm.sh}"
 
-case "${1:-}" in
---once)
+# One measurement at a time: a run by hand waits for the service's current
+# one (they would share the scanning interface and the output files). A lock
+# left by a run that died is stale after ten minutes.
+lock=$RRM_OUT/lock
+run() {
+	local waited=0
+	mkdir -p "$RRM_OUT"
+	until mkdir "$lock" 2>/dev/null; do
+		if [ -n "$(find "$lock" -maxdepth 0 -mmin +10 2>/dev/null)" ]; then
+			rm -rf "$lock"
+		elif [ "$waited" -ge 60 ]; then
+			echo "cambium-rrm-agent: another measurement is still running" >&2
+			return 1
+		else
+			sleep 2
+			waited=$((waited + 2))
+		fi
+	done
+	# The lock is this run's now: release it however the run ends.
+	trap 'rmdir "$lock" 2>/dev/null' EXIT
+	trap 'exit 0' INT TERM
 	rrm_measure
 	rrm_upload || :
+	rmdir "$lock"
+	trap - EXIT
+}
+
+case "${1:-}" in
+--once)
+	run
 	;;
 --loop)
 	while :; do
-		rrm_measure
-		rrm_upload || :
+		run
 		interval=$(uci -q get cambium_rrm.agent.interval)
 		case "$interval" in ''|*[!0-9]*) interval=300 ;; esac
 		[ "$interval" -ge 60 ] || interval=60
