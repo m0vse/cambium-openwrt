@@ -23,7 +23,8 @@ ab_cheetah_board() {
 	AB_PROTECTED='0:TRAINING 0:NVRAM crashLog 0:ART'
 	case "$1" in
 	cambiumnetworks,xv2-21x)
-		AB_MODEL=XV2-21X; AB_SKU=00000023; AB_FIT=config@mp03.3-ocelot
+		# Installed, converted and bank-switched by sysupgrade on hardware.
+		AB_MODEL=XV2-21X; AB_SKU=00000023; AB_FIT=config@mp03.3-ocelot; AB_QUALIFIED=1
 		# Managed on the VLAN-1 bridge; both radios are validated.
 		AB_LAN='br-lan.1 br-lan'
 		AB_RADIOS=2
