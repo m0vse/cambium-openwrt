@@ -240,9 +240,12 @@ done
 gate() { # gate ROOT IMAGE_NAME LABEL
 	UNSQUASHFS=staging_dir/host/bin/unsquashfs4 UBIREADER_EXTRACT=${UBIREADER_EXTRACT:-ubireader_extract_files} \
 		sh cambium/scripts/rootfs-gate.sh "$1" "$work/manifests/$2.manifest" "$3" \
-		cambium-$family-support cambium-ab ||
+		cambium-$family-support cambium-ab $gate_extra ||
 		fail "the $3 root filesystem failed the package gate"
 }
+# Thor's persistent image also carries the scanning radio's driver.
+gate_extra=
+[ "$family" = thor ] && gate_extra="kmod-ath10k-ct ath10k-firmware-qca9887-ct"
 mkdir -p "$work/manifests"
 sysupgrade=$(image "*cambiumnetworks_$family-persistent-squashfs-sysupgrade.bin")
 tar -xOf "$sysupgrade" "$(tar -tf "$sysupgrade" | grep '/root$' | head -n 1)" > "$work/persistent-root" ||
@@ -251,7 +254,7 @@ gate "$work/persistent-root" "${sysupgrade##*/}" "$name persistent sysupgrade.bi
 if [ "$family" = thor ]; then
 	# The hardware test images: the same checks as the persistent image,
 	# plus what each test adds.
-	for test in scan-test:"kmod-ath10k-ct ath10k-firmware-qca9887-ct" aux-test:; do
+	for test in aux-test:"kmod-ath10k-ct ath10k-firmware-qca9887-ct"; do
 		name=${test%%:*}
 		img=$(image "*cambiumnetworks_thor-$name-squashfs-sysupgrade.bin")
 		tar -xOf "$img" "$(tar -tf "$img" | grep '/root$' | head -n 1)" > "$work/$name-root" ||
@@ -309,8 +312,8 @@ if [ -f "$module" ]; then
 	cp "$module" "$output/images/cambium-ab-$family.sh"
 fi
 # Test images go only to the CI artifact (test-only/), never to a release:
-# a RAM build of the Jaguar persistent trees, and the Thor scanning-radio
-# sysupgrade image.
+# a RAM build of the Jaguar persistent trees, and the Thor hardware test
+# sysupgrade images.
 if [ "$family" = thor ]; then
 	mkdir -p "$output/test-only"
 	cp "$bin_dir/"*cambiumnetworks_thor-*-test-squashfs-sysupgrade.bin \
