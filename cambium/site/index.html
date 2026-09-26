@@ -143,7 +143,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
       <tr><td>XV2-2T0</td><td>22</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
       <tr><td>XE3-4</td><td>32</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">not yet</span> upstream's XE3-4 image shares its board name, so the sysupgrade image leaves it out</td></tr>
       <tr><td>XE3-4TN</td><td>33</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
-      <tr><td class="fam" rowspan="3">Cheetah<br><small>IPQ5018, Wi-Fi 6</small></td><td rowspan="3">7.2-r1</td><td>XV2-21X</td><td>35</td><td><span class="pill ok">validated</span></td><td><span class="pill untested">untested</span> now the A/B build; the one-OEM image was validated</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
+      <tr><td class="fam" rowspan="3">Cheetah<br><small>IPQ5018, Wi-Fi 6</small></td><td rowspan="3">7.2-r1</td><td>XV2-21X</td><td>35</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> A/B build</td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
       <tr><td>XV2-22H</td><td>34</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
       <tr><td>XV2-23T</td><td>36</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
       <tr><td class="fam">Miami<br><small>IPQ5332, Wi-Fi 7</small></td><td>7.2-r1</td><td>X7-35X, X7-53X, X7-55X, X7-56X</td><td>44, 49, 42, 43</td><td colspan="3"><span class="pill none">no build yet</span> needs hardware and a new OpenWrt target</td></tr>
@@ -235,6 +235,9 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
     image. Everything after this step is for validated models only.</li>
     <li><strong>Install the persistent image</strong> into the inactive slot,
     boot it once, check it, then make it the default.</li>
+    <li><strong>Optionally, convert to two OpenWrt banks</strong> (Thor, Jaguar,
+    Cheetah) for <code>sysupgrade</code>. This removes the stock firmware, so
+    only convert once you are sure you will not need it again.</li>
   </ol>
 
   <h3 id="installer">The installer: one command per step</h3>
@@ -469,7 +472,9 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes install</pre>
   first boot. Without it, the installer RAM-boots once; SSH to it as
   <code>root</code> and run the same <code>install</code> command there. In
   OpenWrt, set a root password; <code>cat /tmp/cambium-board-data.status</code>
-  should say <code>vault</code>. Convert to two OpenWrt banks as on
+  should say <code>vault</code>. Converting to two OpenWrt banks is optional:
+  it enables <code>sysupgrade</code> but removes the stock firmware, so do it
+  only once you are sure you will not need to go back. It works as on
   <a href="#jaguar">Jaguar</a>.</p>
   <h4>Single-bank Thor installs</h4>
   <p>An XV3-8 installed with the earlier single-bank image boots OpenWrt
@@ -544,7 +549,13 @@ cambium-ab-status                        # mode=oem-fallback, running = the slot
 logread -e cambium-ab-guard              # "healthy; guarded OpenWrt boot of slot N rearmed" within 5 minutes
 iw dev</pre>
 
-  <h4>Convert to two OpenWrt banks</h4>
+  <h4>Convert to two OpenWrt banks (optional)</h4>
+  <p><strong>Conversion is optional.</strong> Until you convert, the stock
+  firmware stays in the other bank: an unhealthy start returns to it, and
+  <code>cambium-install.sh stock</code> makes it the default again. All you
+  give up is <code>sysupgrade</code>; upgrade by reinstalling from the stock
+  firmware instead. Convert only once you are sure you will not need the
+  stock firmware again.</p>
   <p>Images built before 25 September 2026 name the commands below
   <code>jaguar-ab-convert</code> and <code>jaguar-ab-status</code>; newer
   ones <code>cambium-ab-convert</code> and <code>cambium-ab-status</code>,
@@ -600,14 +611,14 @@ ssh root@AP_IP fw_printenv bootcmd  # run jaguar_stableN for the old slot</pre>
   </details>
 
   <details id="cheetah">
-  <summary><strong>Cheetah</strong> &mdash; recovery validated on the XV2-21X (stock firmware 7.2-r1); A/B build untested</summary>
+  <summary><strong>Cheetah</strong> &mdash; validated on the XV2-21X (stock firmware 7.2-r1)</summary>
   <p>The Cheetah persistent image is now the same A/B build as Jaguar's: two
   OpenWrt banks, <code>sysupgrade</code> writing the inactive one, and
-  automatic rollback. Its boot command now sets the kernel arguments for the
-  bank, which has not yet run on hardware, so the install needs
-  <code>--trial</code> on every Cheetah model for now; only trial a unit you
-  can recover. The earlier one-OEM persistent image was validated on the
-  XV2-21X. Cheetah's banks are 96&nbsp;MiB, <code>rootfs</code> at NAND
+  automatic rollback. Its boot command sets the kernel arguments for the
+  bank. On an XV2-21X it has been installed from the stock firmware,
+  converted to two OpenWrt banks, and switched from bank 0 to bank 1 by an
+  OpenWISP sysupgrade. On the XV2-22H and XV2-23T it is untested, and the
+  install needs <code>--trial</code>; only trial a unit you can recover. Cheetah's banks are 96&nbsp;MiB, <code>rootfs</code> at NAND
   <code>0x80000</code> and <code>rootfs_1</code> at <code>0x6080000</code>;
   OpenWrt is installed into <code>rootfs</code>, so the stock firmware must
   be running from <code>rootfs_1</code>. Use the
@@ -626,8 +637,8 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes ram</pre>
   OpenWrt re-arms its boot after each healthy start (on the XV2-21X that
   includes both radios), and an unhealthy start returns to the stock
   firmware:</p>
-<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --trial install              # check run
-sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --trial --yes install</pre>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 install              # check run; add --trial on the XV2-22H and XV2-23T
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes install</pre>
   <p>In OpenWrt, set a root password and check the device-data vault, the
   guard and the radios:</p>
 <pre>passwd
@@ -636,7 +647,13 @@ cambium-ab-status                       # family=cheetah, mode=oem-fallback, run
 logread -e cambium-ab-guard             # "healthy; guarded OpenWrt boot of slot 0 rearmed" within 5 minutes
 iw dev</pre>
 
-  <h4>Convert to two OpenWrt banks</h4>
+  <h4>Convert to two OpenWrt banks (optional)</h4>
+  <p><strong>Conversion is optional.</strong> Until you convert, the stock
+  firmware stays in the other bank: an unhealthy start returns to it, and
+  <code>cambium-install.sh stock</code> makes it the default again. All you
+  give up is <code>sysupgrade</code>; upgrade by reinstalling from the stock
+  firmware instead. Convert only once you are sure you will not need the
+  stock firmware again.</p>
   <p>Replaces the stock firmware in <code>rootfs_1</code> with a copy of the
   running OpenWrt bank; afterwards only your off-device backup can bring the
   stock firmware back. From your computer, back up the stock bank:</p>
@@ -645,7 +662,7 @@ ssh root@AP_IP "cat /dev/mtd$N" &gt; cheetah-oem-rootfs_1.bin
 sha256sum cheetah-oem-rootfs_1.bin
 ssh root@AP_IP "sha256sum /dev/mtd$N"            # must match; keep the file safe</pre>
   <p>Then, in OpenWrt:</p>
-<pre>cambium-ab-convert --oem-sha256 HASH --allow-untested --yes
+<pre>cambium-ab-convert --oem-sha256 HASH --yes          # add --allow-untested on the XV2-22H and XV2-23T
 cambium-ab-status                                  # mode=ab, confirmed=0
 reboot                                             # must come back on slot 0</pre>
 
@@ -704,7 +721,7 @@ cambium-ab-status                                  # a few minutes later: runnin
     rolls back automatically if the new bank fails its checks. See the
     <a href="#jaguar">Jaguar steps</a>.</li>
     <li><strong>Thor</strong> (validated on the XV3-8) and <strong>Cheetah</strong>
-    (not yet tested on hardware) have the same A/B <code>sysupgrade</code>
+    (validated on the XV2-21X) have the same A/B <code>sysupgrade</code>
     after conversion; see the <a href="#thor">Thor</a> and
     <a href="#cheetah">Cheetah steps</a>.
     Before conversion, a Thor, Jaguar or Cheetah is upgraded by reinstalling
