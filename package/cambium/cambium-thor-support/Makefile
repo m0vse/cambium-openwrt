@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cambium-thor-support
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Phil Taylor <phil@m0vse.uk>
 
@@ -11,7 +11,7 @@ define Package/cambium-thor-support
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=Cambium Thor family access point support
-  DEPENDS:=@TARGET_qualcommax_ipq807x +uboot-envtools +curl +cambium-ab +cambium-board-data +cambium-openwisp-led
+  DEPENDS:=@TARGET_qualcommax_ipq807x +uboot-envtools +curl +cambium-ab +cambium-board-data +cambium-openwisp-led +cambium-rrm-agent
   PKGARCH:=all
 endef
 
@@ -38,6 +38,7 @@ define Package/cambium-thor-support/install
 	$(INSTALL_BIN) ./files/15_thor_radio_settings \
 		./files/17_thor_bridge_section $(1)/etc/uci-defaults/
 	$(INSTALL_DATA) ./files/cambium-ab-thor.sh $(1)/lib/functions/cambium-ab-thor.sh
+	$(INSTALL_DATA) ./files/cambium-rrm-thor.sh $(1)/lib/functions/cambium-rrm-thor.sh
 endef
 
 $(eval $(call BuildPackage,cambium-thor-support))
