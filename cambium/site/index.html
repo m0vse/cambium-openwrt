@@ -128,8 +128,8 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
     <thead><tr><th>Family</th><th>Stock firmware</th><th>Model</th><th>SKU</th><th>Recovery (RAM)</th><th>Persistent</th><th>Sysupgrade</th></tr></thead>
     <tbody>
       <tr><td class="fam">Gambit<br><small>MIPS, Wi-Fi 5</small></td><td>4.2.3.3-r10</td><td>E400, E500, E501S, E502S</td><td>6, 7, 9, 12</td><td colspan="3"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
-      <tr><td class="fam" rowspan="7">Sage<br><small>IPQ4019, Wi-Fi 5</small></td><td rowspan="7">4.2.3.3-r10</td><td>E410</td><td>10</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td><td><span class="pill untested">untested</span> now the shared A/B code; the earlier Sage code was validated</td></tr>
-      <tr><td>E410B</td><td>21</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> same hardware as the E410; uses the E410 configuration</td><td><span class="pill untested">untested</span> as the E410</td></tr>
+      <tr><td class="fam" rowspan="7">Sage<br><small>IPQ4019, Wi-Fi 5</small></td><td rowspan="7">4.2.3.3-r10</td><td>E410</td><td>10</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
+      <tr><td>E410B</td><td>21</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> same hardware as the E410; uses the E410 configuration</td><td><span class="pill ok">validated</span></td></tr>
       <tr><td>E430H</td><td>15</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">refused</span> different NAND controller</td></tr>
       <tr><td>E430W</td><td>13</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">refused</span> different NAND controller</td></tr>
       <tr><td>E510</td><td>16</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
@@ -716,8 +716,9 @@ cambium-ab-status                                  # a few minutes later: runnin
     shows the result. An E410 on an image from before this code (snapshot
     2026.09.25.2 or earlier) needs nothing extra: its next
     <code>sysupgrade</code> installs the new image, which adopts the earlier
-    upgrade state on its first healthy boot. This shared code has not yet run
-    on hardware. <strong>The first upgrade after migration replaces the
+    upgrade state on its first healthy boot; this is validated on an E410,
+    which then also switched pairs through the shared code. <strong>The first
+    upgrade after migration replaces the
     stock firmware</strong>; from then on the two pairs alternate between
     OpenWrt versions. Go back to the stock firmware first if you might still
     want it.</li>
