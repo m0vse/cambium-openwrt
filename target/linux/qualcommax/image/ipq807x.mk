@@ -743,6 +743,18 @@ define Device/cambiumnetworks_thor-scan-test
 endef
 TARGET_DEVICES += cambiumnetworks_thor-scan-test
 
+# Test only, never released: the persistent A/B image with the XV3-8's
+# auxiliary 1 GbE port (lan, QCA8075 PHY 3 on switch port 4) enabled.
+define Device/cambiumnetworks_thor-aux-test
+	$(call Device/cambiumnetworks_thor-scan-test)
+	CAMBIUM_FIT_BOARDS := hk02:hk02:ipq8074-xv3-8-persistent-aux \
+		hk02-bank1:hk02-bank1:ipq8074-xv3-8-persistent-bank1-aux
+	DEVICE_VARIANT := persistent, auxiliary port test
+	DEVICE_DTS := ipq8074-xv3-8-persistent-aux ipq8074-xv3-8-persistent-bank1-aux
+	DEVICE_PACKAGES := uboot-envtools cambium-board-data cambium-thor-support
+endef
+TARGET_DEVICES += cambiumnetworks_thor-aux-test
+
 # RAM installer for a stock firmware without ubiformat: only rootfs and the
 # U-Boot environment are writable, so it can write the factory image into
 # rootfs and arm its guarded first boot.
