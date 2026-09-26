@@ -4,9 +4,35 @@ Changes that apply to every family.
 
 ## Unreleased
 
+- The RRM agent escapes backslashes in network names correctly under
+  BusyBox's awk: a hidden network whose name `iw` prints as `\x00…` made
+  the whole report invalid JSON. Such a name is now reported as hidden.
+- The RRM agent stops at once when its service is stopped or restarted,
+  instead of being killed after its wait between measurements, and a
+  measurement lock left by a run that was killed is taken over as soon as
+  that run's process is gone.
+
+## 2026.09.26.4
+
+- The RRM agent runs one measurement at a time: a `cambium-rrm-agent
+  --once` by hand waits for the service's current run, instead of the two
+  sharing the scanning interface and writing a mixed-up report.
+- The RRM report includes every scanned channel's survey (noise, busy
+  and active time) as `channels`, from Thor's scanning radio at every
+  measurement and from the scheduled scans elsewhere, so OpenWISP can show
+  how busy each channel is, not only the AP's own.
+
+## 2026.09.26.3
+
 - The RRM agent marks the AP's own networks in its scan results with
   `"own": true`, so they can be told apart from real neighbours. They stay
   in the list because hearing them confirms they are on the air.
+- One set of first-boot defaults for every family, in recovery images as
+  well: the AP never offers DHCP or IPv6 router advertisements to the site
+  (Sage had no such step, so its router advertisements are now off too),
+  and irqbalance spreads interrupts over all CPU cores (it was on only on
+  Sage; Thor, Jaguar and Cheetah now use it too). The hostname step is one
+  shared script instead of a copy per target.
 - The RRM agent can scan for neighbouring networks on every family, at
   set times (`cambium_rrm.agent.scan_times`, e.g. `02:00 03:00 04:00`; off
   by default). Each scan takes a serving radio off its channel for a few
@@ -20,26 +46,6 @@ Changes that apply to every family.
   and key `openwisp-config` registered with, so the server can build
   statistics from them. An AP not registered with OpenWISP sends nothing.
   Turn it off with `uci set cambium_rrm.agent.upload=0`.
-- The RRM agent runs one measurement at a time: a `cambium-rrm-agent
-  --once` by hand waits for the service's current run, instead of the two
-  sharing the scanning interface and writing a mixed-up report.
-- The RRM report includes every scanned channel's survey (noise, busy
-  and active time) as `channels`, from Thor's scanning radio at every
-  measurement and from the scheduled scans elsewhere, so OpenWISP can show
-  how busy each channel is, not only the AP's own.
-- The RRM agent escapes backslashes in network names correctly under
-  BusyBox's awk: a hidden network whose name `iw` prints as `\x00…` made
-  the whole report invalid JSON. Such a name is now reported as hidden.
-- The RRM agent stops at once when its service is stopped or restarted,
-  instead of being killed after its wait between measurements, and a
-  measurement lock left by a run that was killed is taken over as soon as
-  that run's process is gone.
-- One set of first-boot defaults for every family, in recovery images as
-  well: the AP never offers DHCP or IPv6 router advertisements to the site
-  (Sage had no such step, so its router advertisements are now off too),
-  and irqbalance spreads interrupts over all CPU cores (it was on only on
-  Sage; Thor, Jaguar and Cheetah now use it too). The hostname step is one
-  shared script instead of a copy per target.
 
 ## 2026.09.26.2
 
