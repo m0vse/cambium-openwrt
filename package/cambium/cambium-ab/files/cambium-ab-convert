@@ -44,6 +44,8 @@ done
 
 ab_family || die 'not a Cambium image with A/B support'
 ab_identity || die 'identity or layout check failed'
+[ "$AB_LAYOUT" != pair ] ||
+	die "$AB_NAME needs no conversion: its first sysupgrade writes the other slot"
 ab_converted && die 'already converted; use sysupgrade'
 [ "$AB_QUALIFIED" = 1 ] || [ -n "$allow_untested" ] ||
 	die "$AB_MODEL has no validated A/B conversion yet (--allow-untested overrides)"
