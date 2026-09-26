@@ -19,7 +19,19 @@
 # volume table and wear levelling) and AB_PROTECTED (partitions that must
 # stay read-only). Optional: AB_LAN (candidate LAN interfaces for the boot
 # guard's DHCP check, first present wins; default br-lan) and AB_RADIOS
-# (Wi-Fi phys that must be up before a boot counts as healthy; default 0).
+# (Wi-Fi phys that must be up before a boot counts as healthy; default 0),
+# AB_HEALTH_TRIES (5-second health checks before a boot counts as failed;
+# default 60), AB_MARKER (0: this U-Boot needs no changing_bootcmd marker)
+# and AB_ROOT_MAGIC (the root image's first four bytes as hex, or hsqs).
+#
+# A family whose slots are not two MTD banks (Sage: volume pairs in one UBI
+# device, AB_LAYOUT=pair) also defines ab_<family>_identity (sets the slot
+# values below after the shared board and SKU checks), and may define
+# ab_<family>_running_slot, ab_<family>_image_fits KERNEL ROOT,
+# ab_<family>_write_target (writes, verifies and carries the configuration
+# into the target slot), ab_<family>_root_healthy, ab_<family>_healthy_extra
+# and ab_<family>_takeover (adopts an earlier A/B state on first boot:
+# returns 0 handled, 1 failed, 2 nothing to adopt).
 #
 # Test hooks: AB_PROC_MTD, AB_CMDLINE, AB_DT, AB_UBI_SYS, AB_MTD_SYS,
 # AB_DEV, CAMBIUM_AB_MODULES.
@@ -37,6 +49,7 @@ ab_board() {
 	local family
 	for family in ${AB_FAMILIES:-}; do
 		AB_QUALIFIED=0 AB_VAULT=0 AB_STOCK_BOOTCMD=bootipq AB_LAN=br-lan AB_RADIOS=0
+		AB_LAYOUT=banks AB_MARKER=1 AB_ROOT_MAGIC=hsqs AB_HEALTH_TRIES=60
 		if "ab_${family}_board" "$1"; then
 			AB_FAMILY=$family
 			return 0
@@ -81,9 +94,18 @@ ab_bank_name() {
 	esac
 }
 
+# ab_hook NAME: true when the family module defines ab_<family>_NAME.
+ab_hook() {
+	[ -n "${AB_FAMILY:-}" ] && command -v "ab_${AB_FAMILY}_$1" >/dev/null 2>&1
+}
+
 # The slot named by ubi.mtd= on the kernel command line.
 ab_running_slot() {
 	local arg found slot=
+	if ab_hook running_slot; then
+		"ab_${AB_FAMILY}_running_slot"
+		return
+	fi
 	for arg in $(cat "${AB_CMDLINE:-/proc/cmdline}"); do
 		case "$arg" in
 		ubi.mtd=rootfs) found=0 ;;
@@ -147,6 +169,11 @@ ab_identity() {
 		echo "cambium-ab: $board has board-sku $sku, expected $AB_SKU" >&2
 		return 1
 	}
+	if ab_hook identity; then
+		"ab_${AB_FAMILY}_identity" || return 1
+		AB_BOARD=$board
+		return 0
+	fi
 	for slot in 0 1; do
 		name=$(ab_bank_name "$slot")
 		idx=$(ab_mtd_index "$name")
@@ -272,7 +299,7 @@ ab_converted() {
 # differs from the default while the marker is absent.
 ab_write_boot_vars() {
 	local batch=/tmp/cambium-ab-env.$$ rc=0
-	[ "$(ab_getenv changing_bootcmd)" = 1 ] || {
+	[ "$AB_MARKER" != 1 ] || [ "$(ab_getenv changing_bootcmd)" = 1 ] || {
 		echo 'cambium-ab: changing_bootcmd is not saved' >&2
 		return 1
 	}

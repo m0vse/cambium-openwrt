@@ -91,8 +91,8 @@
             "note": "E410 legacy boot alias of config@5, as used by the validated A/B boot commands"
           },
           "sysupgrade": {
-            "status": "validated",
-            "note": "A/B with automatic rollback"
+            "status": "untested",
+            "note": "A/B with automatic rollback, now on the shared cambium-ab code (adopting the earlier Sage upgrade state on first boot), not yet run on hardware; the earlier Sage upgrade code was validated"
           }
         },
         {
@@ -189,8 +189,8 @@
             "note": "Same hardware as the E410. The initial deployment deliberately keeps the legacy E410-compatible configuration (config@ap.dk01.1-c2), the boot path validated on these units, for backward compatibility; the OEM migration helper (sage-migration-mark-good) still matches only cambium,e410. After that, the E410B-aware sysupgrade and its commit service (board cambiumnetworks,e410b, SKU 21) can boot the E410B tree, config@17."
           },
           "sysupgrade": {
-            "status": "validated",
-            "note": "A/B with automatic rollback"
+            "status": "untested",
+            "note": "A/B with automatic rollback, now on the shared cambium-ab code (adopting the earlier Sage upgrade state on first boot), not yet run on hardware; the earlier Sage upgrade code was validated"
           }
         }
       ]
