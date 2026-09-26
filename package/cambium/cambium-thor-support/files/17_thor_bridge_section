@@ -28,7 +28,12 @@ fi
 
 [ -n "$bridge_section" ] || exit 1
 [ "$(uci -q get "network.$bridge_section.name")" = "br-lan" ] || exit 1
-[ "$(uci -q get "network.$bridge_section.ports")" = "lan-multigig" ] || exit 1
+# The multi-gigabit port, plus the auxiliary 1 GbE port where it is enabled.
+ports=$(uci -q get "network.$bridge_section.ports")
+case "$ports" in
+"lan-multigig"|"lan-multigig lan") ;;
+*) exit 1 ;;
+esac
 [ "$(uci -q get network.lan.proto)" = "dhcp" ] || exit 1
 [ "$(uci -q get network.lan.device)" = "br-lan" ] || exit 1
 [ -z "$(uci -q get network.vlan_br_lan_101.vlan)" ] || exit 1
@@ -42,7 +47,9 @@ uci set network.vlan_br_lan_1=bridge-vlan
 uci set network.vlan_br_lan_1.device='br-lan'
 uci set network.vlan_br_lan_1.vlan='1'
 uci -q delete network.vlan_br_lan_1.ports
-uci add_list network.vlan_br_lan_1.ports='lan-multigig:u*'
+for port in $ports; do
+    uci add_list network.vlan_br_lan_1.ports="$port:u*"
+done
 uci set network.lan.device='br-lan.1'
 if [ "$(uci -q get network.lan6.device)" = "br-lan" ]; then
     uci set network.lan6.device='br-lan.1'
