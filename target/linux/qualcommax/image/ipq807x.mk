@@ -716,21 +716,6 @@ define Device/cambiumnetworks_thor-persistent
 endef
 TARGET_DEVICES += cambiumnetworks_thor-persistent
 
-# Test only, never released: the persistent A/B image with the XV3-8's
-# auxiliary 1 GbE port (lan, QCA8075 PHY 3 on switch port 4) enabled. It
-# keeps the persistent image's board name, bank configurations and layout,
-# so it installs on an A/B XV3-8 with a normal sysupgrade, and a failed
-# trial returns to the other bank.
-define Device/cambiumnetworks_thor-aux-test
-	$(call Device/cambiumnetworks_thor-persistent)
-	CAMBIUM_FIT_BOARDS := hk02:hk02:ipq8074-xv3-8-persistent-aux \
-		hk02-bank1:hk02-bank1:ipq8074-xv3-8-persistent-bank1-aux
-	DEVICE_VARIANT := persistent, auxiliary port test
-	DEVICE_DTS := ipq8074-xv3-8-persistent-aux ipq8074-xv3-8-persistent-bank1-aux
-	IMAGES := sysupgrade.bin
-endef
-TARGET_DEVICES += cambiumnetworks_thor-aux-test
-
 # RAM installer for a stock firmware without ubiformat: only rootfs and the
 # U-Boot environment are writable, so it can write the factory image into
 # rootfs and arm its guarded first boot.
