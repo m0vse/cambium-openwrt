@@ -378,7 +378,7 @@
 	pinctrl-0 = <&mdio_pins>;
 	pinctrl-names = "default";
 
-	ethernet-phy-package@0 {
+	qca8075_package: ethernet-phy-package@0 {
 		#address-cells = <1>;
 		#size-cells = <0>;
 		compatible = "qcom,qca8075-package";

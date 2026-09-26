@@ -1,0 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/* Test tree: the A/B persistent tree for bank 1 with the auxiliary port. */
+#include "ipq8074-xv3-8-persistent-bank1.dts"
+#include "ipq8074-xv3-8-aux-port.dtsi"
