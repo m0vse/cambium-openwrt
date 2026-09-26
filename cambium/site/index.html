@@ -128,8 +128,8 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
     <thead><tr><th>Family</th><th>Stock firmware</th><th>Model</th><th>SKU</th><th>Recovery (RAM)</th><th>Persistent</th><th>Sysupgrade</th></tr></thead>
     <tbody>
       <tr><td class="fam">Gambit<br><small>MIPS, Wi-Fi 5</small></td><td>4.2.3.3-r10</td><td>E400, E500, E501S, E502S</td><td>6, 7, 9, 12</td><td colspan="3"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
-      <tr><td class="fam" rowspan="7">Sage<br><small>IPQ4019, Wi-Fi 5</small></td><td rowspan="7">4.2.3.3-r10</td><td>E410</td><td>10</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td></tr>
-      <tr><td>E410B</td><td>21</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> same hardware as the E410; uses the E410 configuration</td><td><span class="pill ok">validated</span></td></tr>
+      <tr><td class="fam" rowspan="7">Sage<br><small>IPQ4019, Wi-Fi 5</small></td><td rowspan="7">4.2.3.3-r10</td><td>E410</td><td>10</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td><td><span class="pill untested">untested</span> now the shared A/B code; the earlier Sage code was validated</td></tr>
+      <tr><td>E410B</td><td>21</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> same hardware as the E410; uses the E410 configuration</td><td><span class="pill untested">untested</span> as the E410</td></tr>
       <tr><td>E430H</td><td>15</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">refused</span> different NAND controller</td></tr>
       <tr><td>E430W</td><td>13</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">refused</span> different NAND controller</td></tr>
       <tr><td>E510</td><td>16</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
@@ -705,16 +705,22 @@ cambium-ab-status                                  # a few minutes later: runnin
   <h2>Upgrade &amp; rollback</h2>
   <h3>Upgrading</h3>
   <ul>
-    <li><strong>Sage</strong> uses the standard OpenWrt
-    <code>sysupgrade</code> with the family <code>sysupgrade.bin</code>, from
-    LuCI, the command line or OpenWISP, on the E410, E410B and E510 (the
-    E410-layout models). On the E600, E700, E430W and E430H it refuses to
-    write anything until their layout is captured. It writes the slot OpenWrt
-    is not running from and keeps the running one as the fallback until the new
-    image proves healthy. <strong>The first upgrade after migration therefore
-    replaces the stock firmware</strong>; from then on the two slots
-    alternate between OpenWrt versions. Go back to the stock firmware first
-    if you might still want it.</li>
+    <li><strong>Sage</strong> uses <code>sysupgrade</code> with the family
+    <code>sysupgrade.bin</code>, from LuCI, the command line or OpenWISP, on
+    the E410, E410B and E510 (the E410-layout models). On the E600, E700, E430W
+    and E430H it refuses to write anything until their layout is captured.
+    Sage now uses the same A/B code as the other families: it writes the
+    volume pair OpenWrt is not running from, trial-boots it, and the guard
+    commits it once the network, both radios and (on a managed AP) OpenWISP
+    are healthy, or returns to the old pair; <code>cambium-ab-status</code>
+    shows the result. An E410 on an image from before this code (snapshot
+    2026.09.25.2 or earlier) needs nothing extra: its next
+    <code>sysupgrade</code> installs the new image, which adopts the earlier
+    upgrade state on its first healthy boot. This shared code has not yet run
+    on hardware. <strong>The first upgrade after migration replaces the
+    stock firmware</strong>; from then on the two pairs alternate between
+    OpenWrt versions. Go back to the stock firmware first if you might still
+    want it.</li>
     <li><strong>Jaguar</strong>, after conversion to two OpenWrt banks, uses
     <code>sysupgrade</code> with the family <code>sysupgrade.bin</code>, on
     the XV2-2 and XV2-2T1: it writes the inactive bank, trial-boots it and
