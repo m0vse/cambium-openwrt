@@ -48,7 +48,7 @@ common; each family adds a small module,
 `/lib/functions/cambium-ab-<family>.sh` (in its support package), with its
 board table (models, SKUs, FIT configurations, bank size and slot-1 offset,
 usable LEBs, protected partitions, the prefix of its U-Boot variables) and
-its U-Boot boot commands. Jaguar (validated), Cheetah and Thor (A/B
+its U-Boot boot commands. Jaguar and Thor (validated) and Cheetah (A/B
 untested on hardware) use it; Sage follows. Cheetah's banks are 96 MiB at
 NAND `0x80000` and `0x6080000`, and its boot commands set `bootargs` with
 the bank, as Jaguar's do. Thor's banks are 96 MiB at `0x0` and `0x6000000`;

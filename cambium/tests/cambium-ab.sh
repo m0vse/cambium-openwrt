@@ -876,8 +876,7 @@ check "Thor guard leaves a committed single-bank install alone" 1 guard
 assert "committed single-bank bootcmd kept" never_wrote setenv
 
 new_ap $T; run_board_data >/dev/null 2>&1; : > "$S/calls"
-check "Thor conversion needs --allow-untested" 1 sh "$ab_pkg/cambium-ab-convert" --oem-sha256 "$(oem_hash)" --yes
-check "Thor conversion" 0 sh "$ab_pkg/cambium-ab-convert" --oem-sha256 "$(oem_hash)" --allow-untested --yes
+check "Thor conversion (XV3-8 validated: no --allow-untested)" 0 sh "$ab_pkg/cambium-ab-convert" --oem-sha256 "$(oem_hash)" --yes
 assert "Thor converted: thor_ variables, slot 0 default" [ "$(env_get thor_ab_version):$(env_get thor_ab_confirmed):$(env_get bootcmd)" = '1:0:run thor_stable0' ]
 assert "Thor stable command" [ "$(env_get thor_stable0)" = 'run thor_boot0; run thor_boot1' ]
 

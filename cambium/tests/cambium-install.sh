@@ -388,10 +388,7 @@ thor_first_boot=$(board_name() { echo cambiumnetworks,xv3-8; }
 	CAMBIUM_AB_MODULES=$top/package/cambium/cambium-thor-support/files . "$top/package/cambium/cambium-ab/files/cambium-ab.sh"
 	ab_board cambiumnetworks,xv3-8 && ab_guarded_command 0)
 ap thor XV3-8 19 1
-check "Thor A/B install refused without --trial (untested)" 1 inst --from "$W/rel" --yes --backed-up install
-assert "untested Thor install wrote nothing" nothing_written
-ap thor XV3-8 19 1
-check "Thor install from a stock firmware with ubiformat" 0 inst --from "$W/rel" --yes --backed-up --trial install
+check "Thor install from a stock firmware with ubiformat (validated: no --trial)" 0 inst --from "$W/rel" --yes --backed-up install
 assert "Thor first boot is the module's guarded command" [ "$(env_get bootcmd)" = "$thor_first_boot" ]
 assert "Thor first boot restores the stock default, then boots rootfs" [ "$(env_get bootcmd)" = \
 	'setenv changing_bootcmd; setenv bootcmd "aq_load_fw&&bootipq"; saveenv; aq_load_fw; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && bootm 0x60000000#config@hk02; bootipq' ]
@@ -401,7 +398,7 @@ assert "Thor install hashed the kernel and rootfs back" said 'kernel volume read
 mkdir -p "$W/bin-noformat"
 for f in "$W/bin/"*; do case "${f##*/}" in ubiformat|ubidetach) ;; *) ln -sf "$f" "$W/bin-noformat/";; esac; done
 ap thor XV3-8 19 1
-check "Thor install stage 1 without ubiformat (installer)" 0 env PATH="$W/bin-noformat:${PATH#"$W/bin:"}" sh "$installer" --from "$W/rel" --yes --backed-up --trial install
+check "Thor install stage 1 without ubiformat (installer)" 0 env PATH="$W/bin-noformat:${PATH#"$W/bin:"}" sh "$installer" --from "$W/rel" --yes --backed-up install
 assert "the reason for the installer is given" said 'no ubiformat: the Thor RAM installer'
 assert "installer staged in rootfs" [ "$(cat "$W/flash/mtd1/1.data")" = "image qualcommax-ipq807x-cambiumnetworks_thor-installer-initramfs-uImage.itb" ]
 assert "installer one-shot is the validated command" [ "$(env_get bootcmd)" = "$(thor_one openwrt)" ]
@@ -411,7 +408,7 @@ rm -rf "$RT/sys/class/ubi"; mkdir -p "$RT/sys/class/ubi" "$RT/etc" "$RT/sys/clas
 printf '%s\n' 'dev:    size   erasesize  name' 'mtd0: 06000000 00020000 "rootfs"' 'mtd1: 06000000 00020000 "rootfs_1"' > "$RT/proc/mtd"
 echo 'console=ttyMSM0' > "$RT/proc/cmdline"; echo 0x400 > "$RT/sys/class/mtd/mtd0/flags"; : > "$W/calls"
 printf '%s\n' 'bootcmd=aq_load_fw&&bootipq' 'image=1' > "$W/env"
-check "Thor install stage 2 (in the installer)" 0 inst --from "http://192.0.2.5:8000" --yes --trial install
+check "Thor install stage 2 (in the installer)" 0 inst --from "http://192.0.2.5:8000" --yes install
 assert "stage 2 formats rootfs with the factory image" grep -q "^format mtd0 $p-qualcommax-ipq807x-cambiumnetworks_thor-persistent-squashfs-factory.ubi" "$W/calls"
 assert "stage 2 arms the guarded first boot" [ "$(env_get bootcmd)" = "$thor_first_boot" ]
 # An installed single-bank OpenWrt returns to the stock firmware to reinstall.
