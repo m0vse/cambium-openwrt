@@ -2,7 +2,7 @@
 
 XV3-8 (validated); XE5-8 (RAM boot only).
 
-## Unreleased
+## 2026.09.26.3
 
 - The XV3-8 image no longer copies `/etc/dropbear/recovery_authorized_key`
   into `authorized_keys` after each OpenWISP config reload. SSH keys now
