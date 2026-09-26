@@ -21,7 +21,7 @@ SKU. Hardware status per model:
 | | | XV2-2 (128 MiB NAND, 52 MiB slots) | validated | validated (A/B build) | A/B, validated |
 | | | XV2-2T0, XE3-4TN | untested | untested: RAM boot only | A/B, untested |
 | | | XE3-4 | untested | untested: RAM boot only | not yet: shares its board name with upstream's XE3-4 image |
-| Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | untested: now the A/B build | A/B, untested |
+| Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | validated (A/B build) | A/B, validated |
 | | | XV2-22H, XV2-23T | untested | untested: RAM boot only | A/B, untested |
 | Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X, X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
 
@@ -58,7 +58,7 @@ untested or unported model, please open an issue on this repository.
 - Sysupgrade works on the Sage E410-layout models (A/B with automatic
   rollback). Thor, Jaguar and Cheetah have A/B sysupgrade with automatic
   rollback after conversion (validated on the Jaguar XV2-2 and XV2-2T1 and
-  the Thor XV3-8, untested on Cheetah). An XV3-8 on the earlier single-bank image
+  the Thor XV3-8 and the Cheetah XV2-21X). An XV3-8 on the earlier single-bank image
   sysupgrades in place to this image, then reinstalls once
   (`cambium-install.sh stock`, then `install`) to move to A/B.
 - Kernel modules must come from the same snapshot as the image. The package
