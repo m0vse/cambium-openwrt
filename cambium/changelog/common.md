@@ -2,6 +2,11 @@
 
 Changes that apply to every family.
 
+## Unreleased
+
+- Release notes list only the changes of the families built in that
+  snapshot (and the changes common to all).
+
 ## 2026.09.26.0
 
 - The OpenWISP status LED service records the managed state even on a unit
