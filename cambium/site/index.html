@@ -136,7 +136,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
       <tr><td>E600</td><td>11</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">refused</span> different NAND controller</td></tr>
       <tr><td>E700</td><td>14</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">refused</span> different NAND controller</td></tr>
       <tr><td class="fam">Lila<br><small>MIPS, Wi-Fi 5</small></td><td>4.2.3.3-r10</td><td>E425W, E505</td><td>17, 18</td><td colspan="3"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
-      <tr><td class="fam" rowspan="2">Thor<br><small>IPQ8074, Wi-Fi 6</small></td><td rowspan="2">7.2-r1</td><td>XV3-8</td><td>19</td><td><span class="pill ok">validated</span></td><td><span class="pill untested">untested</span> now the A/B build; the single-bank image was validated</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
+      <tr><td class="fam" rowspan="2">Thor<br><small>IPQ8074, Wi-Fi 6</small></td><td rowspan="2">7.2-r1</td><td>XV3-8</td><td>19</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> A/B build</td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
       <tr><td>XE5-8</td><td>30</td><td><span class="pill untested">untested</span></td><td><span class="pill none">not built</span> flash layout not yet captured</td><td><span class="pill none">none yet</span> no persistent image yet</td></tr>
       <tr><td class="fam" rowspan="5">Jaguar<br><small>IPQ6018, Wi-Fi 6/6E</small></td><td rowspan="5">7.2-r1</td><td>XV2-2T1</td><td>31</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> A/B build</td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
       <tr><td>XV2-2</td><td>20</td><td><span class="pill ok">validated</span> 128&nbsp;MiB NAND, two 52&nbsp;MiB slots</td><td><span class="pill ok">validated</span> A/B build</td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
@@ -440,14 +440,14 @@ sage-migration-mark-good --confirm</pre>
   </details>
 
   <details id="thor">
-  <summary><strong>Thor</strong> &mdash; XV3-8 (stock firmware 7.2-r1). Not for the XE5-8.</summary>
+  <summary><strong>Thor</strong> &mdash; validated on the XV3-8 (stock firmware 7.2-r1). Not for the XE5-8.</summary>
   <p>The Thor persistent image is the A/B build: two OpenWrt banks, with
   <code>sysupgrade</code> writing the inactive one and automatic rollback,
   as on Jaguar and Cheetah. Its FIT has one configuration per bank
   (<code>config@hk02</code> for <code>rootfs</code>,
-  <code>config@hk02-bank1</code> for <code>rootfs_1</code>). The earlier
-  single-bank image was validated on the XV3-8; the A/B build has not run on
-  hardware yet, so the install needs <code>--trial</code>.</p>
+  <code>config@hk02-bank1</code> for <code>rootfs_1</code>). On an XV3-8 it
+  has been installed from the stock firmware, converted to two OpenWrt banks,
+  and switched from bank 0 to bank 1 by an OpenWISP sysupgrade.</p>
   <p>OpenWrt goes into <code>rootfs</code>, so the stock firmware must be
   running from <code>rootfs_1</code> (UBI device 0 on <code>mtd2</code>);
   if it runs from <code>rootfs</code>, upgrade the stock firmware once more
@@ -462,15 +462,15 @@ sage-migration-mark-good --confirm</pre>
 <pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram        # check run; writes nothing
 sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes ram</pre>
   <h4>Install</h4>
-<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --trial install
-sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --trial --yes install</pre>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 install
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes install</pre>
   <p>With <code>ubiformat</code> on the stock firmware, this writes the
   factory image into <code>rootfs</code>, hashes it back and arms the guarded
   first boot. Without it, the installer RAM-boots once; SSH to it as
   <code>root</code> and run the same <code>install</code> command there. In
   OpenWrt, set a root password; <code>cat /tmp/cambium-board-data.status</code>
   should say <code>vault</code>. Convert to two OpenWrt banks as on
-  <a href="#jaguar">Jaguar</a>, with <code>--allow-untested</code>.</p>
+  <a href="#jaguar">Jaguar</a>.</p>
   <h4>Single-bank Thor installs</h4>
   <p>An XV3-8 installed with the earlier single-bank image boots OpenWrt
   directly and has no device-data vault, so it cannot be converted in
@@ -703,9 +703,10 @@ cambium-ab-status                                  # a few minutes later: runnin
     the XV2-2 and XV2-2T1: it writes the inactive bank, trial-boots it and
     rolls back automatically if the new bank fails its checks. See the
     <a href="#jaguar">Jaguar steps</a>.</li>
-    <li><strong>Thor</strong> and <strong>Cheetah</strong> have the same A/B
-    <code>sysupgrade</code> after conversion, not yet tested on hardware; see
-    the <a href="#thor">Thor</a> and <a href="#cheetah">Cheetah steps</a>.
+    <li><strong>Thor</strong> (validated on the XV3-8) and <strong>Cheetah</strong>
+    (not yet tested on hardware) have the same A/B <code>sysupgrade</code>
+    after conversion; see the <a href="#thor">Thor</a> and
+    <a href="#cheetah">Cheetah steps</a>.
     Before conversion, a Thor, Jaguar or Cheetah is upgraded by reinstalling
     the persistent image from the stock firmware (<code>cambium-install.sh
     stock</code> returns to it). An XV3-8 still on the single-bank image
