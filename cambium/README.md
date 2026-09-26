@@ -49,8 +49,8 @@ common; each family adds a small module,
 board table (models, SKUs, FIT configurations, bank size and slot-1 offset,
 usable LEBs, protected partitions, the prefix of its U-Boot variables) and
 its U-Boot boot commands. Jaguar, Thor and Cheetah (validated on the XV2-2
-and XV2-2T1, the XV3-8 and the XV2-21X) use it, and so does Sage (not yet
-run on hardware). Sage keeps its own layout (volume pairs linux0/rootfs0
+and XV2-2T1, the XV3-8 and the XV2-21X) use it, and so does Sage (validated on
+the E410). Sage keeps its own layout (volume pairs linux0/rootfs0
 and linux1/rootfs1 in one UBI device, each root a writable UBIFS): its
 module (`cambium-ab-sage.sh`) supplies the pair layout, writes a pair with
 ubiupdatevol and carries the configuration into the new UBIFS root, and
