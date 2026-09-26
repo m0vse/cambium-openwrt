@@ -2,6 +2,15 @@
 
 XV3-8 (validated); XE5-8 (RAM boot only).
 
+## Unreleased
+
+- The XV3-8 image no longer copies `/etc/dropbear/recovery_authorized_key`
+  into `authorized_keys` after each OpenWISP config reload. SSH keys now
+  come only from OpenWISP's SSH keys template, as on the other families.
+- A duplicate first-boot script that switched off the XV3-8's DHCP server
+  is removed; `12_thor_recovery` already does the same for the XV3-8 and
+  XE5-8.
+
 ## 2026.09.26.2
 
 - The XV3-8's QCA9887 scanning radio is enabled in the persistent image
