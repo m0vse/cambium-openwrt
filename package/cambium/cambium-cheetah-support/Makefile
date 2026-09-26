@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cambium-cheetah-support
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Phil Taylor <phil@m0vse.uk>
 
@@ -11,7 +11,7 @@ define Package/cambium-cheetah-support
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=Cambium Cheetah family access point support
-  DEPENDS:=@TARGET_qualcommax_ipq50xx +uboot-envtools +cambium-ab +cambium-board-data +cambium-openwisp-led
+  DEPENDS:=@TARGET_qualcommax_ipq50xx +uboot-envtools +cambium-ab +cambium-board-data +cambium-openwisp-led +cambium-rrm-agent
   PKGARCH:=all
 endef
 
