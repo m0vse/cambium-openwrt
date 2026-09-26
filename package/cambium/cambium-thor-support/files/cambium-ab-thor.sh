@@ -26,7 +26,8 @@ ab_thor_board() {
 	AB_PROTECTED='0:ETHPHYFW 0:ART'
 	case "$1" in
 	cambiumnetworks,xv3-8)
-		AB_MODEL=XV3-8; AB_SKU=00000013; AB_FIT=config@hk02
+		# Installed, converted and bank-switched by sysupgrade on hardware.
+		AB_MODEL=XV3-8; AB_SKU=00000013; AB_FIT=config@hk02; AB_QUALIFIED=1
 		# Managed on the VLAN-1 bridge once OpenWISP's trunk template has
 		# applied; all three radios are validated.
 		AB_LAN='br-lan.1 br-lan'
