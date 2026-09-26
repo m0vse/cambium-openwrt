@@ -1,0 +1,37 @@
+#!/bin/sh
+# Cambium RRM measurement agent: what the radio resource planner needs from
+# each access point, on every family.
+#
+#   cambium-rrm-agent --once    measure once and write the result
+#   cambium-rrm-agent --loop    measure every cambium_rrm.agent.interval seconds
+#
+# Each measurement records every radio's driver, operating channel, width,
+# survey (channel active, busy, receive and transmit time, noise) and client
+# count, and, on a family with a dedicated scanning radio, every network that
+# radio hears. The scanning interface (scan0) exists only while it scans, so
+# nothing else ever sees it. The result is $RRM_OUT/latest.json.
+#
+# Test hooks: CAMBIUM_RRM_LIB, CAMBIUM_SYSTEM_FUNCTIONS and those of the
+# library (/lib/functions/cambium-rrm.sh).
+
+. "${CAMBIUM_SYSTEM_FUNCTIONS:-/lib/functions/system.sh}"
+. "${CAMBIUM_RRM_LIB:-/lib/functions/cambium-rrm.sh}"
+
+case "${1:-}" in
+--once)
+	rrm_measure
+	;;
+--loop)
+	while :; do
+		rrm_measure
+		interval=$(uci -q get cambium_rrm.agent.interval)
+		case "$interval" in ''|*[!0-9]*) interval=300 ;; esac
+		[ "$interval" -ge 60 ] || interval=60
+		sleep "$interval"
+	done
+	;;
+*)
+	echo "usage: $0 --once | --loop" >&2
+	exit 2
+	;;
+esac

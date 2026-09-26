@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cambium-sage-support
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Phil Taylor <phil@m0vse.uk>
 
@@ -11,7 +11,7 @@ define Package/cambium-sage-support
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=Cambium Sage family access point support
-  DEPENDS:=@TARGET_ipq40xx +uboot-envtools +curl +jsonfilter +cambium-ab +cambium-openwisp-led
+  DEPENDS:=@TARGET_ipq40xx +uboot-envtools +curl +jsonfilter +cambium-ab +cambium-openwisp-led +cambium-rrm-agent
   PKGARCH:=all
 endef
 
