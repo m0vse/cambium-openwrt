@@ -279,6 +279,17 @@ assert "its serving radios never scan" [ -z "$(scans)" ]
 jcheck "its neighbours are the scanning radio's" 'len(d["neighbours"]) == 4 and all(x["radio"] == "phy0" for x in d["neighbours"])'
 rm -f "$W/clock" "$W/uci"
 
+# --- one measurement at a time -----------------------------------------------------------------
+setup cambiumnetworks,xv2-21x
+mkdir -p "$W/rrm/lock"
+check "while another measurement runs" 1 agent --once
+assert "it waits, then says so" grep -q "another measurement is still running" "$W/out"
+assert "and leaves the other run's lock alone" [ -d "$W/rrm/lock" ]
+touch -t 202001010000 "$W/rrm/lock"
+check "a lock left by a run that died" 0 agent --once
+assert "is taken over, and released after the run" [ ! -e "$W/rrm/lock" ]
+assert "no temporary output is left behind" [ -z "$(ls "$W/rrm" | grep '^latest.json.')" ]
+
 # --- sending the measurement to OpenWISP ------------------------------------------------------
 setup cambiumnetworks,xv2-21x
 : > "$W/uci"; rm -f "$W/log"
