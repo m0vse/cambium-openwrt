@@ -21,15 +21,21 @@
 . "${CAMBIUM_RRM_LIB:-/lib/functions/cambium-rrm.sh}"
 
 # One measurement at a time: a run by hand waits for the service's current
-# one (they would share the scanning interface and the output files). A lock
-# left by a run that died is stale after ten minutes.
+# one (they would share the scanning interface and the output files). The
+# lock records its run's process: a lock whose process is gone is stale.
 lock=$RRM_OUT/lock
+owned= sleeper=
+trap '[ -z "$owned" ] || rm -rf "$lock"' EXIT
+trap '[ -z "$sleeper" ] || kill "$sleeper" 2>/dev/null; exit 0' INT TERM
 run() {
-	local waited=0
+	local waited=0 pid
 	mkdir -p "$RRM_OUT"
 	until mkdir "$lock" 2>/dev/null; do
-		if [ -n "$(find "$lock" -maxdepth 0 -mmin +10 2>/dev/null)" ]; then
+		pid=$(cat "$lock/pid" 2>/dev/null)
+		if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
 			rm -rf "$lock"
+		elif [ -z "$pid" ] && [ -n "$(find "$lock" -maxdepth 0 -mmin +10 2>/dev/null)" ]; then
+			rm -rf "$lock"  # a lock that never recorded its process
 		elif [ "$waited" -ge 60 ]; then
 			echo "cambium-rrm-agent: another measurement is still running" >&2
 			return 1
@@ -38,13 +44,12 @@ run() {
 			waited=$((waited + 2))
 		fi
 	done
-	# The lock is this run's now: release it however the run ends.
-	trap 'rmdir "$lock" 2>/dev/null' EXIT
-	trap 'exit 0' INT TERM
+	owned=1
+	echo $$ > "$lock/pid"
 	rrm_measure
 	rrm_upload || :
-	rmdir "$lock"
-	trap - EXIT
+	rm -rf "$lock"
+	owned=
 }
 
 case "${1:-}" in
@@ -57,7 +62,11 @@ case "${1:-}" in
 		interval=$(uci -q get cambium_rrm.agent.interval)
 		case "$interval" in ''|*[!0-9]*) interval=300 ;; esac
 		[ "$interval" -ge 60 ] || interval=60
-		sleep "$interval"
+		# In the background, so a stop signal is acted on at once.
+		sleep "$interval" &
+		sleeper=$!
+		wait "$sleeper"
+		sleeper=
 	done
 	;;
 *)
