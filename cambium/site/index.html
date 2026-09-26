@@ -69,6 +69,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
       <a href="#upgrade">Upgrade &amp; rollback</a>
       <a href="#safety">Safety</a>
       <a href="#help">Help wanted</a>
+      <a href="changelog.html">Changes</a>
       <a href="https://github.com/m0vse/cambium-openwrt">Source</a>
     </nav>
   </div>
@@ -93,6 +94,8 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
 
 <section id="downloads">
   <h2>Downloads</h2>
+  <p>What changed in each snapshot is in the <a href="changelog.html">changelog</a>,
+  per family; each release's notes list that snapshot's changes too.</p>
   <p>Each snapshot is a GitHub release with one recovery and one persistent
   image per family, the family ImageBuilder and checksums, plus
   <code>select-config.sh</code> and <code>cambium-manifest.json</code>: a
@@ -385,6 +388,7 @@ scp -O 'root@AP_IP:/tmp/cambium-report-sku*.txt' .</pre>
 
   <details open>
   <summary><strong>Sage</strong> &mdash; validated on the E410 and E410B (stock firmware 4.2.3.3)</summary>
+  <p><a href="changelog.html#sage">Sage changelog</a>: what changed in each snapshot.</p>
   <div class="note danger"><strong>E410 and E410B only.</strong> The backup,
   install and commit commands below write raw UBI volumes laid out as on the
   E410/E410B, and the commit helper refuses any other model. The E510 shares
@@ -444,6 +448,7 @@ sage-migration-mark-good --confirm</pre>
 
   <details id="thor">
   <summary><strong>Thor</strong> &mdash; validated on the XV3-8 (stock firmware 7.2-r1). Not for the XE5-8.</summary>
+  <p><a href="changelog.html#thor">Thor changelog</a>: what changed in each snapshot.</p>
   <p>The Thor persistent image is the A/B build: two OpenWrt banks, with
   <code>sysupgrade</code> writing the inactive one and automatic rollback,
   as on Jaguar and Cheetah. Its FIT has one configuration per bank
@@ -488,6 +493,7 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes install</pre>
 
   <details id="jaguar">
   <summary><strong>Jaguar</strong> &mdash; validated on the XV2-2T1 and XV2-2 (stock firmware 7.2-r1)</summary>
+  <p><a href="changelog.html#jaguar">Jaguar changelog</a>: what changed in each snapshot.</p>
   <p>The Jaguar persistent image is the A/B build: two OpenWrt banks, with
   <code>sysupgrade</code> writing the inactive one and automatic rollback.
   On the XV2-2 and XV2-2T1 it is installed with the installer, and the XV2-2
@@ -612,6 +618,7 @@ ssh root@AP_IP fw_printenv bootcmd  # run jaguar_stableN for the old slot</pre>
 
   <details id="cheetah">
   <summary><strong>Cheetah</strong> &mdash; validated on the XV2-21X (stock firmware 7.2-r1)</summary>
+  <p><a href="changelog.html#cheetah">Cheetah changelog</a>: what changed in each snapshot.</p>
   <p>The Cheetah persistent image is now the same A/B build as Jaguar's: two
   OpenWrt banks, <code>sysupgrade</code> writing the inactive one, and
   automatic rollback. Its boot command sets the kernel arguments for the
