@@ -209,6 +209,11 @@
 						reg = <0x40 0x6>;
 						#nvmem-cell-cells = <1>;
 					};
+
+					/* The PCIe QCA9887 scanning radio's calibration and MAC. */
+					caldata_qca9887: calibration@33000 {
+						reg = <0x33000 0x844>;
+					};
 				};
 			};
 

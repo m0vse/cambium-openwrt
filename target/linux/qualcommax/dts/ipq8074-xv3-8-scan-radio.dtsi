@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+/*
+ * The XV3-8's dedicated scanning radio: a QCA9887-class ath10k device
+ * (168c:0050) on PCIe 1, as the stock firmware sets it up (PCIe domain 1,
+ * PERST# on GPIO61). It serves no clients. Its calibration and MAC are the
+ * 0x844-byte block at ART offset 0x33000, read in place.
+ */
+
+&pcie_qmp1 {
+	status = "okay";
+};
+
+&pcie1 {
+	status = "okay";
+
+	perst-gpios = <&tlmm 61 GPIO_ACTIVE_LOW>;
+
+	pcie@0 {
+		scan_radio: wifi@0,0 {
+			status = "okay";
+
+			compatible = "qcom,ath10k";
+			reg = <0x00010000 0 0 0 0>;
+
+			nvmem-cell-names = "calibration";
+			nvmem-cells = <&caldata_qca9887>;
+		};
+	};
+};
