@@ -84,7 +84,7 @@ cp "$(dirname "$0")/../site/cambium-serve.py" "$stage/assets/cambium-serve.py"
 	echo "- Package feeds: $FEED_URL/$BUILD_ID/"
 	echo "- Changes per family: $FEED_URL/changelog.html"
 	echo
-	python3 "$(dirname "$0")/changelog.py" unreleased "$(dirname "$0")/../changelog"
+	python3 "$(dirname "$0")/changelog.py" unreleased "$(dirname "$0")/../changelog" $built
 	echo
 	cat "$(dirname "$0")/../release-notes.md"
 } > "$stage/notes.md"

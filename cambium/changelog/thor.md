@@ -2,7 +2,7 @@
 
 XV3-8 (validated); XE5-8 (RAM boot only).
 
-## Unreleased
+## 2026.09.26.1
 
 - Test images for the XV3-8's QCA9887 scanning radio and its auxiliary
   1 GbE port, as CI artifacts only (`test-only/`), never released. The
