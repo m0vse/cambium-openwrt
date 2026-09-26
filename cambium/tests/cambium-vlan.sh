@@ -94,6 +94,20 @@ printf '%s\n' 'network.device_br_lan.name=br-lan' 'network.device_br_lan.vlan_fi
 cp "$W/uci" "$W/uci.before"
 run "$pkg/cambium-jaguar-support/files/17_jaguar_bridge_section"
 expect "configured trunk untouched" '' "$(cmp -s "$W/uci" "$W/uci.before" || echo changed)"
+# ... except lan6, which a trunk template leaves on the unfiltered bridge.
+for script in cambium-thor-support/files/17_thor_bridge_section:cambiumnetworks,xv3-8 \
+	cambium-cheetah-support/files/17_cheetah_bridge_section:cambiumnetworks,xv2-21x \
+	cambium-jaguar-support/files/17_jaguar_bridge_section:cambiumnetworks,xv2-2t1 sage:cambiumnetworks,e410; do
+	echo "${script#*:}" > "$W/board"
+	rm -f "$W/commits"
+	printf '%s\n' 'network.device_br_lan.name=br-lan' 'network.device_br_lan.vlan_filtering=1' \
+		'network.vlan_br_lan_101.vlan=101' 'network.lan.device=br-lan.1' 'network.lan6.device=br-lan' > "$W/uci"
+	s=${script%%:*}; [ "$s" = sage ] && s=$W/sage-vlan || s=$pkg/$s
+	run "$s"
+	expect "${script#*:}: trunk's lan6 moved to br-lan.1" 'br-lan.1 commit network' \
+		"$(val network.lan6.device) $(cat "$W/commits" 2>/dev/null)"
+	expect "${script#*:}: rest of the trunk untouched" 4 "$(grep -c -e 'device_br_lan' -e 'vlan_br_lan_101.vlan=101' -e 'lan.device=br-lan.1' "$W/uci")"
+done
 # An unexpected port layout is refused rather than guessed at.
 fresh cambiumnetworks,xv2-2t1 'lan1'
 run "$pkg/cambium-jaguar-support/files/17_jaguar_bridge_section"
