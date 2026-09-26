@@ -145,6 +145,11 @@ jobs:
       - name: Test the persistent image release gate
         run: sh cambium/tests/rootfs-gate.sh
 
+      - name: Render the changelogs
+        run: |
+          python3 cambium/scripts/changelog.py html cambium/changelog cambium/site/index.html > /dev/null
+          python3 cambium/scripts/changelog.py unreleased cambium/changelog
+
       - name: Watch for a new OpenWrt stable branch
         continue-on-error: true
         env:
