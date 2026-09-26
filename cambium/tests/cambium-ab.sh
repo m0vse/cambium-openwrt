@@ -775,8 +775,7 @@ assert "Cheetah IPQ5018 and QCN6122 board files installed" [ -s "$S/fw/ath11k/IP
 assert "Cheetah OEM bank unchanged by the import" [ "$(bank_hash 1)" = "$oem_before" ]
 
 new_ap $C21; run_board_data >/dev/null 2>&1; : > "$S/calls"
-check "Cheetah conversion needs --allow-untested (A/B untested on hardware)" 1 sh "$ab_pkg/cambium-ab-convert" --oem-sha256 "$(oem_hash)" --yes
-check "Cheetah conversion" 0 sh "$ab_pkg/cambium-ab-convert" --oem-sha256 "$(oem_hash)" --allow-untested --yes
+check "Cheetah XV2-21X conversion (validated: no --allow-untested)" 0 sh "$ab_pkg/cambium-ab-convert" --oem-sha256 "$(oem_hash)" --yes
 assert "Cheetah converted: cheetah_ variables, slot 0 default" [ "$(env_get cheetah_ab_version):$(env_get cheetah_ab_confirmed):$(env_get bootcmd)" = '1:0:run cheetah_stable0' ]
 assert "Cheetah slot 1 boots rootfs_1 at 0x6080000" [ "$(env_get cheetah_boot1)" = \
 	'nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x6080000(fs)"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot' ]
