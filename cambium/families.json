@@ -422,12 +422,12 @@
           },
           "persistent": {
             "config": "config@mp03.3-ocelot",
-            "status": "untested",
-            "note": "The persistent image is now the A/B build (both banks writable, device-data vault, bootargs set by the boot command), not yet run on hardware; the earlier one-OEM persistent image was validated"
+            "status": "validated",
+            "note": "A/B build (both banks writable, device-data vault, bootargs set by the boot command), installed from the stock firmware and converted on an XV2-21X"
           },
           "sysupgrade": {
-            "status": "untested",
-            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks; not yet run on hardware"
+            "status": "validated",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks; an OpenWISP sysupgrade switched an XV2-21X from bank 0 to bank 1"
           }
         },
         {
