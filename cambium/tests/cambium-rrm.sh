@@ -39,6 +39,11 @@ PCIE=platform/soc@0/10000000.pcie/pci0001:00/0001:00:00.0/0001:01:00.0
 AHB=platform/soc@0/c000000.wifi
 setup() { # setup BOARD [with-scan-radio]
 	rm -rf "$W/sys" "$W/rrm" "$W/state" "$W/calls"
+	# Network interfaces: a Wi-Fi one whose address is a BSSID in the scan,
+	# and a wired one (no phy80211) with another's.
+	mkdir -p "$W/sys/class/net/wlan1_24/phy80211" "$W/sys/class/net/eth0"
+	echo FA:11:65:D6:A5:70 > "$W/sys/class/net/wlan1_24/address"
+	echo ec:6c:9a:52:d2:6c > "$W/sys/class/net/eth0/address"
 	mkdir -p "$W/sys/class/ieee80211" "$W/sys/bus/pci/drivers/ath10k_pci" "$W/sys/bus/platform/drivers/ath11k" "$W/state"
 	: > "$W/calls"
 	echo "$1" > "$W/board"
@@ -161,7 +166,7 @@ board_name() { cat "$SIM/board"; }
 EOS
 mkdir -p "$W/modules"
 ln -s "$top/package/cambium/cambium-thor-support/files/cambium-rrm-thor.sh" "$W/modules/"
-export PATH="$W/bin:$PATH" SIM=$W RRM_SYS=$W/sys/class/ieee80211 RRM_OUT=$W/rrm \
+export PATH="$W/bin:$PATH" SIM=$W RRM_SYS=$W/sys/class/ieee80211 RRM_NET=$W/sys/class/net RRM_OUT=$W/rrm \
 	RRM_MODULES=$W/modules CAMBIUM_SYSTEM_FUNCTIONS=$W/system.sh CAMBIUM_RRM_LIB=$pkg/cambium-rrm.sh
 
 agent() { sh "$pkg/cambium-rrm-agent" "$@"; }
@@ -178,8 +183,9 @@ jcheck "phy3 survey from the in-use channel" '[r["survey"] for r in d["radios"] 
 jcheck "no survey is null, not an error" '[r["survey"] for r in d["radios"] if r["phy"] == "phy1"] == [None]'
 jcheck "driver recorded" 'all(r["driver"] == "ath11k" for r in d["radios"])'
 jcheck "four networks heard" 'len(d["neighbours"]) == 4'
-jcheck "neighbour fields and channel numbers" 'd["neighbours"][1] == {"bssid": "fa:11:65:d6:a5:70", "ssid": "Shine Systems", "freq": 2412, "channel": 1, "signal": -14, "last_seen_ms": None} and d["neighbours"][2]["channel"] == 149 and d["neighbours"][3]["channel"] == 100'
+jcheck "neighbour fields and channel numbers" 'd["neighbours"][1] == {"bssid": "fa:11:65:d6:a5:70", "ssid": "Shine Systems", "freq": 2412, "channel": 1, "signal": -14, "last_seen_ms": None, "own": True} and d["neighbours"][2]["channel"] == 149 and d["neighbours"][3]["channel"] == 100'
 jcheck "quotes and backslashes in an SSID survive" 'd["neighbours"][2]["ssid"] == "Joe'"'"'s \"5G\" \\office"'
+jcheck "only the AP's own Wi-Fi addresses are marked own" '[x["own"] for x in d["neighbours"]] == [False, True, False, False]'
 jcheck "a hidden SSID is empty" 'd["neighbours"][3]["ssid"] == ""'
 assert "scan0 is created for the scan" grep -q "iw phy phy0 interface add scan0 type managed" "$W/calls"
 assert "scan0 is removed afterwards" [ ! -f "$W/state/scan0" ]
