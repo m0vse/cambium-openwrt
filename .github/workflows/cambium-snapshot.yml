@@ -132,6 +132,8 @@ jobs:
 
       - name: Test the stock-style hostname
         run: sh cambium/tests/cambium-hostname.sh
+      - name: Test the Cambium AP first-boot defaults
+        run: sh cambium/tests/cambium-ap-defaults.sh
 
       - name: Test the shared A/B logic (every family module)
         run: sh cambium/tests/cambium-ab.sh

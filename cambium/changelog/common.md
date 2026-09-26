@@ -7,6 +7,12 @@ Changes that apply to every family.
 - The RRM agent marks the AP's own networks in its scan results with
   `"own": true`, so they can be told apart from real neighbours. They stay
   in the list because hearing them confirms they are on the air.
+- One set of first-boot defaults for every family, in recovery images as
+  well: the AP never offers DHCP or IPv6 router advertisements to the site
+  (Sage had no such step, so its router advertisements are now off too),
+  and irqbalance spreads interrupts over all CPU cores (it was on only on
+  Sage; Thor, Jaguar and Cheetah now use it too). The hostname step is one
+  shared script instead of a copy per target.
 
 ## 2026.09.26.2
 
