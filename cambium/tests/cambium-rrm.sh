@@ -107,6 +107,13 @@ Survey data from wlan3_5_low
 	channel busy time:		5 ms
 EOF
 	;;
+"dev scan0 survey dump")
+	# After a scan: every channel it visited.
+	printf 'Survey data from scan0\n\tfrequency:\t\t\t2412 MHz\n\tnoise:\t\t\t\t-96 dBm\n\tchannel active time:\t\t400 ms\n\tchannel busy time:\t\t100 ms\n'
+	printf 'Survey data from scan0\n\tfrequency:\t\t\t2437 MHz\n\tchannel active time:\t\t400 ms\n\tchannel busy time:\t\t300 ms\n'
+	printf 'Survey data from scan0\n\tfrequency:\t\t\t5500 MHz\n\tnoise:\t\t\t\t-101 dBm\n\tchannel active time:\t\t110 ms\n\tchannel busy time:\t\t2 ms\n'
+	printf 'Survey data from scan0\n\tfrequency:\t\t\t5520 MHz\n'
+	;;
 "dev "*" survey dump") ;;
 "dev "*" scan ap-force")
 	# A serving radio's own scan.
@@ -211,6 +218,8 @@ jcheck "neighbours come from the scanning radio, at the measurement time" 'all(x
 jcheck "neighbour fields and channel numbers" '{k: v for k, v in d["neighbours"][1].items() if k not in ("radio", "time")} == {"bssid": "fa:11:65:d6:a5:70", "ssid": "Shine Systems", "freq": 2412, "channel": 1, "signal": -14, "last_seen_ms": None, "own": True} and d["neighbours"][2]["channel"] == 149 and d["neighbours"][3]["channel"] == 100'
 jcheck "quotes and backslashes in an SSID survive" 'd["neighbours"][2]["ssid"] == "Joe'"'"'s \"5G\" \\office"'
 jcheck "only the AP's own Wi-Fi addresses are marked own" '[x["own"] for x in d["neighbours"]] == [False, True, False, False]'
+jcheck "each scanned channel's survey, from the scanning radio" '[(c["radio"], c["channel"], c["noise"], c["active_ms"], c["busy_ms"]) for c in d["channels"]] == [("phy0", 1, -96, 400, 100), ("phy0", 6, None, 400, 300), ("phy0", 100, -101, 110, 2)]'
+jcheck "channels carry the scan time" 'all(c["time"] == d["time"] for c in d["channels"])'
 jcheck "a hidden SSID is empty" 'd["neighbours"][3]["ssid"] == ""'
 assert "scan0 is created for the scan" grep -q "iw phy phy0 interface add scan0 type managed" "$W/calls"
 assert "scan0 is removed afterwards" [ ! -f "$W/state/scan0" ]
@@ -229,7 +238,7 @@ assert "scan0 removed after a failed scan" [ ! -f "$W/state/scan0" ]
 # --- families without a scanning radio ---------------------------------------------------
 setup cambiumnetworks,xv2-21x
 check "XV2-21X measurement" 0 agent --once
-jcheck "no scanning radio" 'd["scan_radio"] is None and d["neighbours"] is None'
+jcheck "no scanning radio" 'd["scan_radio"] is None and d["neighbours"] is None and d["channels"] is None'
 jcheck "its radios are measured" 'len(d["radios"]) == 3'
 assert "nothing is scanned or created" sh -c "! grep -E 'scan|interface add' '$W/calls'"
 # An XV3-8 image without the scanning radio (the earlier device tree).
@@ -258,6 +267,7 @@ jcheck "the results are kept between scans" 'len(d["neighbours"]) == 2'
 at 2026-09-27 04:20 9000
 check "at 04:20, the last scan time" 0 agent --once
 assert "at the last time, the radio with clients scans too" [ "$(scans)" = "wlan3_5 wlan1_24 wlan3_5 wlan1_24 wlan3_5_low" ]
+jcheck "the channels the radio with clients visited" 'sorted((c["radio"], c["freq"], c["busy_ms"]) for c in d["channels"]) == [("phy3", 5180, 230), ("phy3", 5200, 5)]'
 jcheck "three radios' networks, the latest scan of each" 'sorted((x["radio"], x["time"]) for x in d["neighbours"]) == [("phy1", 9000), ("phy2", 9000), ("phy3", 9000)]'
 at 2026-09-27 05:30 13000
 check "at 05:30" 0 agent --once
