@@ -48,8 +48,12 @@ common; each family adds a small module,
 `/lib/functions/cambium-ab-<family>.sh` (in its support package), with its
 board table (models, SKUs, FIT configurations, bank size and slot-1 offset,
 usable LEBs, protected partitions, the prefix of its U-Boot variables) and
-its U-Boot boot commands. Jaguar and Thor (validated) and Cheetah (A/B
-untested on hardware) use it; Sage follows. Cheetah's banks are 96 MiB at
+its U-Boot boot commands. Jaguar, Thor and Cheetah (validated on the XV2-2
+and XV2-2T1, the XV3-8 and the XV2-21X) use it; Sage follows. Conversion to two
+OpenWrt banks (`cambium-ab-convert`) is optional: until then the stock
+firmware stays in the other bank as the fallback, and only `sysupgrade` is
+unavailable (upgrade by reinstalling). It removes the stock firmware, so it
+is for units that will not need it again. Cheetah's banks are 96 MiB at
 NAND `0x80000` and `0x6080000`, and its boot commands set `bootargs` with
 the bank, as Jaguar's do. Thor's banks are 96 MiB at `0x0` and `0x6000000`;
 its boot commands load the Aquantia firmware first (`aq_load_fw`) and pick

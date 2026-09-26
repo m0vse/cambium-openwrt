@@ -442,7 +442,7 @@ check "Cheetah RAM boot" 0 inst --from "$W/rel" --yes --backed-up ram
 assert "Cheetah one-shot is the validated command" [ "$(env_get bootcmd)" = \
 	'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 openwrt && bootm 0x60000000#config@mp03.3-ocelot; reset' ]
 ap cheetah XV2-21X 35 1
-check "Cheetah install (--trial: the A/B build is untested)" 0 inst --from "$W/rel" --yes --backed-up --trial install
+check "Cheetah XV2-21X install (validated: no --trial)" 0 inst --from "$W/rel" --yes --backed-up install
 cheetah_first_boot=$(board_name() { echo cambiumnetworks,xv2-21x; }
 	CAMBIUM_AB_MODULES=$top/package/cambium/cambium-cheetah-support/files . "$top/package/cambium/cambium-ab/files/cambium-ab.sh"
 	ab_board cambiumnetworks,xv2-21x && ab_guarded_command 0)
