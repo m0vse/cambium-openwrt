@@ -51,7 +51,20 @@ rrm_scan_phy() {
 
 # JSON string escaping for values from iw (SSIDs above all).
 rrm_json_str() {
-	printf '%s' "$1" | awk 'BEGIN { ORS = "" } { gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); gsub(/[[:cntrl:]]/, ""); print }'
+	printf '%s' "$1" | awk '
+	function esc(s,   out, i, c) {
+		# Character by character: backslashes in gsub replacements differ
+		# between awks (BusyBox left them unescaped). Drops control characters.
+		out = ""
+		for (i = 1; i <= length(s); i++) {
+			c = substr(s, i, 1)
+			if (c == "\\") out = out "\\\\"
+			else if (c == "\"") out = out "\\\""
+			else if (c !~ /[[:cntrl:]]/) out = out c
+		}
+		return out
+	}
+	BEGIN { ORS = "" } { print esc($0) }'
 }
 
 # One JSON object per serving radio, comma-separated.
@@ -170,7 +183,18 @@ rrm_own_bssids() {
 # are on the air.
 rrm_neighbours_json() { # rrm_neighbours_json SCAN-FILE RADIO TIME
 	awk -v own=" $(rrm_own_bssids) " -v radio="$2" -v time="$3" '
-	function esc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); gsub(/[[:cntrl:]]/, "", s); return s }
+	function esc(s,   out, i, c) {
+		# Character by character: backslashes in gsub replacements differ
+		# between awks (BusyBox left them unescaped). Drops control characters.
+		out = ""
+		for (i = 1; i <= length(s); i++) {
+			c = substr(s, i, 1)
+			if (c == "\\") out = out "\\\\"
+			else if (c == "\"") out = out "\\\""
+			else if (c !~ /[[:cntrl:]]/) out = out c
+		}
+		return out
+	}
 	function chan(f) {
 		if (f == 2484) return 14
 		if (f >= 2412 && f <= 2472) return (f - 2407) / 5
@@ -190,7 +214,11 @@ rrm_neighbours_json() { # rrm_neighbours_json SCAN-FILE RADIO TIME
 	/^\tfreq:/ { freq = int($2) }
 	/^\tsignal:/ { signal = $2 + 0 }
 	/^\tlast seen:/ { seen = $3 }
-	/^\tSSID:/ { ssid = substr($0, index($0, "SSID:") + 6) }
+	/^\tSSID:/ {
+		ssid = substr($0, index($0, "SSID:") + 6)
+		# iw prints the null bytes of a hidden network as \x00: no name.
+		if (ssid ~ /^(\\x00)+$/) ssid = ""
+	}
 	END { flush() }' "$1"
 }
 

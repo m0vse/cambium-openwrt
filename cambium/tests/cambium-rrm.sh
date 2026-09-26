@@ -145,6 +145,7 @@ BSS ec:6c:9a:52:d2:6c(on scan0)
 BSS 62:6c:9a:52:d2:6d(on scan0)
 	freq: 5500.0
 	signal: -81.00 dBm
+	SSID: \x00\x00\x00\x00
 EOF
 	;;
 *) echo "unexpected iw $*" >&2; exit 1 ;;
