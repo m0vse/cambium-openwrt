@@ -1,25 +1,17 @@
 #!/bin/sh
 # Tests for the 13_cambium_hostname first-boot script, which gives Cambium
 # APs their stock firmware's hostname (MODEL-XXXXXX from U-Boot's ethaddr).
-# Its four copies, one per target, must stay identical.
+# One copy in base-files serves every target.
 #
 # Usage: cambium/tests/cambium-hostname.sh   (exit status 0 when all pass)
 
 set -u
 
 top=$(cd "$(dirname "$0")/../.." && pwd)
-copies="target/linux/ipq40xx/base-files/etc/uci-defaults/13_cambium_hostname
-target/linux/qualcommax/ipq807x/base-files/etc/uci-defaults/13_cambium_hostname
-target/linux/qualcommax/ipq50xx/base-files/etc/uci-defaults/13_cambium_hostname
-target/linux/qualcommax/ipq60xx/base-files/etc/uci-defaults/13_cambium_hostname"
-script=$top/$(echo "$copies" | head -n 1)
+script=$top/package/base-files/files/etc/uci-defaults/13_cambium_hostname
 W=$(mktemp -d)
 trap 'rm -rf "$W"' EXIT HUP INT TERM
 pass=0 fail=0
-
-for c in $copies; do
-	if cmp -s "$top/$c" "$script"; then pass=$((pass + 1)); else fail=$((fail + 1)); echo "FAIL: $c differs from the other copies"; fi
-done
 
 mkdir -p "$W/bin"
 cat > "$W/bin/uci" <<'EOS'
