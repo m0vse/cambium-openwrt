@@ -49,7 +49,15 @@ common; each family adds a small module,
 board table (models, SKUs, FIT configurations, bank size and slot-1 offset,
 usable LEBs, protected partitions, the prefix of its U-Boot variables) and
 its U-Boot boot commands. Jaguar, Thor and Cheetah (validated on the XV2-2
-and XV2-2T1, the XV3-8 and the XV2-21X) use it; Sage follows. Conversion to two
+and XV2-2T1, the XV3-8 and the XV2-21X) use it, and so does Sage (not yet
+run on hardware). Sage keeps its own layout (volume pairs linux0/rootfs0
+and linux1/rootfs1 in one UBI device, each root a writable UBIFS): its
+module (`cambium-ab-sage.sh`) supplies the pair layout, writes a pair with
+ubiupdatevol and carries the configuration into the new UBIFS root, and
+on first boot adopts the state the earlier Sage code kept in
+`e410_upgrade_*` and `owrt_boot0/1`, so installed E410s move over with a
+normal sysupgrade. Sage has no conversion step: its first sysupgrade after
+migration writes the stock firmware's pair. Conversion to two
 OpenWrt banks (`cambium-ab-convert`) is optional: until then the stock
 firmware stays in the other bank as the fallback, and only `sysupgrade` is
 unavailable (upgrade by reinstalling). It removes the stock firmware, so it
