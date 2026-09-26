@@ -1,0 +1,23 @@
+#!/bin/sh
+# Defaults for every Cambium AP image, persistent and recovery alike.
+# Upstream images without the cambium-platform node are left alone.
+#
+# The AP joins the site's management LAN as a DHCP client: it must never
+# offer DHCP or IPv6 router advertisements to the site. irqbalance spreads
+# the Wi-Fi and Ethernet interrupts over all CPU cores, where the image
+# has it.
+
+[ -e "${CAMBIUM_ROOT:-}/proc/device-tree/cambium-platform" ] || exit 0
+
+uci -q set dhcp.lan.ignore='1'
+uci -q set dhcp.lan.dhcpv4='disabled'
+uci -q set dhcp.lan.dhcpv6='disabled'
+uci -q set dhcp.lan.ra='disabled'
+uci -q commit dhcp
+
+if uci -q get irqbalance.@irqbalance[0] >/dev/null; then
+	uci -q set irqbalance.@irqbalance[0].enabled='1'
+	uci -q commit irqbalance
+fi
+
+exit 0
