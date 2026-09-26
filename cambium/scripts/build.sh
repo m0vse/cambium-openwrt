@@ -240,7 +240,7 @@ done
 gate() { # gate ROOT IMAGE_NAME LABEL
 	UNSQUASHFS=staging_dir/host/bin/unsquashfs4 UBIREADER_EXTRACT=${UBIREADER_EXTRACT:-ubireader_extract_files} \
 		sh cambium/scripts/rootfs-gate.sh "$1" "$work/manifests/$2.manifest" "$3" \
-		cambium-$family-support $([ "$family" = sage ] || echo cambium-ab) ||
+		cambium-$family-support cambium-ab ||
 		fail "the $3 root filesystem failed the package gate"
 }
 mkdir -p "$work/manifests"
