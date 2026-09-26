@@ -1,6 +1,6 @@
 #!/bin/sh
 # Simulation tests for the shared Cambium A/B code (package cambium-ab) and
-# every family module (Jaguar, Cheetah, Thor): board tables and the identity
+# every family module (Jaguar, Cheetah, Thor, Sage): board tables and the identity
 # preflight, boot commands, the inactive-bank writer and its platform.sh
 # dispatch, the boot guard, the one-time conversion and the device-data vault
 # in cambium-board-data. The real scripts run against simulated MTD/UBI
@@ -180,6 +180,11 @@ tool mount <<'EOF'
 #!/bin/sh
 . "$(dirname "$0")/_sim"
 for last; do :; done
+# A Sage UBIFS root mounted to take the configuration.
+if [ "$2" = ubifs ]; then
+	mkdir -p "$last" && echo "mount-ubifs ${3##*/}" >> "$S/calls"
+	exit 0
+fi
 cp -R "$S/oem_root/." "$last/" && echo "mount-oem" >> "$S/calls"
 EOF
 for t in umount logger sync; do printf '#!/bin/sh\nexit 0\n' | tool "$t"; done
@@ -232,6 +237,9 @@ mkdir -p "$S/modules"
 ln -s "$jaguar_module_dir/cambium-ab-jaguar.sh" "$S/modules/"
 ln -s "$top/package/cambium/cambium-cheetah-support/files/cambium-ab-cheetah.sh" "$S/modules/"
 ln -s "$top/package/cambium/cambium-thor-support/files/cambium-ab-thor.sh" "$S/modules/"
+ln -s "$top/package/cambium/cambium-sage-support/files/cambium-ab-sage.sh" "$S/modules/"
+export CAMBIUM_SAGE_LIB=$top/target/linux/ipq40xx/base-files/lib/functions/cambium-sage.sh
+export AB_NEWROOT=$S/newroot
 export CAMBIUM_AB_LIB=$ab_pkg/cambium-ab.sh CAMBIUM_AB_MODULES=$S/modules
 export AB_SYS_NET=$S/net AB_SYS_IEEE80211=$S/ieee80211
 export CAMBIUM_AB_UPGRADE_LIB=${CAMBIUM_AB_UPGRADE_LIB:-$ab_pkg/cambium-ab-upgrade.sh}
@@ -249,7 +257,9 @@ sku_byte() {
 	cambiumnetworks,xv2-2t1) echo 037 ;; cambiumnetworks,xe3-4) echo 040 ;;
 	cambiumnetworks,xe3-4tn) echo 041 ;; cambiumnetworks,xv2-22h) echo 042 ;;
 	cambiumnetworks,xv2-21x) echo 043 ;; cambiumnetworks,xv2-23t) echo 044 ;;
-	cambiumnetworks,xv3-8) echo 023 ;; *) echo 177 ;;
+	cambiumnetworks,xv3-8) echo 023 ;; cambium,e410) echo 012 ;;
+	cambiumnetworks,e410b) echo 025 ;; cambiumnetworks,e510) echo 020 ;;
+	cambiumnetworks,e600) echo 013 ;; *) echo 177 ;;
 	esac
 }
 cheetah_board() {
@@ -906,6 +916,165 @@ boot_slot 1; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ie
 check "Thor healthy trial committed" 0 guard
 assert "Thor slot 1 confirmed" [ "$(env_get thor_ab_confirmed):$(env_get thor_ab_state):$(env_get bootcmd)" = '1:confirmed:run thor_stable1' ]
 assert "status names the Thor family" sh -c "sh '$ab_pkg/cambium-ab-status' | grep -qx 'family=thor'"
+
+# --- Sage (cambium-ab-sage.sh) --------------------------------------------------
+# One UBI device on the SPI-NAND "fs" partition holds linux0/rootfs0,
+# linux1/rootfs1 and nvram; each root is a writable UBIFS.
+E=cambium,e410
+sage0='setenv image 0; setenv bootargs "mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs0 rootfstype=ubifs rootwait"; nand device 1 && setenv mtdids nand1=nand1 && setenv mtdparts "mtdparts=nand1:0x8000000@0x0(fs)" && ubi part fs && ubi read 0x84000000 linux0 && bootm 0x84000000#config@ap.dk01.1-c2'
+sage1='setenv image 1; setenv bootargs "mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs1 rootfstype=ubifs rootwait"; nand device 1 && setenv mtdids nand1=nand1 && setenv mtdparts "mtdparts=nand1:0x8000000@0x0(fs)" && ubi part fs && ubi read 0x84000000 linux1 && bootm 0x84000000#config@ap.dk01.1-c2'
+# new_sage_ap [BOARD] [RUNNING-PAIR] [stock|upgraded|trial|adopted]
+new_sage_ap() {
+	local board=${1:-cambium,e410} active=${2:-0} kind=${3:-upgraded} other i v
+	other=$((1 - active))
+	rm -rf "$S/sys" "$S/dev" "$S/flash" "$S/dt" "$S/fw" "$S/work" "$S/net" "$S/ieee80211" "$S/newroot"
+	rm -f "$S/calls" "$S/opcount" "$S/fail_at" "$S/corrupt" "$S/bdstatus" "$S/net_ok" "$S/lan_device"
+	mkdir -p "$S/sys/ubi/ubi0" "$S/dev" "$S/flash/mtd2" "$S/dt/cambium-platform" "$S/fw" "$S/net" "$S/ieee80211"
+	touch "$S/calls"
+	echo "$board" > "$S/board"
+	set_sku "$(sku_byte "$board")"
+	printf '%s\n' 'dev:    size   erasesize  name' \
+		'mtd0: 00010000 00010000 "0:APPSBLENV"' 'mtd1: 00010000 00010000 "0:ART"' \
+		'mtd2: 08000000 00020000 "fs"' > "$S/proc_mtd"
+	for i in 0 1 2; do mkdir -p "$S/sys/mtd/mtd$i"; echo 0xc00 > "$S/sys/mtd/mtd$i/flags"; done
+	echo 0x800 > "$S/sys/mtd/mtd1/flags"
+	i=0
+	for v in linux0 rootfs0 linux1 rootfs1 nvram; do
+		echo "$v" > "$S/flash/mtd2/$i.name"
+		case "$v" in linux*) echo 4317184 ;; rootfs*) echo 47235072 ;; *) echo "$LEB" ;; esac > "$S/flash/mtd2/$i.size"
+		printf 'old-%s' "$v" > "$S/flash/mtd2/$i.data"
+		i=$((i + 1))
+	done
+	echo 2 > "$S/sys/ubi/ubi0/mtd_num"
+	(. "$S/bin/_sim"; refresh ubi0 2)
+	echo "console=ttyMSM0 root=ubi0:rootfs$active rootfstype=ubifs rootwait" > "$S/cmdline"
+	echo "ubi0:rootfs$active / ubifs rw,noatime 0 0" > "$S/mounts"
+	case "$kind" in
+	stock)
+		# Committed by sage-migration-mark-good: the stock firmware is the fallback.
+		printf '%s\n' "bootcmd=setenv image $active; nand device 1 && bootm 0x84000000#config@ap.dk01.1-c2; setenv image $other; bootipq" \
+			"image=$active" "owrt_migration_state=committed" > "$S/env" ;;
+	upgraded)
+		printf '%s\n' "owrt_boot0=$sage0" "owrt_boot1=$sage1" "bootcmd=run owrt_boot$active; run owrt_boot$other" \
+			"image=$active" "e410_upgrade_state=committed" "e410_upgrade_target=$active" "e410_upgrade_fallback=$other" > "$S/env" ;;
+	trial)
+		# The earlier Sage code has trial-booted this pair: the old pair is
+		# the default again and e410_upgrade_state is fallback-restored.
+		printf '%s\n' "owrt_boot0=$sage0" "owrt_boot1=$sage1" "bootcmd=run owrt_boot$other; run owrt_boot$active" \
+			"image=$other" "e410_upgrade_state=fallback-restored" "e410_upgrade_target=$active" "e410_upgrade_fallback=$other" > "$S/env" ;;
+	adopted)
+		printf '%s\n' "sage_boot0=$sage0" "sage_boot1=$sage1" "sage_stable0=run sage_boot0; run sage_boot1" \
+			"sage_stable1=run sage_boot1; run sage_boot0" "bootcmd=run sage_stable$active" "image=$active" \
+			"sage_ab_version=1" "sage_ab_confirmed=$active" "sage_ab_state=confirmed" "e410_upgrade_state=migrated" > "$S/env" ;;
+	esac
+}
+healthy_sage() { touch "$S/net_ok"; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1"; }
+# The ipq40xx platform.sh dispatch; platform_do_upgrade runs without hotplug.
+dispatch40xx() { (. "$S/system.sh"; . "$S/functions.sh"; . "$CAMBIUM_AB_UPGRADE_LIB"
+	eval "$(sed -n '/^platform_check_image() {/,/^}/p; /^platform_do_upgrade() {/,/^}/p' \
+		"$top/target/linux/ipq40xx/base-files/lib/upgrade/platform.sh")"
+	[ "$1" = platform_do_upgrade ] && touch "$S/no_hotplug"
+	"$@"; rc=$?; rm -f "$S/no_hotplug"; exit $rc); }
+pair_data() { cat "$S/flash/mtd2/$1.data"; }
+{ printf '\061\030\020\006'; printf 'new-ubifs-root'; } > "$S/sage-root"
+make_fit config@5 config@ap.dk01.1-c2 config@16 config@17 > "$S/sage-fit"
+make_image "$S/sage.bin" "$S/sage-fit" "$S/sage-root" sysupgrade-cambium_e410
+cp "$S/sage.bin" "$S/sage-good.bin"
+make_image "$S/sage-squashfs.bin" "$S/sage-fit" "" sysupgrade-cambium_e410
+make_image "$S/sage.bin" "$S/sage-fit" "$S/sage-root" sysupgrade-cambium_e410
+
+# Board table, identity and boot commands.
+new_sage_ap $E 0
+check "E410 identity" 0 in_lib eval \
+	'ab_identity && [ "$AB_FAMILY:$AB_LAYOUT:$AB_ACTIVE:$AB_TARGET:$AB_FIT:$AB_SKU" = "sage:pair:0:1:config@ap.dk01.1-c2:0000000a" ]'
+new_sage_ap $E 1
+check "E410 running pair 1 targets pair 0" 0 in_lib eval '[ "$(ab_identity && echo $AB_ACTIVE:$AB_TARGET:$AB_TARGET_PART)" = "1:0:linux0/rootfs0" ]'
+new_sage_ap cambiumnetworks,e600 0
+check "E600 refused (layout not captured)" 1 in_lib ab_identity
+new_sage_ap $E 0; set_sku 020
+check "E410 SKU mismatch refused" 1 in_lib ab_identity
+new_sage_ap $E 0; echo 0xc00 > "$S/sys/mtd/mtd1/flags"
+check "E410 writable ART refused" 1 in_lib ab_identity
+assert "Sage slot 0 boot command is the validated E410 command" [ "$(in_lib eval "ab_board $E; ab_boot_command 0")" = "$sage0" ]
+assert "Sage slot 1 boot command is the validated E410 command" [ "$(in_lib eval "ab_board $E; ab_boot_command 1")" = "$sage1" ]
+assert "E510 boot commands use config@16" in_lib eval "ab_board cambiumnetworks,e510; ab_boot_command 1 | grep -q '#config@16\$'"
+
+# First boot of the new image after the earlier Sage code upgraded to it.
+new_sage_ap $E 1 trial; healthy_sage; : > "$S/calls"
+check "takeover of an earlier Sage trial" 0 guard
+assert "takeover: A/B state adopted with pair 1 confirmed" [ "$(env_get sage_ab_version):$(env_get sage_ab_confirmed):$(env_get sage_ab_state):$(env_get image)" = '1:1:confirmed:1' ]
+assert "takeover: default boot is pair 1, then pair 0" [ "$(env_get bootcmd):$(env_get sage_stable1)" = 'run sage_stable1:run sage_boot1; run sage_boot0' ]
+assert "takeover: boot commands are the validated ones" [ "$(env_get sage_boot0)" = "$sage0" -a "$(env_get sage_boot1)" = "$sage1" ]
+assert "takeover: the earlier state is marked migrated" [ "$(env_get e410_upgrade_state)" = migrated ]
+assert "takeover writes no changing_bootcmd (Sage U-Boot has none)" [ -z "$(env_get changing_bootcmd)" ]
+new_sage_ap $E 1 trial; touch "$S/net_ok"; : > "$S/calls"
+check "takeover: unhealthy trial (radios down)" 0 guard
+assert "unhealthy takeover reboots to the old pair, still the default" grep -q reboot "$S/calls"
+assert "unhealthy takeover leaves the earlier state for the old image" [ "$(env_get e410_upgrade_state):$(env_get bootcmd)" = 'fallback-restored:run owrt_boot0; run owrt_boot1' ]
+assert "unhealthy takeover adopts nothing" [ -z "$(env_get sage_ab_version)" ]
+new_sage_ap $E 0 upgraded; : > "$S/calls"
+check "takeover of a committed earlier upgrade" 0 guard
+assert "committed takeover: pair 0 is the default" [ "$(env_get sage_ab_confirmed):$(env_get bootcmd)" = '0:run sage_stable0' ]
+new_sage_ap $E 0 stock; healthy_sage; : > "$S/calls"
+check "stock firmware in the other pair: guard does nothing" 0 guard
+assert "stock pair: no environment written, no reboot" never_wrote 'setenv|reboot'
+new_sage_ap $E 0 adopted; healthy_sage; : > "$S/calls"
+check "adopted Sage: guard has nothing to do" 0 guard
+assert "adopted: no environment written" never_wrote 'setenv|reboot'
+assert "status names the Sage family in A/B mode" sh -c "sh '$ab_pkg/cambium-ab-status' | grep -q '^mode=ab' && sh '$ab_pkg/cambium-ab-status' | grep -qx 'family=sage'"
+check "cambium-ab-convert refuses Sage (no conversion step)" 1 sh "$ab_pkg/cambium-ab-convert" --oem-sha256 0123abcd --yes
+
+# Sysupgrade through the ipq40xx platform.sh and the shared writer.
+new_sage_ap $E 0 adopted; echo keep-this-config > "$S/backup.tgz"; : > "$S/calls"
+check "Sage image check" 0 dispatch40xx platform_check_image "$S/sage.bin"
+export UPGRADE_BACKUP=$S/backup.tgz BACKUP_FILE=sysupgrade.tgz
+check "Sage upgrade pair 0 -> 1" 0 dispatch40xx platform_do_upgrade "$S/sage.bin"
+unset UPGRADE_BACKUP
+assert "pair 1 kernel written" cmp -s "$S/flash/mtd2/2.data" "$S/img/sysupgrade-cambium_e410/kernel"
+assert "pair 1 UBIFS root written" cmp -s "$S/flash/mtd2/3.data" "$S/sage-root"
+assert "running pair 0 untouched" [ "$(pair_data 0):$(pair_data 1)" = 'old-linux0:old-rootfs0' ]
+assert "nvram untouched" [ "$(pair_data 4)" = old-nvram ]
+assert "configuration carried into the new root" cmp -s "$S/newroot/sysupgrade.tgz" "$S/backup.tgz"
+assert "trial of pair 1 armed, pair 0 restored first" [ "$(env_get bootcmd)" = \
+	'setenv bootcmd run sage_stable0; setenv image 0; setenv sage_ab_state trial-started; saveenv; run sage_boot1; run sage_boot0' ]
+assert "no changing_bootcmd written" [ -z "$(env_get changing_bootcmd)" ]
+# U-Boot runs the trial; the new pair comes up healthy.
+sed -i.bak -e 's/^bootcmd=.*/bootcmd=run sage_stable0/' -e 's/^sage_ab_state=.*/sage_ab_state=trial-started/' "$S/env"
+echo 'console=ttyMSM0 root=ubi0:rootfs1 rootfstype=ubifs rootwait' > "$S/cmdline"
+echo 'ubi0:rootfs1 / ubifs rw,noatime 0 0' > "$S/mounts"
+healthy_sage; : > "$S/calls"
+check "healthy Sage trial committed" 0 guard
+assert "pair 1 confirmed and the default" [ "$(env_get sage_ab_confirmed):$(env_get sage_ab_state):$(env_get bootcmd)" = '1:confirmed:run sage_stable1' ]
+new_sage_ap $E 0 adopted; dispatch40xx platform_do_upgrade "$S/sage.bin" >/dev/null 2>&1
+sed -i.bak -e 's/^bootcmd=.*/bootcmd=run sage_stable0/' -e 's/^sage_ab_state=.*/sage_ab_state=trial-started/' "$S/env"
+echo 'console=ttyMSM0 root=ubi0:rootfs1 rootfstype=ubifs rootwait' > "$S/cmdline"
+echo 'ubi0:rootfs1 / ubifs rw,noatime 0 0' > "$S/mounts"
+touch "$S/net_ok"; : > "$S/calls"
+check "Sage trial without its radios" 0 guard
+assert "failed Sage trial rolled back to pair 0" [ "$(env_get sage_ab_state):$(env_get bootcmd)" = 'rolled-back:run sage_stable0' ]
+assert "failed Sage trial reboots to pair 0" grep -q reboot "$S/calls"
+
+# A Sage with the stock firmware still in its other pair: its first
+# sysupgrade replaces it, as it always has, and records both pairs as OpenWrt.
+new_sage_ap $E 1 stock
+check "first sysupgrade over the stock pair" 0 dispatch40xx platform_do_upgrade "$S/sage.bin"
+assert "stock pair 0 replaced" cmp -s "$S/flash/mtd2/1.data" "$S/sage-root"
+assert "both pairs now OpenWrt: A/B recorded, pair 1 confirmed" [ "$(env_get sage_ab_version):$(env_get sage_ab_confirmed)" = '1:1' ]
+assert "trial of pair 0 armed" [ "$(env_get bootcmd)" = \
+	'setenv bootcmd run sage_stable1; setenv image 1; setenv sage_ab_state trial-started; saveenv; run sage_boot0; run sage_boot1' ]
+
+# Refusals: wrong root type, too large, unqualified model, write failures.
+new_sage_ap $E 0 adopted; : > "$S/calls"
+check "a SquashFS root is refused on Sage" 1 dispatch40xx platform_check_image "$S/sage-squashfs.bin"
+echo 10 > "$S/flash/mtd2/2.size"; (. "$S/bin/_sim"; refresh ubi0 2)
+check "a kernel larger than linux1 is refused" 1 dispatch40xx platform_check_image "$S/sage.bin"
+assert "refusals wrote nothing" never_wrote 'update|setenv'
+new_sage_ap cambiumnetworks,e600 0 adopted
+check "E600 upgrade refused" 1 dispatch40xx platform_do_upgrade "$S/sage.bin"
+new_sage_ap $E 0 adopted; echo mtd2/3 > "$S/corrupt"
+check "a Sage readback mismatch fails" 1 dispatch40xx platform_do_upgrade "$S/sage.bin"
+assert "readback failure: pair 0 stays the default" [ "$(env_get bootcmd):$(env_get sage_ab_state)" = 'run sage_stable0:write-failed' ]
+assert "readback failure is recorded" [ -n "$(env_get sage_ab_last_failure)" ]
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
