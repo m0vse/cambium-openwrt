@@ -12,7 +12,6 @@
 . "${CAMBIUM_SYSTEM_FUNCTIONS:-/lib/functions/system.sh}"
 . "${CAMBIUM_AB_LIB:-/lib/functions/cambium-ab.sh}"
 
-TRIES=${AB_GUARD_TRIES:-60}
 PAUSE=${AB_GUARD_PAUSE:-5}
 BOARD_DATA_STATUS=${CAMBIUM_BDF_STATUS:-/tmp/cambium-board-data.status}
 
@@ -46,18 +45,23 @@ lan_interface() {
 healthy() {
 	local lan
 	ab_identity >/dev/null 2>&1 || return 1
-	[ -e "${AB_DEV:-/dev}/ubiblock0_1" ] || return 1
-	grep -q ' /overlay ubifs rw' "${AB_PROC_MOUNTS:-/proc/mounts}" || return 1
+	if ab_hook root_healthy; then
+		"ab_${AB_FAMILY}_root_healthy" || return 1
+	else
+		[ -e "${AB_DEV:-/dev}/ubiblock0_1" ] || return 1
+		grep -q ' /overlay ubifs rw' "${AB_PROC_MOUNTS:-/proc/mounts}" || return 1
+	fi
 	lan=$(lan_interface)
 	ip -4 address show dev "$lan" 2>/dev/null | grep -q 'inet ' || return 1
 	ip -4 route show default dev "$lan" 2>/dev/null | grep -q '^default ' || return 1
 	[ "$(ls -d "${AB_SYS_IEEE80211:-/sys/class/ieee80211}"/phy* 2>/dev/null | wc -l)" -ge "$AB_RADIOS" ] || return 1
-	[ "$1" != ab ] || [ "$AB_VAULT" != 1 ] || [ "$(cat "$BOARD_DATA_STATUS" 2>/dev/null)" = vault ]
+	[ "$1" != ab ] || [ "$AB_VAULT" != 1 ] || [ "$(cat "$BOARD_DATA_STATUS" 2>/dev/null)" = vault ] || return 1
+	! ab_hook healthy_extra || "ab_${AB_FAMILY}_healthy_extra"
 }
 
 wait_healthy() {
-	local attempt=0
-	while [ "$attempt" -lt "$TRIES" ]; do
+	local attempt=0 tries=${AB_GUARD_TRIES:-${AB_HEALTH_TRIES:-60}}
+	while [ "$attempt" -lt "$tries" ]; do
 		healthy "$1" && return 0
 		attempt=$((attempt + 1))
 		sleep "$PAUSE"
@@ -163,9 +167,16 @@ ab_guard() {
 
 main() {
 	ab_family || return 0
+	if ab_hook takeover; then
+		"ab_${AB_FAMILY}_takeover"
+		case $? in
+		0) return 0 ;;
+		1) return 1 ;;
+		esac
+	fi
 	if ab_converted; then
 		ab_guard
-	else
+	elif [ "$AB_LAYOUT" != pair ]; then
 		legacy_guard
 	fi
 }
