@@ -8,6 +8,12 @@
 
 if [ "$(uci -q get network.device_br_lan.vlan_filtering)" = "1" ] &&
    [ "$(uci -q get network.lan.device)" = "br-lan.1" ]; then
+    # An OpenWISP trunk template sets up the bridge but not lan6: put IPv6
+    # management on VLAN 1 as well, as a fresh install does.
+    if [ "$(uci -q get network.lan6.device)" = "br-lan" ]; then
+        uci set network.lan6.device="br-lan.1"
+        uci commit network
+    fi
     exit 0
 fi
 
