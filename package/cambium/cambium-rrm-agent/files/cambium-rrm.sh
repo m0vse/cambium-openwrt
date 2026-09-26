@@ -6,6 +6,12 @@
 # RRM_SCAN_RADIOS for boards with a dedicated scanning radio. Callers
 # provide board_name().
 #
+# Neighbouring networks come from the dedicated scanning radio at every
+# measurement, where there is one. Elsewhere they come from scans by the
+# serving radios at the times in cambium_rrm.agent.scan_times: each such
+# scan takes its radio off its channel for a few seconds, so a radio with
+# clients waits, except at the day's last scan time.
+#
 # Test hooks: RRM_SYS, RRM_NET, RRM_OUT, RRM_MODULES.
 
 RRM_SYS=${RRM_SYS:-/sys/class/ieee80211}
@@ -52,6 +58,8 @@ rrm_json_str() {
 rrm_radios_json() {
 	local scan_phy=$1 first=1 phy driver ifaces iface freq width chan clients survey n
 	iw dev > "$RRM_OUT/iw-dev.txt" 2>/dev/null
+	# "phy interface freq clients" per serving radio, for rrm_active_scan.
+	: > "$RRM_OUT/radios.txt"
 	for p in "$RRM_SYS"/*; do
 		[ -e "$p" ] || continue
 		phy=${p##*/}
@@ -91,6 +99,7 @@ rrm_radios_json() {
 						(rx == "" ? "null" : rx), (tx == "" ? "null" : tx)
 				}')
 		fi
+		[ -n "$iface" ] && echo "$phy $iface ${freq:-0} $clients" >> "$RRM_OUT/radios.txt"
 		[ -n "$first" ] || printf ',\n'
 		first=
 		printf '    {"phy": "%s", "driver": "%s", "interfaces": [%s], "channel": %s, "freq": %s, "width": %s, "clients": %s, "survey": %s}' \
@@ -127,11 +136,11 @@ rrm_own_bssids() {
 	done 2>/dev/null | tr 'A-F' 'a-f' | tr '\n' ' '
 }
 
-# One JSON object per network in $RRM_OUT/scan.txt, comma-separated. The
-# AP's own networks are included, marked "own": the scanning radio hearing
-# them shows they are on the air.
-rrm_neighbours_json() {
-	awk -v own=" $(rrm_own_bssids) " '
+# One JSON object per network in a scan by RADIO at TIME, comma-separated.
+# The AP's own networks are included, marked "own": hearing them shows they
+# are on the air.
+rrm_neighbours_json() { # rrm_neighbours_json SCAN-FILE RADIO TIME
+	awk -v own=" $(rrm_own_bssids) " -v radio="$2" -v time="$3" '
 	function esc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); gsub(/[[:cntrl:]]/, "", s); return s }
 	function chan(f) {
 		if (f == 2484) return 14
@@ -142,8 +151,8 @@ rrm_neighbours_json() {
 	}
 	function flush() {
 		if (bssid == "") return
-		printf "%s    {\"bssid\": \"%s\", \"ssid\": \"%s\", \"freq\": %s, \"channel\": %s, \"signal\": %s, \"last_seen_ms\": %s, \"own\": %s}",
-			(n++ ? ",\n" : ""), bssid, esc(ssid), (freq == "" ? "null" : freq), (freq == "" ? "null" : chan(freq)),
+		printf "%s    {\"radio\": \"%s\", \"time\": %s, \"bssid\": \"%s\", \"ssid\": \"%s\", \"freq\": %s, \"channel\": %s, \"signal\": %s, \"last_seen_ms\": %s, \"own\": %s}",
+			(n++ ? ",\n" : ""), radio, time, bssid, esc(ssid), (freq == "" ? "null" : freq), (freq == "" ? "null" : chan(freq)),
 			(signal == "" ? "null" : signal), (seen == "" ? "null" : seen),
 			(index(own, " " tolower(bssid) " ") ? "true" : "false")
 		bssid = ""
@@ -153,16 +162,72 @@ rrm_neighbours_json() {
 	/^\tsignal:/ { signal = $2 + 0 }
 	/^\tlast seen:/ { seen = $3 }
 	/^\tSSID:/ { ssid = substr($0, index($0, "SSID:") + 6) }
-	END { flush(); if (n) print "" }' "$RRM_OUT/scan.txt"
+	END { flush() }' "$1"
+}
+
+# The scan time due now, as "DATE HH:MM [final]": the latest time in
+# scan_times that has passed within the last hour. "final" marks the day's
+# last scan time.
+rrm_scan_due() {
+	date '+%Y-%m-%d %H:%M' | awk -v times="$(uci -q get cambium_rrm.agent.scan_times)" '{
+		split($2, a, ":"); now = a[1] * 60 + a[2]
+		n = split(times, t, " "); best = -1; max = -1
+		for (i = 1; i <= n; i++) {
+			if (split(t[i], b, ":") != 2) continue
+			m = b[1] * 60 + b[2]
+			if (m > max) max = m
+			if (m <= now && now - m < 60 && m > best) best = m
+		}
+		if (best < 0) exit 1
+		printf "%s %02d:%02d%s\n", $1, int(best / 60), best % 60, (best == max ? " final" : "")
+	}'
+}
+
+# Each serving radio scans in turn, leaving its channel for a few seconds.
+# Its networks go to $RRM_OUT/active-PHY.json, kept until its next scan.
+rrm_active_scan() { # rrm_active_scan [final]
+	local phy iface freq clients tries now
+	while read -r phy iface freq clients; do
+		if [ "$clients" -gt 0 ] && [ "${1:-}" != final ]; then
+			logger -t cambium-rrm "$phy has $clients clients: its scan waits for the last scan time"
+			continue
+		fi
+		tries=0
+		until iw dev "$iface" scan ap-force > "$RRM_OUT/scan-$phy.txt" 2> "$RRM_OUT/scan-$phy.err"; do
+			tries=$((tries + 1))
+			[ "$tries" -lt 3 ] || break
+			sleep 5
+		done
+		if [ "$tries" -ge 3 ]; then
+			logger -t cambium-rrm "$phy scan failed: $(head -n 1 "$RRM_OUT/scan-$phy.err")"
+			continue
+		fi
+		now=$(date +%s)
+		rrm_neighbours_json "$RRM_OUT/scan-$phy.txt" "$phy" "$now" > "$RRM_OUT/active-$phy.json"
+	done < "$RRM_OUT/radios.txt"
 }
 
 rrm_measure() {
-	local scan_phy= neighbours=null tmp
+	local scan_phy= neighbours= radios due f tmp
 	mkdir -p "$RRM_OUT"
 	scan_phy=$(rrm_scan_phy) || scan_phy=
-	if [ -n "$scan_phy" ] && rrm_scan "$scan_phy"; then
-		neighbours="[
-$(rrm_neighbours_json)  ]"
+	radios=$(rrm_radios_json "$scan_phy")
+	if [ -n "$scan_phy" ]; then
+		rrm_scan "$scan_phy" &&
+			neighbours=$(rrm_neighbours_json "$RRM_OUT/scan.txt" "$scan_phy" "$(date +%s)")
+	else
+		if due=$(rrm_scan_due) && [ "$due" != "$(cat "$RRM_OUT/scan-due" 2>/dev/null)" ]; then
+			echo "$due" > "$RRM_OUT/scan-due"
+			case "$due" in
+			*" final") rrm_active_scan final ;;
+			*) rrm_active_scan ;;
+			esac
+		fi
+		for f in "$RRM_OUT"/active-*.json; do
+			[ -s "$f" ] || continue
+			neighbours="${neighbours:+$neighbours,
+}$(cat "$f")"
+		done
 	fi
 	tmp=$RRM_OUT/latest.json.new
 	{
@@ -170,7 +235,11 @@ $(rrm_neighbours_json)  ]"
 		printf '  "board": "%s",\n  "hostname": "%s",\n' "$(rrm_json_str "$(board_name)")" \
 			"$(rrm_json_str "$(cat /proc/sys/kernel/hostname 2>/dev/null)")"
 		printf '  "scan_radio": %s,\n' "$([ -n "$scan_phy" ] && printf '"%s"' "$scan_phy" || echo null)"
-		printf '  "radios": [\n%s  ],\n' "$(rrm_radios_json "$scan_phy")"
-		printf '  "neighbours": %s\n}\n' "$neighbours"
+		printf '  "radios": [\n%s\n  ],\n' "$radios"
+		if [ -n "$neighbours" ]; then
+			printf '  "neighbours": [\n%s\n  ]\n}\n' "$neighbours"
+		else
+			printf '  "neighbours": null\n}\n'
+		fi
 	} > "$tmp" && mv "$tmp" "$RRM_OUT/latest.json"
 }
