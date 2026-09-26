@@ -7,9 +7,11 @@
 #
 # Each measurement records every radio's driver, operating channel, width,
 # survey (channel active, busy, receive and transmit time, noise) and client
-# count, and, on a family with a dedicated scanning radio, every network that
-# radio hears. The scanning interface (scan0) exists only while it scans, so
-# nothing else ever sees it. The result is $RRM_OUT/latest.json.
+# count, and the neighbouring networks: from a dedicated scanning radio at
+# every measurement where the family has one (its scan0 interface exists
+# only while it scans), otherwise from the serving radios' own scans at
+# cambium_rrm.agent.scan_times. The result, one file for OpenWISP to
+# collect, is $RRM_OUT/latest.json.
 #
 # Test hooks: CAMBIUM_RRM_LIB, CAMBIUM_SYSTEM_FUNCTIONS and those of the
 # library (/lib/functions/cambium-rrm.sh).
