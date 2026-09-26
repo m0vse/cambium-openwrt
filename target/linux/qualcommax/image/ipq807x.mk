@@ -714,6 +714,35 @@ define Device/cambiumnetworks_thor-persistent
 endef
 TARGET_DEVICES += cambiumnetworks_thor-persistent
 
+# Test only, never released: the persistent A/B image with the XV3-8's
+# QCA9887 scanning radio enabled (PCIe 1, ath10k). It keeps the persistent
+# image's board name, bank configurations and layout, so it installs on an
+# A/B XV3-8 with a normal sysupgrade, and a failed trial returns to the
+# other bank.
+define Device/cambiumnetworks_thor-scan-test
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	KERNEL = kernel-bin | cambium-family-fit none
+	CAMBIUM_FIT_BOARDS := hk02:hk02:ipq8074-xv3-8-persistent-scan \
+		hk02-bank1:hk02-bank1:ipq8074-xv3-8-persistent-bank1-scan
+	DEVICE_VENDOR := Cambium Networks
+	DEVICE_MODEL := Thor family
+	DEVICE_VARIANT := persistent, scan radio test
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	DEVICE_DTS := ipq8074-xv3-8-persistent-scan ipq8074-xv3-8-persistent-bank1-scan
+	DEVICE_DTS_CONFIG := config@hk02
+	SUPPORTED_DEVICES := cambiumnetworks,xv3-8
+	BOARD_NAME := cambiumnetworks_xv3-8
+	SOC := ipq8074
+	IMAGE_SIZE := 98304k
+	IMAGES := sysupgrade.bin
+	IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+	DEVICE_PACKAGES := uboot-envtools cambium-board-data cambium-thor-support \
+		kmod-ath10k-ct ath10k-firmware-qca9887-ct
+endef
+TARGET_DEVICES += cambiumnetworks_thor-scan-test
+
 # RAM installer for a stock firmware without ubiformat: only rootfs and the
 # U-Boot environment are writable, so it can write the factory image into
 # rootfs and arm its guarded first boot.
