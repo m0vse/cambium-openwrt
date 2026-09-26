@@ -3,8 +3,9 @@
 
   changelog.py html CHANGELOG_DIR INDEX_HTML > changelog.html
       the site's changelog page, styled like INDEX_HTML
-  changelog.py unreleased CHANGELOG_DIR > notes.md
-      every file's "Unreleased" section, for a snapshot's release notes
+  changelog.py unreleased CHANGELOG_DIR [FAMILY...] > notes.md
+      the "Unreleased" sections for a snapshot's release notes: common.md
+      and the families named (all of them when none are named)
 
 The files use a small Markdown subset: "#" and "##" headings, paragraphs,
 "- " list items (continued by indented lines), **bold**, `code` and
@@ -111,9 +112,11 @@ def render_html(directory, index_html):
 """
 
 
-def render_unreleased(directory):
+def render_unreleased(directory, families=()):
     parts = []
     for family, text in files(directory):
+        if families and family != "common" and family not in families:
+            continue
         title, section, taking = family.capitalize(), [], False
         for kind, value in blocks(text):
             if kind == "h1":
@@ -132,7 +135,7 @@ def render_unreleased(directory):
 if __name__ == "__main__":
     if len(sys.argv) == 4 and sys.argv[1] == "html":
         sys.stdout.write(render_html(sys.argv[2], sys.argv[3]))
-    elif len(sys.argv) == 3 and sys.argv[1] == "unreleased":
-        sys.stdout.write(render_unreleased(sys.argv[2]))
+    elif len(sys.argv) >= 3 and sys.argv[1] == "unreleased":
+        sys.stdout.write(render_unreleased(sys.argv[2], sys.argv[3:]))
     else:
         sys.exit(__doc__)
