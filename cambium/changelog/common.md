@@ -14,6 +14,10 @@ Changes that apply to every family.
   and clients are not affected. Only a family with a dedicated scanning
   radio (Thor) also scans for neighbouring networks, and only with that
   radio. Turn it off with `uci set cambium_rrm.agent.enabled=0`.
+- An AP whose VLAN trunk OpenWISP set up now has its IPv6 management
+  interface (`lan6`) on untagged VLAN 1 as well, like a fresh install. The
+  trunk templates configure only IPv4, which left `lan6` on the filtered
+  bridge where it received nothing. OpenWISP can still override it.
 
 ## 2026.09.26.0
 
