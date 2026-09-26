@@ -5,11 +5,13 @@
  * banks and the U-Boot environment are writable, and the root is appended
  * here, as on the validated single-bank installs, so their committed boot
  * command keeps working. ipq8074-xv3-8-persistent-bank1.dts is the same tree
- * rooted in bank 1. It includes the QCA9887 scanning radio. ART, 0:ETHPHYFW
- * and the other NOR partitions stay read-only.
+ * rooted in bank 1. It includes the QCA9887 scanning radio and the
+ * auxiliary 1 GbE port. ART, 0:ETHPHYFW and the other NOR partitions stay
+ * read-only.
  */
 #include "ipq8074-xv3-8-installer.dts"
 #include "ipq8074-xv3-8-scan-radio.dtsi"
+#include "ipq8074-xv3-8-aux-port.dtsi"
 
 &rootfs_1 {
 	/delete-property/ read-only;
