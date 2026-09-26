@@ -16,6 +16,10 @@ Changes that apply to every family.
   `/tmp/cambium-rrm/latest.json` until that radio's next scan. On Thor the
   scanning radio still scans every five minutes, and `scan_times` is not
   used.
+- The RRM agent sends each measurement to OpenWISP, using the device ID
+  and key `openwisp-config` registered with, so the server can build
+  statistics from them. An AP not registered with OpenWISP sends nothing.
+  Turn it off with `uci set cambium_rrm.agent.upload=0`.
 - One set of first-boot defaults for every family, in recovery images as
   well: the AP never offers DHCP or IPv6 router advertisements to the site
   (Sage had no such step, so its router advertisements are now off too),
