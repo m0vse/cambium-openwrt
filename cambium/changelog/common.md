@@ -27,6 +27,9 @@ Changes that apply to every family.
   and active time) as `channels`, from Thor's scanning radio at every
   measurement and from the scheduled scans elsewhere, so OpenWISP can show
   how busy each channel is, not only the AP's own.
+- The RRM agent escapes backslashes in network names correctly under
+  BusyBox's awk: a hidden network whose name `iw` prints as `\x00…` made
+  the whole report invalid JSON. Such a name is now reported as hidden.
 - One set of first-boot defaults for every family, in recovery images as
   well: the AP never offers DHCP or IPv6 router advertisements to the site
   (Sage had no such step, so its router advertisements are now off too),
