@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cambium-rrm-agent
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Phil Taylor <phil@m0vse.uk>
 
@@ -11,7 +11,7 @@ define Package/cambium-rrm-agent
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=Cambium access point radio measurements
-  DEPENDS:=+iw
+  DEPENDS:=+iw +curl
   PKGARCH:=all
 endef
 
@@ -19,7 +19,8 @@ define Package/cambium-rrm-agent/description
   Measures what the radio resource planner needs on every Cambium family:
   each radio's channel, busy time, noise and clients, and the networks heard
   by the family's dedicated scanning radio where it has one (the XV3-8's).
-  The latest measurement is kept as JSON in /tmp/cambium-rrm/latest.json.
+  The latest measurement is kept as JSON in /tmp/cambium-rrm/latest.json
+  and sent to OpenWISP when the AP is registered there.
   A dedicated scanning radio is kept in the Wi-Fi configuration as a
   disabled radio named "scan", so it never serves clients.
 endef
