@@ -229,7 +229,7 @@ rrm_measure() {
 }$(cat "$f")"
 		done
 	fi
-	tmp=$RRM_OUT/latest.json.new
+	tmp=$RRM_OUT/latest.json.$$
 	{
 		printf '{\n  "version": 1,\n  "time": %s,\n' "$(date +%s)"
 		printf '  "board": "%s",\n  "hostname": "%s",\n' "$(rrm_json_str "$(board_name)")" \
