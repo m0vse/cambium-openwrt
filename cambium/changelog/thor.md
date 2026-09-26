@@ -6,10 +6,13 @@ XV3-8 (validated); XE5-8 (RAM boot only).
 
 - The XV3-8's QCA9887 scanning radio is enabled in the persistent image
   (PCIe 1, ath10k, with this unit's own calibration from ART). It serves no
-  clients; it appears as its own Wi-Fi radio for background scanning, and
-  the three serving radios keep their settings (they are matched by
-  hardware path, so their phy numbers moving up does not matter). Tested on
-  an XV3-8 with a scan every minute alongside normal service.
+  clients: it has one disabled `scan` section in `/etc/config/wireless`
+  and no networks, so it stays out of LuCI's and OpenWISP's radio lists.
+  The RRM agent scans with it every five minutes, through an interface
+  that exists only during the scan. The three serving radios keep their
+  settings (they are matched by hardware path, so their phy numbers moving
+  up does not matter). Tested on an XV3-8 with a scan every minute
+  alongside normal service.
 - The scanning-radio test image is retired; the auxiliary-port test image
   now includes the scanning radio too.
 

@@ -6,6 +6,14 @@ Changes that apply to every family.
 
 - Release notes list only the changes of the families built in that
   snapshot (and the changes common to all).
+- New RRM measurement agent (`cambium-rrm-agent`) on every family, the
+  first step towards automatic channel and power planning. Every five
+  minutes it records each radio's channel, width, noise, busy time and
+  client count into `/tmp/cambium-rrm/latest.json`. These are passive
+  readings the radio already keeps: nothing leaves the operating channel
+  and clients are not affected. Only a family with a dedicated scanning
+  radio (Thor) also scans for neighbouring networks, and only with that
+  radio. Turn it off with `uci set cambium_rrm.agent.enabled=0`.
 
 ## 2026.09.26.0
 

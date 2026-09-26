@@ -1,0 +1,39 @@
+#!/bin/sh
+# Keep the family's dedicated scanning radio out of service: OpenWrt's
+# wifi-detect (10-wifi-detect) adds every radio it finds to
+# /etc/config/wireless, on every boot. Give the scanning radio one disabled
+# section named "scan" with no networks, so wifi-detect leaves it alone and
+# netifd never starts anything on it.
+
+[ "$ACTION" = add ] || exit 0
+. "${CAMBIUM_SYSTEM_FUNCTIONS:-/lib/functions/system.sh}"
+. "${CAMBIUM_RRM_LIB:-/lib/functions/cambium-rrm.sh}"
+
+driver=$(rrm_scan_driver) || exit 0
+dev=$(readlink -f "${RRM_SYSROOT:-/sys}$DEVPATH/device") || exit 0
+[ "$(basename "$(readlink "$dev/driver")")" = "$driver" ] || exit 0
+path=${dev#${RRM_SYSROOT:-/sys}/devices/}
+
+changed=
+for section in $(uci -q show wireless | sed -n "s/^wireless\.\([^.=]*\)=wifi-device$/\1/p"); do
+	[ "$section" = scan ] && continue
+	case "$(uci -q get "wireless.$section.path")" in
+	*"$path"|"$path") ;;
+	*) continue ;;
+	esac
+	# Drop the default section wifi-detect made, and any networks on it.
+	for iface in $(uci -q show wireless | sed -n "s/^wireless\.\([^.=]*\)\.device='$section'$/\1/p"); do
+		uci -q delete "wireless.$iface"
+	done
+	uci -q delete "wireless.$section"
+	changed=1
+done
+if [ "$(uci -q get wireless.scan.path)" != "$path" ] || [ "$(uci -q get wireless.scan.disabled)" != 1 ]; then
+	uci -q set wireless.scan=wifi-device
+	uci -q set wireless.scan.type=mac80211
+	uci -q set wireless.scan.path="$path"
+	uci -q set wireless.scan.disabled=1
+	changed=1
+fi
+[ -z "$changed" ] || uci -q commit wireless
+exit 0

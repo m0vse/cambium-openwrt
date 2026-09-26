@@ -144,6 +144,8 @@ jobs:
 
       - name: Test the persistent image release gate
         run: sh cambium/tests/rootfs-gate.sh
+      - name: Test the RRM measurement agent
+        run: sh cambium/tests/cambium-rrm.sh
 
       - name: Render the changelogs
         run: |
