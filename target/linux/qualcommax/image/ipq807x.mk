@@ -710,48 +710,24 @@ define Device/cambiumnetworks_thor-persistent
 	IMAGES := factory.ubi sysupgrade.bin
 	IMAGE/factory.ubi := cambium-ab-ubi
 	IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
-	DEVICE_PACKAGES := uboot-envtools cambium-board-data cambium-thor-support
+	# The QCA9887 scanning radio (PCIe 1) needs ath10k and its firmware.
+	DEVICE_PACKAGES := uboot-envtools cambium-board-data cambium-thor-support \
+		kmod-ath10k-ct ath10k-firmware-qca9887-ct
 endef
 TARGET_DEVICES += cambiumnetworks_thor-persistent
 
 # Test only, never released: the persistent A/B image with the XV3-8's
-# QCA9887 scanning radio enabled (PCIe 1, ath10k). It keeps the persistent
-# image's board name, bank configurations and layout, so it installs on an
-# A/B XV3-8 with a normal sysupgrade, and a failed trial returns to the
-# other bank.
-define Device/cambiumnetworks_thor-scan-test
-	$(call Device/FitImage)
-	$(call Device/UbiFit)
-	KERNEL = kernel-bin | cambium-family-fit none
-	CAMBIUM_FIT_BOARDS := hk02:hk02:ipq8074-xv3-8-persistent-scan \
-		hk02-bank1:hk02-bank1:ipq8074-xv3-8-persistent-bank1-scan
-	DEVICE_VENDOR := Cambium Networks
-	DEVICE_MODEL := Thor family
-	DEVICE_VARIANT := persistent, scan radio test
-	BLOCKSIZE := 128k
-	PAGESIZE := 2048
-	DEVICE_DTS := ipq8074-xv3-8-persistent-scan ipq8074-xv3-8-persistent-bank1-scan
-	DEVICE_DTS_CONFIG := config@hk02
-	SUPPORTED_DEVICES := cambiumnetworks,xv3-8
-	BOARD_NAME := cambiumnetworks_xv3-8
-	SOC := ipq8074
-	IMAGE_SIZE := 98304k
-	IMAGES := sysupgrade.bin
-	IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
-	DEVICE_PACKAGES := uboot-envtools cambium-board-data cambium-thor-support \
-		kmod-ath10k-ct ath10k-firmware-qca9887-ct
-endef
-TARGET_DEVICES += cambiumnetworks_thor-scan-test
-
-# Test only, never released: the persistent A/B image with the XV3-8's
-# auxiliary 1 GbE port (lan, QCA8075 PHY 3 on switch port 4) enabled.
+# auxiliary 1 GbE port (lan, QCA8075 PHY 3 on switch port 4) enabled. It
+# keeps the persistent image's board name, bank configurations and layout,
+# so it installs on an A/B XV3-8 with a normal sysupgrade, and a failed
+# trial returns to the other bank.
 define Device/cambiumnetworks_thor-aux-test
-	$(call Device/cambiumnetworks_thor-scan-test)
+	$(call Device/cambiumnetworks_thor-persistent)
 	CAMBIUM_FIT_BOARDS := hk02:hk02:ipq8074-xv3-8-persistent-aux \
 		hk02-bank1:hk02-bank1:ipq8074-xv3-8-persistent-bank1-aux
 	DEVICE_VARIANT := persistent, auxiliary port test
 	DEVICE_DTS := ipq8074-xv3-8-persistent-aux ipq8074-xv3-8-persistent-bank1-aux
-	DEVICE_PACKAGES := uboot-envtools cambium-board-data cambium-thor-support
+	IMAGES := sysupgrade.bin
 endef
 TARGET_DEVICES += cambiumnetworks_thor-aux-test
 
