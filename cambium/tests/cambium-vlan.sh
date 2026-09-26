@@ -68,6 +68,7 @@ while read -r script board ports want; do
 	expect "$board: no other VLAN" '' "$(grep -v vlan_br_lan_1 "$W/uci" | grep -c bridge-vlan | grep -v '^0$')"
 done <<'EOL'
 cambium-thor-support/files/17_thor_bridge_section cambiumnetworks,xv3-8 lan-multigig lan-multigig:u*
+cambium-thor-support/files/17_thor_bridge_section cambiumnetworks,xv3-8 lan-multigig,lan lan-multigig:u*,lan:u*
 cambium-cheetah-support/files/17_cheetah_bridge_section cambiumnetworks,xv2-21x lan lan:u*
 cambium-jaguar-support/files/17_jaguar_bridge_section cambiumnetworks,xv2-2 lan1 lan1:u*
 cambium-jaguar-support/files/17_jaguar_bridge_section cambiumnetworks,xv2-2t1 lan1,lan2 lan1:u*,lan2:u*
