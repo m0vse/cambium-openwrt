@@ -2,7 +2,7 @@
 
 E410, E410B, E510 (validated layout); E430H, E430W, E600, E700 (RAM boot only).
 
-## Unreleased
+## 2026.09.26.2
 
 - E410 and E410B sysupgrade marked validated on the shared A/B code.
 
