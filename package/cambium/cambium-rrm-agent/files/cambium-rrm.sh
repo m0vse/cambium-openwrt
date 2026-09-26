@@ -243,3 +243,24 @@ rrm_measure() {
 		fi
 	} > "$tmp" && mv "$tmp" "$RRM_OUT/latest.json"
 }
+
+# Send latest.json to OpenWISP, as the AP registered with openwisp-config
+# (openwisp.http: url, uuid, key). Nothing is sent from an unregistered AP.
+# A change of outcome is logged, not every attempt.
+rrm_upload() {
+	local url uuid key code args=
+	[ "$(uci -q get cambium_rrm.agent.upload)" != 0 ] || return 0
+	url=$(uci -q get openwisp.http.url) || return 0
+	uuid=$(uci -q get openwisp.http.uuid) || return 0
+	key=$(uci -q get openwisp.http.key) || return 0
+	[ -n "$url" ] && [ -n "$uuid" ] && [ -n "$key" ] && [ -s "$RRM_OUT/latest.json" ] || return 0
+	[ "$(uci -q get openwisp.http.verify_ssl)" = 0 ] && args=-k
+	[ -n "$(uci -q get openwisp.http.cacert)" ] && args="$args --cacert $(uci -q get openwisp.http.cacert)"
+	code=$(curl -sS $args --connect-timeout 10 --max-time 30 -o /dev/null -w '%{http_code}' \
+		-H 'Content-Type: application/json' -H "X-Cambium-Key: $key" \
+		--data-binary "@$RRM_OUT/latest.json" "${url%/}/api/v1/cambium/rrm/$uuid/" 2>/dev/null)
+	[ "$code" = "$(cat "$RRM_OUT/upload.status" 2>/dev/null)" ] ||
+		logger -t cambium-rrm "upload to OpenWISP: HTTP ${code:-error}"
+	echo "$code" > "$RRM_OUT/upload.status"
+	[ "$code" = 201 ]
+}

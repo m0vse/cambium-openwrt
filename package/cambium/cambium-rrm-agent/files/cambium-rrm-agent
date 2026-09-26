@@ -11,7 +11,8 @@
 # every measurement where the family has one (its scan0 interface exists
 # only while it scans), otherwise from the serving radios' own scans at
 # cambium_rrm.agent.scan_times. The result, one file for OpenWISP to
-# collect, is $RRM_OUT/latest.json.
+# collect, is $RRM_OUT/latest.json; an AP registered with OpenWISP sends it
+# there after each measurement (cambium_rrm.agent.upload, on by default).
 #
 # Test hooks: CAMBIUM_RRM_LIB, CAMBIUM_SYSTEM_FUNCTIONS and those of the
 # library (/lib/functions/cambium-rrm.sh).
@@ -22,10 +23,12 @@
 case "${1:-}" in
 --once)
 	rrm_measure
+	rrm_upload || :
 	;;
 --loop)
 	while :; do
 		rrm_measure
+		rrm_upload || :
 		interval=$(uci -q get cambium_rrm.agent.interval)
 		case "$interval" in ''|*[!0-9]*) interval=300 ;; esac
 		[ "$interval" -ge 60 ] || interval=60
