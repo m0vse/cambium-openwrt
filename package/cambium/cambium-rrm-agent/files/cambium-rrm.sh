@@ -123,9 +123,38 @@ rrm_scan() {
 		[ "$tries" -lt 3 ] || break
 		sleep 2
 	done
+	# The survey now holds every channel the scan visited.
+	iw dev scan0 survey dump > "$RRM_OUT/scan-survey.txt" 2>/dev/null
 	ip link set scan0 down
 	iw dev scan0 del
 	[ "$tries" -lt 3 ]
+}
+
+# One JSON object per channel in a survey by RADIO at TIME, comma-separated:
+# its noise and its cumulative active and busy time. After a scan the survey
+# covers every channel the scan visited, so these show how busy each channel
+# is, not only the one the AP is on.
+rrm_channels_json() { # rrm_channels_json SURVEY-FILE RADIO TIME
+	awk -v radio="$2" -v time="$3" '
+	function chan(f) {
+		if (f == 2484) return 14
+		if (f >= 2412 && f <= 2472) return (f - 2407) / 5
+		if (f >= 5000 && f < 5925) return (f - 5000) / 5
+		if (f >= 5955 && f <= 7115) return (f - 5950) / 5
+		return "null"
+	}
+	function flush() {
+		if (f == "" || a == "" || a == 0) { f = ""; return }
+		printf "%s    {\"radio\": \"%s\", \"time\": %s, \"freq\": %d, \"channel\": %s, \"noise\": %s, \"active_ms\": %s, \"busy_ms\": %s}",
+			(n++ ? ",\n" : ""), radio, time, f, chan(f), (noise == "" ? "null" : noise), a, (b == "" ? "null" : b)
+		f = ""
+	}
+	/^Survey data/ { flush(); noise = ""; a = ""; b = "" }
+	/frequency:/ { f = $2 + 0 }
+	/noise:/ { noise = $2 }
+	/channel active time:/ { a = $4 }
+	/channel busy time:/ { b = $4 }
+	END { flush() }' "$1" 2>/dev/null
 }
 
 # The MAC addresses of this AP's own Wi-Fi interfaces (its BSSIDs).
@@ -204,17 +233,22 @@ rrm_active_scan() { # rrm_active_scan [final]
 		fi
 		now=$(date +%s)
 		rrm_neighbours_json "$RRM_OUT/scan-$phy.txt" "$phy" "$now" > "$RRM_OUT/active-$phy.json"
+		iw dev "$iface" survey dump > "$RRM_OUT/survey-$phy.txt" 2>/dev/null
+		rrm_channels_json "$RRM_OUT/survey-$phy.txt" "$phy" "$now" > "$RRM_OUT/active-channels-$phy.json"
 	done < "$RRM_OUT/radios.txt"
 }
 
 rrm_measure() {
-	local scan_phy= neighbours= radios due f tmp
+	local scan_phy= neighbours= channels= radios due f now tmp
 	mkdir -p "$RRM_OUT"
 	scan_phy=$(rrm_scan_phy) || scan_phy=
 	radios=$(rrm_radios_json "$scan_phy")
 	if [ -n "$scan_phy" ]; then
-		rrm_scan "$scan_phy" &&
-			neighbours=$(rrm_neighbours_json "$RRM_OUT/scan.txt" "$scan_phy" "$(date +%s)")
+		if rrm_scan "$scan_phy"; then
+			now=$(date +%s)
+			neighbours=$(rrm_neighbours_json "$RRM_OUT/scan.txt" "$scan_phy" "$now")
+			channels=$(rrm_channels_json "$RRM_OUT/scan-survey.txt" "$scan_phy" "$now")
+		fi
 	else
 		if due=$(rrm_scan_due) && [ "$due" != "$(cat "$RRM_OUT/scan-due" 2>/dev/null)" ]; then
 			echo "$due" > "$RRM_OUT/scan-due"
@@ -223,9 +257,14 @@ rrm_measure() {
 			*) rrm_active_scan ;;
 			esac
 		fi
-		for f in "$RRM_OUT"/active-*.json; do
+		for f in "$RRM_OUT"/active-phy*.json; do
 			[ -s "$f" ] || continue
 			neighbours="${neighbours:+$neighbours,
+}$(cat "$f")"
+		done
+		for f in "$RRM_OUT"/active-channels-*.json; do
+			[ -s "$f" ] || continue
+			channels="${channels:+$channels,
 }$(cat "$f")"
 		done
 	fi
@@ -237,9 +276,14 @@ rrm_measure() {
 		printf '  "scan_radio": %s,\n' "$([ -n "$scan_phy" ] && printf '"%s"' "$scan_phy" || echo null)"
 		printf '  "radios": [\n%s\n  ],\n' "$radios"
 		if [ -n "$neighbours" ]; then
-			printf '  "neighbours": [\n%s\n  ]\n}\n' "$neighbours"
+			printf '  "neighbours": [\n%s\n  ],\n' "$neighbours"
 		else
-			printf '  "neighbours": null\n}\n'
+			printf '  "neighbours": null,\n'
+		fi
+		if [ -n "$channels" ]; then
+			printf '  "channels": [\n%s\n  ]\n}\n' "$channels"
+		else
+			printf '  "channels": null\n}\n'
 		fi
 	} > "$tmp" && mv "$tmp" "$RRM_OUT/latest.json"
 }
