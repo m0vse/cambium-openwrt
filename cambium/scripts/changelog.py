@@ -129,7 +129,7 @@ def render_unreleased(directory, families=()):
             parts.append(f"### {title}\n\n" + "\n".join(section))
     if not parts:
         return ""
-    return "## Changes in this snapshot\n\n" + "\n\n".join(parts) + "\n"
+    return "## Changes in this build\n\n" + "\n\n".join(parts) + "\n"
 
 
 if __name__ == "__main__":
