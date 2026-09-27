@@ -2,6 +2,14 @@
 
 Changes that apply to every family.
 
+## Unreleased
+
+- On an AP whose VLAN trunk OpenWISP already set up, the first boot after an
+  upgrade also moves the OpenWISP agent's management interface from the
+  legacy `br-lan` to `br-lan.1`, as it did for `lan6`: the old value named
+  the filtered bridge, which carries no management address. Only exactly
+  `br-lan` is changed; `wg0` and any other value are kept.
+
 ## 2026.09.27.0
 
 - The RRM agent escapes backslashes in network names correctly under

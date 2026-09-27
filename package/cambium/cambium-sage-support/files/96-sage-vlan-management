@@ -10,11 +10,16 @@ cambium_sage_board "$(cat /tmp/sysinfo/board_name 2>/dev/null)" &&
 
 if [ "$(uci -q get network.device_br_lan.vlan_filtering)" = '1' ] &&
    [ "$(uci -q get network.lan.device)" = 'br-lan.1' ]; then
-	# An OpenWISP trunk template sets up the bridge but not lan6: put IPv6
-	# management on VLAN 1 as well, as a fresh install does.
+	# An OpenWISP trunk template sets up the bridge but not lan6 or the
+	# agent's management interface: move both to VLAN 1, as a fresh install
+	# does. Only the exact legacy value br-lan; wg0 or any other is kept.
 	if [ "$(uci -q get network.lan6.device)" = 'br-lan' ]; then
 		uci set network.lan6.device='br-lan.1'
 		uci commit network
+	fi
+	if [ "$(uci -q get openwisp.http.management_interface)" = 'br-lan' ]; then
+		uci set openwisp.http.management_interface='br-lan.1'
+		uci commit openwisp
 	fi
 	exit 0
 fi
