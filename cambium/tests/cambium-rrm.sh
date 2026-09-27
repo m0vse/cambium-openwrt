@@ -74,6 +74,7 @@ phy#3
 		ifindex 15
 		type AP
 		channel 36 (5180 MHz), width: 40 MHz, center1: 5190 MHz
+		txpower 23.00 dBm
 	Interface wlan2_5_low
 		type AP
 		channel 36 (5180 MHz), width: 40 MHz, center1: 5190 MHz
@@ -88,8 +89,8 @@ phy#1
 EOF
 	[ -f "$SIM/state/scan0" ] && printf 'phy#0\n\tInterface scan0\n\t\ttype managed\n'
 	;;
-"dev wlan3_5_low station dump") printf 'Station aa:aa:aa:00:00:01 (on wlan3_5_low)\n\tsignal: -60\nStation aa:aa:aa:00:00:02 (on wlan3_5_low)\n' ;;
-"dev wlan2_5_low station dump") printf 'Station aa:aa:aa:00:00:03 (on wlan2_5_low)\n' ;;
+"dev wlan3_5_low station dump") printf 'Station aa:aa:aa:00:00:01 (on wlan3_5_low)\n\tsignal:  \t-60 [-62, -63] dBm\nStation aa:aa:aa:00:00:02 (on wlan3_5_low)\n\tsignal:  \t-72 [-74, -73] dBm\n' ;;
+"dev wlan2_5_low station dump") printf 'Station aa:aa:aa:00:00:03 (on wlan2_5_low)\n\tsignal:  \t-48 [-50, -49] dBm\n' ;;
 "dev wlan1_24 station dump"|"dev wlan3_5 station dump") ;;
 "dev wlan3_5_low survey dump")
 	cat <<'EOF'
@@ -212,6 +213,9 @@ jcheck "three serving radios, not the scanning radio" 'sorted(r["phy"] for r in 
 jcheck "phy3: channel 36, 5180 MHz, 40 MHz, both interfaces" '[(r["channel"], r["freq"], r["width"], r["interfaces"]) for r in d["radios"] if r["phy"] == "phy3"] == [(36, 5180, "40 MHz", ["wlan3_5_low", "wlan2_5_low"])]'
 jcheck "phy3 clients summed across its interfaces" '[r["clients"] for r in d["radios"] if r["phy"] == "phy3"] == [3]'
 jcheck "phy3 survey from the in-use channel" '[r["survey"] for r in d["radios"] if r["phy"] == "phy3"] == [{"noise": -95, "active_ms": 1000, "busy_ms": 230, "rx_ms": 180, "tx_ms": 20}]'
+jcheck "phy3 transmit power, from iw" '[r["txpower"] for r in d["radios"] if r["phy"] == "phy3"] == [23.0]'
+jcheck "phy3 client signal: weakest, median, strongest over its networks" '[r["client_signal"] for r in d["radios"] if r["phy"] == "phy3"] == [{"min": -72, "median": -60, "max": -48}]'
+jcheck "a radio without clients or a power line reports null" '[(r["txpower"], r["client_signal"]) for r in d["radios"] if r["phy"] == "phy1"] == [(None, None)]'
 jcheck "no survey is null, not an error" '[r["survey"] for r in d["radios"] if r["phy"] == "phy1"] == [None]'
 jcheck "driver recorded" 'all(r["driver"] == "ath11k" for r in d["radios"])'
 jcheck "four networks heard" 'len(d["neighbours"]) == 4'
