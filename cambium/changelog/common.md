@@ -2,7 +2,7 @@
 
 Changes that apply to every family.
 
-## Unreleased
+## 2026.09.27.0
 
 - The RRM agent escapes backslashes in network names correctly under
   BusyBox's awk: a hidden network whose name `iw` prints as `\x00…` made
