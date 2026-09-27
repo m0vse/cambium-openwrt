@@ -201,10 +201,12 @@ OpenWISP controller answers the access point, and green otherwise.
 ## Versioning
 
 The upstream OpenWrt identity (`/etc/openwrt_release`) is left untouched. The
-downstream build ID `YYYY.MM.DD.N` is recorded in `/etc/cambium-openwrt-release`
-under the family key (`SAGE_BUILD_ID`, `THOR_BUILD_ID`, `CHEETAH_BUILD_ID`,
-`JAGUAR_BUILD_ID`), together with the source and upstream commits. Each
-snapshot is tagged `snapshot-YYYY.MM.DD.N`.
+downstream build ID is recorded in `/etc/cambium-openwrt-release` under the
+family key (`SAGE_BUILD_ID`, `THOR_BUILD_ID`, `CHEETAH_BUILD_ID`,
+`JAGUAR_BUILD_ID`), with `CAMBIUM_CHANNEL` (`snapshot` or `release`) and the
+source and upstream commits. A snapshot's ID is `YYYY.MM.DD.N` and it is
+tagged `snapshot-YYYY.MM.DD.N`; a release's is `X.Y.Z-N` and it is tagged
+`release-X.Y.Z-N`.
 
 ## Changelogs
 
@@ -230,18 +232,63 @@ snapshot:
 2. **Build** – one job per family on a GitHub-hosted runner.
 3. **Publish** – `scripts/publish.sh` creates a pre-release with the images,
    ImageBuilders and checksums, and pushes the matching apk feeds to the
-   `gh-pages` branch. The newest 14 releases and 2 feeds are kept.
+   `gh-pages` branch. The newest 14 snapshots are kept. `scripts/prune-feeds.sh`
+   keeps the feeds of the newest 2 snapshots and of each series' newest
+   release, and drops older snapshot feeds while the site is over 900 MiB
+   (GitHub Pages serves at most 1 GB).
 
 It can also be started by hand from the Actions tab, optionally without
 syncing, for a subset of families, or forced when upstream has not changed.
 
 ### Release builds
 
-Only snapshots are built for now. OpenWrt 25.12 uses the older qualcommax
-Ethernet description (`dp1`-`dp6` NSS-DP ports rather than `swport`/`uniphy`),
-so the Thor, Cheetah and Jaguar device trees would need new hardware bring-up
-there. Release builds will start with the next stable series, which branches
-from `main`; the sync job opens a `stable-branch` issue when upstream creates it.
+Release builds are Cambium on upstream OpenWrt's final stable releases
+(`vX.Y.Z` tags, never release candidates), for the series after 25.12.
+OpenWrt 25.12 uses the older qualcommax Ethernet description (`dp1`-`dp6`
+NSS-DP ports rather than `swport`/`uniphy`), so the Thor, Cheetah and Jaguar
+device trees would need new hardware bring-up there; the next series
+branches from `main` with the new model.
+
+`.github/workflows/cambium-release.yml` does the work, using
+`scripts/release-branch.sh`. The snapshot workflow starts it when upstream
+has a final release without a Cambium release build, and it also runs
+weekly and by hand (Run workflow):
+
+1. **Branch.** For series X.Y the branch is `cambium-X.Y`. The first time,
+   the Cambium commits of `main` are replayed onto the series' newest
+   release (the port). After that the branch only moves forward: each newer
+   upstream point release (`vX.Y.1`, ...) is merged in. It is never rebased
+   or force-pushed, so every release tag stays in its history. A conflict
+   pushes nothing and opens a `release-branch` issue; port or merge by hand
+   with the same script (below), push the branch and run the workflow again.
+2. **Test and build.** Every suite in `tests/` runs on the branch, then each
+   family is built from it as for snapshots, against the release's own
+   prebuilt LLVM. `build.sh` fails a release build whose root filesystem is
+   not exactly that OpenWrt release.
+3. **Publish a release candidate.** The build is tagged `release-X.Y.Z-N`
+   (Cambium release N of OpenWrt X.Y.Z, counting from 1 for each upstream
+   release) and published as a GitHub pre-release, with its package feed.
+   Release builds are never deleted.
+4. **Promote.** After validating the candidate on each family's hardware,
+   run the workflow with action `promote` and the tag. That makes it a full
+   release and GitHub's latest.
+
+A build happens when the branch head has no release build containing every
+family, or when forced. Cambium fixes reach a release branch by
+cherry-picking them from `main`:
+
+```sh
+git fetch origin
+git switch -c cambium-26.05 origin/cambium-26.05   # the series' branch
+git cherry-pick -x COMMIT...                       # fixes from main
+git push origin cambium-26.05                      # never --force
+```
+
+then run the release workflow. To port or merge by hand (after a conflict,
+or to try the port against a release candidate before the final release),
+run `cambium/scripts/release-branch.sh [X.Y]` in a clean clone; it leaves
+the branch checked out without pushing. `CAMBIUM_AFTER_SERIES` overrides
+the first series considered.
 
 ### One-time repository setup
 
