@@ -11,6 +11,10 @@ Changes that apply to every family.
   instead of being killed after its wait between measurements, and a
   measurement lock left by a run that was killed is taken over as soon as
   that run's process is gone.
+- Each radio in the RRM report now carries its actual transmit power
+  (`txpower`, after the country's limits) and how strongly it hears its
+  clients (`client_signal`: weakest, median and strongest), for transmit
+  power recommendations.
 
 ## 2026.09.26.4
 
