@@ -339,10 +339,16 @@ rrm_upload() {
 	uuid=$(uci -q get openwisp.http.uuid) || return 0
 	key=$(uci -q get openwisp.http.key) || return 0
 	[ -n "$url" ] && [ -n "$uuid" ] && [ -n "$key" ] && [ -s "$RRM_OUT/latest.json" ] || return 0
+	# The key goes into curl's config on stdin, written by the shell's own
+	# printf, so it never appears in a process's arguments (/proc/*/cmdline).
+	# A key that would need quoting there is not one OpenWISP issues.
+	case "$key" in *[\"\\]*|*"
+"*) logger -t cambium-rrm "upload to OpenWISP: unusable device key"; return 1 ;; esac
 	[ "$(uci -q get openwisp.http.verify_ssl)" = 0 ] && args=-k
 	[ -n "$(uci -q get openwisp.http.cacert)" ] && args="$args --cacert $(uci -q get openwisp.http.cacert)"
-	code=$(curl -sS $args --connect-timeout 10 --max-time 30 -o /dev/null -w '%{http_code}' \
-		-H 'Content-Type: application/json' -H "X-Cambium-Key: $key" \
+	code=$(printf 'header = "X-Cambium-Key: %s"\n' "$key" |
+		curl -sS -K - $args --connect-timeout 10 --max-time 30 -o /dev/null -w '%{http_code}' \
+		-H 'Content-Type: application/json' \
 		--data-binary "@$RRM_OUT/latest.json" "${url%/}/api/v1/cambium/rrm/$uuid/" 2>/dev/null)
 	[ "$code" = "$(cat "$RRM_OUT/upload.status" 2>/dev/null)" ] ||
 		logger -t cambium-rrm "upload to OpenWISP: HTTP ${code:-error}"
