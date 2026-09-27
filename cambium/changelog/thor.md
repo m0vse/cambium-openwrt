@@ -11,6 +11,12 @@ XV3-8 (validated); XE5-8 (RAM boot only).
   appeared as an extra, enabled radio (`radio3`) beside the disabled `scan`
   section. The step now uses detection's form of the path, matches either
   form, removes that extra radio, and corrects an existing `scan` section.
+- The A/B boot guard now checks the XV3-8's serving radios themselves: it
+  counted every Wi-Fi radio, so two working serving radios plus the
+  scanning radio passed for three, and a trial image with a dead serving
+  radio could have been kept. It now counts only the IPQ8074's own radios:
+  three in dual-4x4 mode, two in single-8x8 (where the old check would have
+  rolled a healthy image back).
 
 ## 2026.09.26.3
 
