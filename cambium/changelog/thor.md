@@ -2,6 +2,16 @@
 
 XV3-8 (validated); XE5-8 (RAM boot only).
 
+## Unreleased
+
+- The XV3-8's scanning radio is now reliably kept out of service. OpenWrt's
+  radio detection writes PCI device paths without their `platform/` prefix,
+  and the step that disables the scanning radio used the full path, so it
+  missed the radio detection had added: on an upgraded XV3-8 the scanner
+  appeared as an extra, enabled radio (`radio3`) beside the disabled `scan`
+  section. The step now uses detection's form of the path, matches either
+  form, removes that extra radio, and corrects an existing `scan` section.
+
 ## 2026.09.26.3
 
 - The XV3-8 image no longer copies `/etc/dropbear/recovery_authorized_key`
