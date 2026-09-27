@@ -69,7 +69,7 @@ rrm_json_str() {
 
 # One JSON object per serving radio, comma-separated.
 rrm_radios_json() {
-	local scan_phy=$1 first=1 phy driver ifaces iface freq width chan clients survey n
+	local scan_phy=$1 first=1 phy driver ifaces iface freq width chan clients survey txpower signal
 	iw dev > "$RRM_OUT/iw-dev.txt" 2>/dev/null
 	# "phy interface freq clients" per serving radio, for rrm_active_scan.
 	: > "$RRM_OUT/radios.txt"
@@ -83,7 +83,7 @@ rrm_radios_json() {
 			/^phy#/ { on = ($1 == phy) }
 			on && $1 == "Interface" { print $2 }' "$RRM_OUT/iw-dev.txt")
 		iface=$(echo "$ifaces" | head -n 1)
-		freq= width= chan= clients=0 survey=null
+		freq= width= chan= clients=0 survey=null txpower= signal=null
 		if [ -n "$iface" ]; then
 			set -- $(awk -v want="$iface" '
 				$1 == "Interface" { on = ($2 == want) }
@@ -93,10 +93,23 @@ rrm_radios_json() {
 					print $2, $3, w; exit
 				}' "$RRM_OUT/iw-dev.txt")
 			chan=${1:-} freq=${2:-} width=${3:-}${4:+ $4}
+			# The transmit power the radio is really using (after the
+			# country's limits), for the power planner.
+			txpower=$(awk -v want="$iface" '
+				$1 == "Interface" { on = ($2 == want) }
+				on && $1 == "txpower" { printf "%.1f", $2 + 0; exit }' "$RRM_OUT/iw-dev.txt")
+			# Clients over all this radio's networks, and how strongly the
+			# radio hears them: weakest, median and strongest.
 			for i in $ifaces; do
-				n=$(iw dev "$i" station dump 2>/dev/null | grep -c '^Station')
-				clients=$((clients + n))
-			done
+				iw dev "$i" station dump 2>/dev/null
+			done > "$RRM_OUT/stations.txt"
+			clients=$(grep -c '^Station' "$RRM_OUT/stations.txt")
+			signal=$(awk '/^\tsignal:/ { print $2 + 0 }' "$RRM_OUT/stations.txt" | sort -n | awk '
+				{ v[++n] = $1 }
+				END {
+					if (!n) { print "null"; exit }
+					printf "{\"min\": %d, \"median\": %d, \"max\": %d}", v[1], v[int((n + 1) / 2)], v[n]
+				}')
 			survey=$(iw dev "$iface" survey dump 2>/dev/null | awk '
 				/^Survey data/ { use = 0 }
 				/frequency:/ && /\[in use\]/ { use = 1 }
@@ -115,11 +128,11 @@ rrm_radios_json() {
 		[ -n "$iface" ] && echo "$phy $iface ${freq:-0} $clients" >> "$RRM_OUT/radios.txt"
 		[ -n "$first" ] || printf ',\n'
 		first=
-		printf '    {"phy": "%s", "driver": "%s", "interfaces": [%s], "channel": %s, "freq": %s, "width": %s, "clients": %s, "survey": %s}' \
+		printf '    {"phy": "%s", "driver": "%s", "interfaces": [%s], "channel": %s, "freq": %s, "width": %s, "txpower": %s, "clients": %s, "client_signal": %s, "survey": %s}' \
 			"$phy" "$(rrm_json_str "$driver")" \
 			"$(for i in $ifaces; do printf '"%s",' "$(rrm_json_str "$i")"; done | sed 's/,$//')" \
 			"${chan:-null}" "${freq:-null}" "$([ -n "$width" ] && printf '"%s"' "$width" || echo null)" \
-			"$clients" "${survey:-null}"
+			"${txpower:-null}" "$clients" "${signal:-null}" "${survey:-null}"
 	done
 	echo
 }
