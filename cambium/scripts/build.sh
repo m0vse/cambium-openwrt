@@ -1,9 +1,11 @@
 #!/bin/sh
-# Build, verify and collect one Cambium family snapshot.
+# Build, verify and collect one Cambium family snapshot or release.
 #
 # Usage: cambium/scripts/build.sh FAMILY [BUILD_ID]
 #   FAMILY    sage | thor | cheetah | jaguar
-#   BUILD_ID  YYYY.MM.DD.N (default: today's date with N=0)
+#   BUILD_ID  a snapshot, YYYY.MM.DD.N (default: today's date with N=0), or
+#             a release, X.Y.Z-N: Cambium release N of OpenWrt X.Y.Z, built
+#             from that release (see cambium/README.md)
 #
 # Environment:
 #   JOBS                    parallel make jobs (default: nproc)
@@ -13,6 +15,8 @@
 #                           unset the build generates a throwaway key
 #   CAMBIUM_OUTPUT          collection directory (default: cambium-output)
 #   CAMBIUM_SKIP_FEEDS      set to 1 to reuse already installed feeds
+#   CAMBIUM_UPSTREAM_REF    the upstream commit this build is based on
+#                           (default upstream/main; a release's vX.Y.Z tag)
 
 set -eu
 
@@ -29,8 +33,9 @@ jaguar)  name=Jaguar;  target=qualcommax; subtarget=ipq60xx ;;
 *) echo "Unknown family: $family" >&2; exit 2 ;;
 esac
 case "$build_id" in
-[0-9][0-9][0-9][0-9].[0-1][0-9].[0-3][0-9].[0-9]*) ;;
-*) echo "Invalid build ID: $build_id (expected YYYY.MM.DD.N)" >&2; exit 2 ;;
+[0-9][0-9][0-9][0-9].[0-1][0-9].[0-3][0-9].[0-9]*) channel=snapshot ;;
+[0-9]*.[0-9]*.[0-9]*-[0-9]*) channel=release ;;
+*) echo "Invalid build ID: $build_id (expected YYYY.MM.DD.N or X.Y.Z-N)" >&2; exit 2 ;;
 esac
 
 id_key=$(echo "$name" | tr '[:lower:]' '[:upper:]')_BUILD_ID
@@ -52,6 +57,8 @@ fi
 if [ ! -f llvm-bpf/.llvm-version ]; then
 	log "Fetching prebuilt LLVM eBPF toolchain"
 	base=https://downloads.openwrt.org/snapshots/targets/$target/$subtarget
+	[ "$channel" = release ] &&
+		base=https://downloads.openwrt.org/releases/${build_id%-*}/targets/$target/$subtarget
 	sums=$(wget -qO- "$base/sha256sums")
 	file=$(printf '%s\n' "$sums" | sed -n 's/^[0-9a-f]\{64\} \*\{0,1\}\(llvm-bpf-.*\.Linux-x86_64\.tar\.zst\)$/\1/p' | head -n 1)
 	if [ -n "$file" ] && wget -q -O "/tmp/$file" "$base/$file" &&
@@ -83,6 +90,7 @@ rm -rf files
 mkdir -p files/etc
 {
 	printf "CAMBIUM_FAMILY='%s'\n" "$name"
+	printf "CAMBIUM_CHANNEL='%s'\n" "$channel"
 	printf "%s='%s'\n" "$id_key" "$build_id"
 	printf "CAMBIUM_SOURCE_COMMIT='%s'\n" "$(git rev-parse HEAD)"
 	printf "OPENWRT_UPSTREAM_COMMIT='%s'\n" "$upstream"
@@ -100,7 +108,7 @@ done
 if [ -n "${CAMBIUM_FEED_URL:-}" ]; then
 	mkdir -p files/etc/apk/repositories.d
 	{
-		echo "# Cambium $name snapshot $build_id: kernel modules and Cambium packages"
+		echo "# Cambium $name $channel $build_id: kernel modules and Cambium packages"
 		echo "$CAMBIUM_FEED_URL/$build_id/$family/targets/$target/$subtarget/packages/packages.adb"
 		echo "$CAMBIUM_FEED_URL/$build_id/$family/packages/$arch/base/packages.adb"
 	} > files/etc/apk/repositories.d/cambium.list
@@ -226,6 +234,9 @@ for root in $roots; do
 		fail "$root lacks the $name build ID"
 	grep -q "^DISTRIB_RELEASE='[^']\{1,\}'$" "$root/etc/openwrt_release" ||
 		fail "$root lacks the upstream OpenWrt release"
+	# A release build must be exactly the upstream release it is named after.
+	[ "$channel" = snapshot ] || grep -qx "DISTRIB_RELEASE='${build_id%-*}'" "$root/etc/openwrt_release" ||
+		fail "$root is not OpenWrt ${build_id%-*}: $(grep DISTRIB_RELEASE "$root/etc/openwrt_release")"
 	[ ! -s "$root/etc/dropbear/authorized_keys" ] ||
 		fail "$root contains SSH authorized keys"
 	leaked=$(find "$root/lib/firmware" \( -name 'bdwlan*' -o -path '*/ath11k/*/board.bin' \) 2>/dev/null)

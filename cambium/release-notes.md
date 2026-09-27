@@ -1,8 +1,10 @@
 ## Read before flashing
 
-These are **automated development snapshots**, built from upstream OpenWrt
-`main` with the Cambium patches on top. They are not OpenWrt releases and are
-published without per-build hardware testing.
+**Snapshots** are automated development builds of upstream OpenWrt `main`
+with the Cambium patches on top, published without per-build hardware
+testing. **Releases** are built from an OpenWrt stable release with the same
+patches; each is a release candidate until it has been validated on each
+family's hardware, and is then promoted to a full release.
 
 Each family has one recovery image and one persistent image; each image
 holds every model's device tree and boots the one matching the AP's board
@@ -63,6 +65,7 @@ untested or unported model, please open an issue on this repository.
   the Thor XV3-8 and the Cheetah XV2-21X). An XV3-8 on the earlier single-bank image
   sysupgrades in place to this image, then reinstalls once
   (`cambium-install.sh stock`, then `install`) to move to A/B.
-- Kernel modules must come from the same snapshot as the image. The package
-  feed for each snapshot is configured in the image and kept for the two
-  most recent snapshots only.
+- Kernel modules must come from the same build as the image. The package
+  feed for each build is configured in the image and kept for the two most
+  recent snapshots and each OpenWrt series' newest release (fewer snapshots
+  if the site nears GitHub Pages' 1 GB limit).

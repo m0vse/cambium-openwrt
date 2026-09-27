@@ -96,6 +96,10 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
   <h2>Downloads</h2>
   <p>What changed in each snapshot is in the <a href="changelog.html">changelog</a>,
   per family; each release's notes list that snapshot's changes too.</p>
+  <p>Snapshots are built from OpenWrt's development branch. Release builds
+  (<code>X.Y.Z-N</code>) are Cambium on an OpenWrt stable release; each is a
+  release candidate until it has been validated on hardware, then promoted
+  to a full release.</p>
   <p>Each snapshot is a GitHub release with one recovery and one persistent
   image per family, the family ImageBuilder and checksums, plus
   <code>select-config.sh</code> and <code>cambium-manifest.json</code>: a
@@ -103,7 +107,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
   status and image (with SHA-256) in that snapshot. The matching
   package feed (kernel modules and Cambium packages) is served from this site
   and is already configured in each image.</p>
-  <div id="builds" class="table-scroll"><p>Loading the latest snapshots&hellip;
+  <div id="builds" class="table-scroll"><p>Loading the latest builds&hellip;
   If nothing appears, see the
   <a href="https://github.com/m0vse/cambium-openwrt/releases">releases page</a>.</p></div>
 </section>
@@ -818,15 +822,20 @@ sh /tmp/cambium-install.sh --yes stock</pre>
   }).then(function (data) {
     var builds = (data && data.builds) || [];
     if (!builds.length) throw new Error('empty');
-    var rows = builds.map(function (b, i) {
+    var seen = {};
+    var rows = builds.map(function (b) {
+      var kind = b.kind || 'snapshot';
       var feeds = (b.families || []).map(function (f) {
         return '<a href="' + esc(b.build_id) + '/' + esc(f) + '/">' + esc(f) + '</a>';
       }).join(', ');
-      return '<tr><td><a href="' + repo + '/releases/tag/snapshot-' + esc(b.build_id) + '">' +
-        esc(b.build_id) + '</a>' + (i === 0 ? ' <span class="pill ok">latest</span>' : '') +
-        '</td><td>' + esc((b.families || []).join(', ')) + '</td><td>' + feeds + '</td></tr>';
+      var pill = seen[kind] ? '' : kind === 'release' ?
+        ' <span class="pill ok">newest release</span>' : ' <span class="pill ok">latest snapshot</span>';
+      seen[kind] = true;
+      return '<tr><td><a href="' + repo + '/releases/tag/' + esc(kind) + '-' + esc(b.build_id) + '">' +
+        esc(b.build_id) + '</a>' + pill + '</td><td>' + esc(kind) + '</td><td>' +
+        esc((b.families || []).join(', ')) + '</td><td>' + feeds + '</td></tr>';
     }).join('');
-    box.innerHTML = '<table class="downloads"><thead><tr><th>Snapshot</th><th>Families</th>' +
+    box.innerHTML = '<table class="downloads"><thead><tr><th>Build</th><th>Type</th><th>Families</th>' +
       '<th>Package feeds</th></tr></thead><tbody>' + rows + '</tbody></table>' +
       '<p>Older images: <a href="' + repo + '/releases">all releases</a>.</p>';
   }).catch(function () {
