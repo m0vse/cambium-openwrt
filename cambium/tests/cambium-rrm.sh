@@ -341,21 +341,36 @@ rm -f "$W/uci"
 
 # --- the scanning radio in /etc/config/wireless ---------------------------------------------
 hotplug() { ACTION=add DEVPATH="/devices/$PCIE/ieee80211/phy0" RRM_SYSROOT=$W/sys sh "$pkg/20-cambium-scan-radio"; }
-setup cambiumnetworks,xv3-8 scan
-# wifi-detect has added the scanning radio with its default network.
-printf '%s\n' 'wireless.radio0=wifi-device' "wireless.radio0.path=$PCIE" 'wireless.radio0.band=5g' \
-	'wireless.default_radio0=wifi-iface' 'wireless.default_radio0.device=radio0' 'wireless.default_radio0.ssid=OpenWrt' \
-	'wireless.radio1=wifi-device' "wireless.radio1.path=$AHB" \
-	'wireless.wlan3_5=wifi-iface' 'wireless.wlan3_5.device=radio1' 'wireless.wlan3_5.ssid=phil 5Ghz' > "$W/uci"
-check "hotplug for the scanning radio" 0 hotplug
-assert "wifi-detect's section and its network are removed" sh -c "! grep -E '^wireless\.(radio0|default_radio0)[.=]' '$W/uci'"
-assert "a disabled 'scan' section with the radio's path" [ "$(grep '^wireless\.scan' "$W/uci" | sort | tr '\n' ' ')" = \
-	"wireless.scan.disabled=1 wireless.scan.path=$PCIE wireless.scan.type=mac80211 wireless.scan=wifi-device " ]
-assert "the serving radio and its network are untouched" [ "$(grep -c '^wireless\.\(radio1\|wlan3_5\)' "$W/uci")" = 5 ]
-assert "the change is committed" grep -q 'commit wireless' "$W/calls"
+# wifi-detect drops "platform/" from PCI device paths (what it really writes);
+# the full form is tested too, as an older wifi-detect or a hand edit may use it.
+WD=${PCIE#platform/}
+for form in "$WD" "$PCIE"; do
+	setup cambiumnetworks,xv3-8 scan
+	# wifi-detect has added the scanning radio with its default network.
+	printf '%s\n' 'wireless.radio3=wifi-device' "wireless.radio3.path=$form" 'wireless.radio3.band=5g' \
+		'wireless.default_radio3=wifi-iface' 'wireless.default_radio3.device=radio3' 'wireless.default_radio3.ssid=OpenWrt' \
+		'wireless.radio1=wifi-device' "wireless.radio1.path=$AHB" \
+		'wireless.wlan3_5=wifi-iface' 'wireless.wlan3_5.device=radio1' 'wireless.wlan3_5.ssid=phil 5Ghz' > "$W/uci"
+	check "hotplug for the scanning radio ($form)" 0 hotplug
+	assert "wifi-detect's section and its network are removed ($form)" sh -c "! grep -E '^wireless\.(radio3|default_radio3)[.=]' '$W/uci'"
+	assert "a disabled 'scan' section with wifi-detect's form of the path ($form)" \
+		[ "$(grep '^wireless\.scan' "$W/uci" | sort | tr '\n' ' ')" = \
+		"wireless.scan.disabled=1 wireless.scan.path=$WD wireless.scan.type=mac80211 wireless.scan=wifi-device " ]
+	assert "the serving radio and its network are untouched ($form)" [ "$(grep -c '^wireless\.\(radio1\|wlan3_5\)' "$W/uci")" = 5 ]
+	assert "the change is committed ($form)" grep -q 'commit wireless' "$W/calls"
+done
 : > "$W/calls"
 check "hotplug again" 0 hotplug
 assert "already in place: nothing committed" sh -c "! grep -q commit '$W/calls'"
+# Before this fix the scan section used the full path, which wifi-detect never
+# matched, so it added its own radio for the scanner on every boot.
+setup cambiumnetworks,xv3-8 scan
+printf '%s\n' 'wireless.radio3=wifi-device' "wireless.radio3.path=$WD" \
+	'wireless.scan=wifi-device' 'wireless.scan.type=mac80211' "wireless.scan.path=$PCIE" 'wireless.scan.disabled=1' \
+	'wireless.radio1=wifi-device' "wireless.radio1.path=$AHB" > "$W/uci"
+check "hotplug on an AP set up before the fix" 0 hotplug
+assert "the extra radio wifi-detect added is removed" sh -c "! grep -q '^wireless\.radio3' '$W/uci'"
+assert "the scan section now uses wifi-detect's form" [ "$(sed -n 's/^wireless\.scan\.path=//p' "$W/uci")" = "$WD" ]
 # A serving radio's hotplug, and a board without a scanning radio, change nothing.
 cp "$W/uci" "$W/uci.before"
 check "hotplug for a serving radio" 0 env ACTION=add DEVPATH="/devices/$AHB/ieee80211/phy1" RRM_SYSROOT=$W/sys sh "$pkg/20-cambium-scan-radio"
