@@ -4,6 +4,15 @@ Changes that apply to every family.
 
 ## Unreleased
 
+- Release builds: Cambium on OpenWrt's final stable releases, from the first
+  series after 25.12. Each series gets a `cambium-X.Y` branch that only
+  moves forward (point releases merged, fixes cherry-picked from `main`);
+  builds are tagged `release-X.Y.Z-N`, published as release candidates and
+  promoted once validated on hardware. The snapshot workflow starts the
+  release workflow when upstream publishes a final release. Images record
+  `CAMBIUM_CHANNEL` (`snapshot` or `release`) in
+  `/etc/cambium-openwrt-release`, and the site lists release builds beside
+  snapshots.
 - On an AP whose VLAN trunk OpenWISP already set up, the first boot after an
   upgrade also moves the OpenWISP agent's management interface from the
   legacy `br-lan` to `br-lan.1`, as it did for `lan6`: the old value named
