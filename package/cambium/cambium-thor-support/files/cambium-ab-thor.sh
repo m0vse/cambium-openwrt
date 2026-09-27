@@ -29,9 +29,17 @@ ab_thor_board() {
 		# Installed, converted and bank-switched by sysupgrade on hardware.
 		AB_MODEL=XV3-8; AB_SKU=00000013; AB_FIT=config@hk02; AB_QUALIFIED=1
 		# Managed on the VLAN-1 bridge once OpenWISP's trunk template has
-		# applied; all three radios are validated.
+		# applied.
 		AB_LAN='br-lan.1 br-lan'
+		# Every serving radio must be up: they are the IPQ8074's own
+		# (the QCA9887 scanning radio on PCIe does not count), three in
+		# dual-4x4 mode and two in single-8x8 (2.4 GHz plus one 8x8
+		# 5 GHz), as the ath11k driver was started.
+		AB_RADIO_DEVICE=soc@0/c000000.wifi
 		AB_RADIOS=3
+		if [ "$(cat "${AB_SYS_MODULE:-/sys/module}/ath11k/parameters/xv3_8_hw_mode" 2>/dev/null)" = single-8x8 ]; then
+			AB_RADIOS=2
+		fi
 		;;
 	*) return 1 ;;
 	esac
