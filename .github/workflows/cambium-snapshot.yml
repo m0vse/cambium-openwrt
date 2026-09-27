@@ -149,6 +149,9 @@ jobs:
       - name: Test the RRM measurement agent
         run: sh cambium/tests/cambium-rrm.sh
 
+      - name: Test the release branch and feed tooling
+        run: sh cambium/tests/cambium-release.sh
+
       - name: Render the changelogs
         run: |
           python3 cambium/scripts/changelog.py html cambium/changelog cambium/site/index.html > /dev/null
@@ -171,7 +174,22 @@ jobs:
           gh label create stable-branch --color 0e8a16 --force >/dev/null
           gh issue create --label stable-branch --title "$title" --body "Upstream OpenWrt has created \`openwrt-$latest\`.
 
-          Release builds for the Cambium families start from this series: port the Cambium commits onto the branch, check the device trees and kernel patches against its kernel, then enable tagged release builds (see cambium/README.md)."
+          Release builds start automatically from this series' first final release (not its release candidates): the Cambium release workflow ports the Cambium commits onto it as \`cambium-$latest\`. Try the port against a release candidate first (\`cambium/scripts/release-branch.sh\` on a local branch; see cambium/README.md) so conflicts are known early."
+
+      - name: Start a release build for a new OpenWrt release
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AFTER: '25.12'
+        run: |
+          latest=$(git ls-remote --tags https://github.com/openwrt/openwrt.git 'refs/tags/v*' |
+            sed -n 's|.*refs/tags/v\([0-9]*\.[0-9]*\.[0-9]*\)$|\1|p' | sort -V | tail -n 1)
+          [ -n "$latest" ] || exit 0
+          [ "$(printf '%s\n%s\n' "$AFTER" "${latest%.*}" | sort -V | tail -n 1)" != "$AFTER" ] || exit 0
+          if [ -z "$(git ls-remote --tags origin "refs/tags/release-$latest-*")" ]; then
+            echo "OpenWrt $latest has no Cambium release build: starting the release workflow." >> "$GITHUB_STEP_SUMMARY"
+            gh workflow run cambium-release.yml -f action=update
+          fi
 
       - name: Decide build
         id: result
@@ -285,6 +303,10 @@ jobs:
     needs: [sync, build]
     if: ${{ !cancelled() && (needs.sync.outputs.build == 'true' || inputs.republish_run) }}
     runs-on: ubuntu-24.04
+    # One writer of gh-pages at a time, release builds included.
+    concurrency:
+      group: cambium-pages
+      cancel-in-progress: false
     permissions:
       contents: write
       actions: read
