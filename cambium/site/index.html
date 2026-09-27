@@ -286,7 +286,7 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram      # checks, bac
       <tr><td><code>ram</code></td><td>RAM-boots the recovery image once, every family. Any later reboot returns to the stock firmware. On a model that is not validated, stop here and <a href="#report">send a report</a>.</td></tr>
       <tr><td><code>install</code></td><td>Installs the persistent image on a validated model and arms its guarded first boot (Sage: a one-shot trial, then <code>sage-migration-mark-good --confirm</code> in OpenWrt). Thor: if its stock firmware has no <code>ubiformat</code>, it RAM-boots the installer instead; run the same <code>install</code> command again inside it.</td></tr>
       <tr><td><code>stock</code></td><td>In an installed OpenWrt that still has the stock firmware in its other slot (not converted to A/B): makes the stock firmware the default boot again, e.g. to reinstall a single-bank Thor as A/B.</td></tr>
-      <tr><td><code>--trial</code></td><td>Hardware trial of a persistent image not yet validated on the model, e.g. the Jaguar A/B build.</td></tr>
+      <tr><td><code>--trial</code></td><td>Hardware trial of a persistent image not yet validated on the model, e.g. a Jaguar on an XV2-2T0.</td></tr>
       <tr><td><code>--persistent-test</code></td><td>Jaguar: RAM-boot the A/B persistent trees (the test-only image) with no bank attached.</td></tr>
       <tr><td><code>--format-inactive</code></td><td>Lets <code>ram</code> erase the inactive slot (after backing it up) when its stock firmware copy leaves too little free space for the RAM image, as on a stock XV2-2.</td></tr>
       <tr><td><code>update-upgrader</code></td><td>Thor, Jaguar and Cheetah, in the installed A/B OpenWrt: installs the release's A/B upgrade scripts on the running system, which is what <code>sysupgrade</code> uses. Run it before an A/B sysupgrade.</td></tr>
@@ -585,14 +585,16 @@ reboot                                             # must come back on the same 
 
   <h4>A/B sysupgrade</h4>
   <p><code>sysupgrade</code> runs the upgrade scripts of the <em>running</em>
-  system, not those in the new image. An AP installed from a build before
-  snapshot 2026.09.24 evening lacks the stage-2 fix (the first XV2-2 upgrade
-  formatted the inactive bank and then stopped), so install the current
-  release's Jaguar upgrade scripts on it first. The command checks, keeps
-  the old copies and verifies the new ones load:</p>
+  system, not those in the new image. To upgrade with the current release's
+  A/B scripts, install them on the running system first. The command checks,
+  keeps the old copies and verifies the new ones load:</p>
 <pre>wget -O /tmp/cambium-install.sh http://COMPUTER_IP:8000/cambium-install.sh
 sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 update-upgrader                  # check run
 sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes update-upgrader</pre>
+  <p>Jaguar builds from snapshot 2026.09.24 used an earlier Jaguar-only
+  upgrade writer and cannot upgrade into the shared A/B scripts;
+  <code>update-upgrader</code> refuses them. Reinstall such an AP from the
+  stock firmware instead. No deployed AP runs one.</p>
   <p>Then upgrade. It writes the inactive bank, reads it back, and arms a
   one-shot trial of it; the old bank stays the default until the new one
   passes its checks (slot, overlay, DHCP on the LAN, device-data vault),
