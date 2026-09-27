@@ -718,7 +718,7 @@ cmd_update_upgrader() {
 	on_openwrt || die "update-upgrader runs in an installed OpenWrt"
 	grep -q 'ubi.mtd=' "$R/proc/cmdline" || die "this OpenWrt does not run from flash"
 	[ -f "$R/lib/upgrade/cambium-ab.sh" ] ||
-		die "this image predates the shared A/B scripts (cambium-ab): upgrade it with sysupgrade instead"
+		die "this image predates the shared A/B scripts (cambium-ab): upgrade it with sysupgrade instead (a Jaguar from snapshot 2026.09.24 needs a reinstall from the stock firmware)"
 	load_release
 	identify recovery
 	# Each entry: the release file's name suffix, then where it is installed.
