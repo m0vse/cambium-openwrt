@@ -1,11 +1,18 @@
 #!/bin/sh
-# Publish one snapshot: a GitHub release with the images and ImageBuilders,
-# and the matching apk feeds on the gh-pages branch (served by GitHub Pages).
+# Publish one snapshot or release build: a GitHub release with the images and
+# ImageBuilders, and the matching apk feeds on the gh-pages branch (served by
+# GitHub Pages).
 #
 # Usage: cambium/scripts/publish.sh ARTIFACT_DIR
 # ARTIFACT_DIR holds cambium-<family>/ directories written by build.sh.
 # Environment: GH_TOKEN BUILD_ID SHA UPSTREAM FAMILIES FEED_URL GITHUB_REPOSITORY
-#   KEEP_RELEASES (default 14)  KEEP_FEEDS (default 2)
+#   UPSTREAM_TAG (a release's OpenWrt tag)  KEEP_RELEASES (default 14)
+#   and the feed limits of prune-feeds.sh
+#
+# A snapshot (build ID YYYY.MM.DD.N) is tagged snapshot-ID, and only the
+# newest KEEP_RELEASES snapshots are kept. A release (X.Y.Z-N) is tagged
+# release-ID and never deleted; it is published as a release candidate (a
+# GitHub pre-release) until it is promoted after hardware validation.
 
 set -eu
 
@@ -27,9 +34,13 @@ for value in "$BUILD_ID" "$SHA" "$UPSTREAM"; do
 	esac
 done
 FEED_URL=${FEED_URL:?}
-tag=snapshot-$BUILD_ID
+case "$BUILD_ID" in
+[0-9][0-9][0-9][0-9].*) kind=snapshot ;;
+*-*) kind=release ;;
+*) echo "Invalid build ID: $BUILD_ID" >&2; exit 1 ;;
+esac
+tag=$kind-$BUILD_ID
 keep_releases=${KEEP_RELEASES:-14}
-keep_feeds=${KEEP_FEEDS:-2}
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT HUP INT TERM
 
@@ -75,10 +86,19 @@ cp "$(dirname "$0")/../site/cambium-serve.py" "$stage/assets/cambium-serve.py"
 (cd "$stage/assets" && sha256sum -- * > SHA256SUMS)
 
 {
-	echo "Automated OpenWrt snapshot for Cambium access points, build \`$BUILD_ID\`."
-	echo
+	if [ "$kind" = release ]; then
+		echo "Cambium release \`$BUILD_ID\`: OpenWrt ${BUILD_ID%-*} for Cambium access points."
+		echo
+		echo "**Release candidate** until it has been validated on each family's hardware;"
+		echo "it is then promoted to a full release."
+		echo
+		echo "- Upstream OpenWrt: [${UPSTREAM_TAG:-v${BUILD_ID%-*}}](https://github.com/openwrt/openwrt/releases/tag/${UPSTREAM_TAG:-v${BUILD_ID%-*}})"
+	else
+		echo "Automated OpenWrt snapshot for Cambium access points, build \`$BUILD_ID\`."
+		echo
+		echo "- Upstream OpenWrt: [\`$(printf %.12s "$UPSTREAM")\`](https://github.com/openwrt/openwrt/commit/$UPSTREAM)"
+	fi
 	echo "- Source: [\`$(printf %.12s "$SHA")\`](https://github.com/$repo/commit/$SHA)"
-	echo "- Upstream OpenWrt: [\`$(printf %.12s "$UPSTREAM")\`](https://github.com/openwrt/openwrt/commit/$UPSTREAM)"
 	echo "- Built:$(echo "$built" | sed 's/ /, /g; s/^,//')"
 	[ -z "$failed" ] || echo "- **Failed (not included):**$(echo "$failed" | sed 's/ /, /g; s/^,//')"
 	echo "- Package feeds: $FEED_URL/$BUILD_ID/"
@@ -91,9 +111,13 @@ cp "$(dirname "$0")/../site/cambium-serve.py" "$stage/assets/cambium-serve.py"
 
 echo "Creating $tag at $SHA"
 gh api "repos/$repo/git/refs" -f ref="refs/tags/$tag" -f sha="$SHA" >/dev/null
-gh release create "$tag" --repo "$repo" --prerelease \
-	--title "Cambium OpenWrt snapshot $BUILD_ID" --notes-file "$stage/notes.md" \
-	"$stage/assets/"*
+if [ "$kind" = release ]; then
+	title="Cambium OpenWrt $BUILD_ID (release candidate)"
+else
+	title="Cambium OpenWrt snapshot $BUILD_ID"
+fi
+gh release create "$tag" --repo "$repo" --prerelease --latest=false \
+	--title "$title" --notes-file "$stage/notes.md" "$stage/assets/"*
 
 echo "Updating package feeds"
 site=$stage/site
@@ -108,19 +132,17 @@ for family in $built; do
 	mkdir -p "$site/$BUILD_ID/$family"
 	cp -R "$in/cambium-$family/feed/." "$site/$BUILD_ID/$family/"
 done
-# Feeds only serve the newest snapshots; older images keep working but can
-# no longer install extra kernel modules.
-ls -1 "$site" | grep -E '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+$' | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n |
-	head -n "-$keep_feeds" | while read -r old; do rm -rf "${site:?}/$old"; done
+sh "$(dirname "$0")/prune-feeds.sh" "$site"
 "$(dirname "$0")/update-site.sh" "$site"
 (
 	cd "$site"
 	git init --quiet --initial-branch gh-pages
 	git add -A
-	git commit --quiet -m "Site and package feeds for snapshot $BUILD_ID"
+	git commit --quiet -m "Site and package feeds for $kind $BUILD_ID"
 	git push --quiet --force "https://x-access-token:$GH_TOKEN@github.com/$repo.git" gh-pages
 )
 
+[ "$kind" = snapshot ] || { echo "Published $tag"; exit 0; }
 echo "Pruning old snapshot releases"
 gh release list --repo "$repo" --limit 200 --json tagName --jq '.[].tagName' |
 	grep '^snapshot-' | sort -t. -k1,1 -k2,2n -k3,3n -k4,4n -r |
