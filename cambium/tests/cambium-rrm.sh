@@ -62,10 +62,69 @@ setup() { # setup BOARD [with-scan-radio]
 	fi
 }
 
+# setup_xv2_21x: the XV2-21X as it is: two ath11k radios on two devices,
+# 2.4 GHz (IPQ5018, phy0) and 5 GHz (QCN6122, phy1), three networks each
+# (read from PHIL-XV2-21X on 27 Sep 2026).
+setup_xv2_21x() {
+	local p dev
+	setup cambiumnetworks,xv2-21x
+	rm -rf "$W/sys/class/ieee80211/"*
+	for p in 0:platform/soc@0/c000000.wifi 1:platform/soc@0/b00a040.wifi; do
+		dev=${p#*:}
+		mkdir -p "$W/sys/devices/$dev/ieee80211/phy${p%%:*}"
+		ln -sfn "$W/sys/bus/platform/drivers/ath11k" "$W/sys/devices/$dev/driver"
+		ln -s "$W/sys/devices/$dev" "$W/sys/devices/$dev/ieee80211/phy${p%%:*}/device"
+		ln -s "$W/sys/devices/$dev/ieee80211/phy${p%%:*}" "$W/sys/class/ieee80211/phy${p%%:*}"
+	done
+	echo xv2-21x > "$W/state/fixture"
+}
+
 mkdir -p "$W/bin"
 cat > "$W/bin/iw" <<'EOS'
 #!/bin/sh
 echo "iw $*" >> "$SIM/calls"
+case "$(cat "$SIM/state/fixture" 2>/dev/null):$*" in
+xv2-21x:dev)
+	# As iw prints it, with the queue statistics lines.
+	cat <<'EOF'
+phy#1
+	Interface wlan4_5
+		type AP
+		channel 60 (5300 MHz), width: 40 MHz, center1: 5310 MHz
+		txpower 14.00 dBm
+			qsz-byt	qsz-pkt	flows	drops	marks	overlmt	hashcol	tx-bytes	tx-packets
+			0	0	0	0	0	0	0	0		0
+	Interface wlan3_5
+		type AP
+		channel 60 (5300 MHz), width: 40 MHz, center1: 5310 MHz
+		txpower 14.00 dBm
+	Interface wlan2_5
+		type AP
+		channel 60 (5300 MHz), width: 40 MHz, center1: 5310 MHz
+		txpower 14.00 dBm
+phy#0
+	Interface wlan4_24
+		type AP
+		channel 6 (2437 MHz), width: 20 MHz, center1: 2437 MHz
+		txpower 9.00 dBm
+	Interface wlan2_24
+		type AP
+		channel 6 (2437 MHz), width: 20 MHz, center1: 2437 MHz
+		txpower 9.00 dBm
+	Interface wlan1_24
+		type AP
+		channel 6 (2437 MHz), width: 20 MHz, center1: 2437 MHz
+		txpower 9.00 dBm
+EOF
+	;;
+xv2-21x:"dev wlan3_5 station dump") printf 'Station aa:aa:aa:00:00:21 (on wlan3_5)\n\tsignal:  \t-58 [-60, -61] dBm\n' ;;
+*:"dev "*" station dump") [ "$(cat "$SIM/state/fixture" 2>/dev/null)" = xv2-21x ] || exec "$0.xv38" "$@" ;;
+*)
+	exec "$0.xv38" "$@" ;;
+esac
+EOS
+cat > "$W/bin/iw.xv38" <<'EOS'
+#!/bin/sh
 case "$*" in
 dev)
 	cat <<'EOF'
@@ -243,18 +302,35 @@ jcheck "no neighbours when the scan fails" 'd["neighbours"] is None and len(d["r
 assert "scan0 removed after a failed scan" [ ! -f "$W/state/scan0" ]
 
 # --- families without a scanning radio ---------------------------------------------------
-setup cambiumnetworks,xv2-21x
+setup_xv2_21x
 check "XV2-21X measurement" 0 agent --once
 jcheck "no scanning radio" 'd["scan_radio"] is None and d["neighbours"] is None and d["channels"] is None'
-jcheck "its radios are measured" 'len(d["radios"]) == 3'
+jcheck "its two radios, 2.4 GHz on phy0 and 5 GHz on phy1" '[(r["phy"], r["channel"], r["width"], r["txpower"]) for r in d["radios"]] == [("phy0", 6, "20 MHz", 9.0), ("phy1", 60, "40 MHz", 14.0)]'
+jcheck "each radio's three networks" '[r["interfaces"] for r in d["radios"]] == [["wlan4_24", "wlan2_24", "wlan1_24"], ["wlan4_5", "wlan3_5", "wlan2_5"]]'
+jcheck "the 5 GHz client and its signal" '[(r["clients"], r["client_signal"]) for r in d["radios"]] == [(0, None), (1, {"min": -58, "median": -58, "max": -58})]'
 assert "nothing is scanned or created" sh -c "! grep -E 'scan|interface add' '$W/calls'"
+# Scheduled scans on the two radios: the 5 GHz radio has a client, so it waits
+# for the last scan time.
+setup_xv2_21x
+echo 'cambium_rrm.agent.scan_times=02:00 04:00' > "$W/uci"
+echo "2026-09-27 02:05 2000" > "$W/clock"
+check "XV2-21X at 02:05" 0 agent --once
+assert "the 2.4 GHz radio scans through its first network" [ "$(cat "$W/state/apscans")" = wlan4_24 ]
+assert "the 5 GHz radio, with a client, waits" grep -q "phy1 has 1 clients" "$W/log"
+jcheck "the 2.4 GHz radio's networks" '[(x["radio"], x["time"]) for x in d["neighbours"]] == [("phy0", 2000)]'
+echo "2026-09-27 04:10 9000" > "$W/clock"
+check "XV2-21X at 04:10, the last scan time" 0 agent --once
+assert "at the last time the 5 GHz radio scans too" [ "$(tr '\n' ' ' < "$W/state/apscans")" = "wlan4_24 wlan4_24 wlan4_5 " ]
+jcheck "both radios' latest networks" 'sorted((x["radio"], x["time"]) for x in d["neighbours"]) == [("phy0", 9000), ("phy1", 9000)]'
+rm -f "$W/clock" "$W/uci" "$W/log"
 # An XV3-8 image without the scanning radio (the earlier device tree).
 setup cambiumnetworks,xv3-8
 check "XV3-8 without its scanning radio" 0 agent --once
 jcheck "no scanning radio found" 'd["scan_radio"] is None'
 
 # --- scans by the serving radios at scan_times -----------------------------------------------
-setup cambiumnetworks,xv2-21x
+# Three serving radios, one with clients, on a board without a scanning radio.
+setup example,three-radios
 echo 'cambium_rrm.agent.scan_times=04:00 02:00' > "$W/uci"
 at() { echo "$1 $2 $3" > "$W/clock"; }
 scans() { cat "$W/state/apscans" 2>/dev/null | tr '\n' ' ' | sed 's/ $//'; }
