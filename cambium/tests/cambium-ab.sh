@@ -241,7 +241,7 @@ ln -s "$top/package/cambium/cambium-sage-support/files/cambium-ab-sage.sh" "$S/m
 export CAMBIUM_SAGE_LIB=$top/target/linux/ipq40xx/base-files/lib/functions/cambium-sage.sh
 export AB_NEWROOT=$S/newroot
 export CAMBIUM_AB_LIB=$ab_pkg/cambium-ab.sh CAMBIUM_AB_MODULES=$S/modules
-export AB_SYS_NET=$S/net AB_SYS_IEEE80211=$S/ieee80211
+export AB_SYS_NET=$S/net AB_SYS_IEEE80211=$S/ieee80211 AB_SYS_MODULE=$S/module
 export CAMBIUM_AB_UPGRADE_LIB=${CAMBIUM_AB_UPGRADE_LIB:-$ab_pkg/cambium-ab-upgrade.sh}
 export CAMBIUM_FUNCTIONS=$S/functions.sh CAMBIUM_SYSTEM_FUNCTIONS=$S/system.sh
 export CAMBIUM_BDF_FW_DIR=$S/fw CAMBIUM_BDF_WORK=$S/bdwork CAMBIUM_BDF_STATUS=$S/bdstatus
@@ -280,7 +280,7 @@ set_sku() { printf "\\000\\000\\000\\$1" > "$S/dt/cambium-platform/board-sku"; }
 # new_ap [BOARD] [ACTIVE-SLOT] [oem|openwrt]: the other bank's contents.
 new_ap() {
 	local board=${1:-cambiumnetworks,xv2-2t1} active=${2:-0} other=${3:-oem} i
-	rm -rf "$S/sys" "$S/dev" "$S/flash" "$S/dt" "$S/fw" "$S/bdwork"* "$S/work" "$S/oem_root" "$S/net" "$S/ieee80211"
+	rm -rf "$S/sys" "$S/dev" "$S/flash" "$S/dt" "$S/fw" "$S/bdwork"* "$S/work" "$S/oem_root" "$S/net" "$S/ieee80211" "$S/module"
 	rm -f "$S/calls" "$S/opcount" "$S/fail_at" "$S/corrupt" "$S/bank_lebs" "$S/bdstatus" "$S/net_ok" "$S/lan_device"
 	mkdir -p "$S/sys/ubi" "$S/dev" "$S/flash" "$S/dt/cambium-platform" "$S/fw"
 	touch "$S/calls"
@@ -858,28 +858,59 @@ check "no vault, writable stock bank: board data imported" 0 run_board_data
 assert "no vault: status imported" [ "$(cat "$S/bdstatus")" = imported ]
 assert "no vault: IPQ8074 board file installed" [ -s "$S/fw/ath11k/IPQ8074/hw2.0/board.bin" ]
 assert "no vault: stock bank unchanged" [ "$(bank_hash 1)" = "$oem_before" ]
-new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2"; : > "$S/calls"
+# thor_radios N [scanner]: N serving radios of the IPQ8074 Wi-Fi block, and
+# the QCA9887 scanning radio on PCIe, as sysfs links them to their devices.
+thor_radios() {
+	local i=0 soc="$S/sysdev/platform/soc@0"
+	mkdir -p "$soc/c000000.wifi" "$soc/10000000.pcie/pci0001:00/0001:00:00.0/0001:01:00.0"
+	while [ "$i" -lt "$1" ]; do
+		mkdir -p "$S/ieee80211/phy$i"
+		ln -sfn "$soc/c000000.wifi" "$S/ieee80211/phy$i/device"
+		i=$((i + 1))
+	done
+	if [ -n "${2:-}" ]; then
+		mkdir -p "$S/ieee80211/phy9"
+		ln -sfn "$soc/10000000.pcie/pci0001:00/0001:00:00.0/0001:01:00.0" "$S/ieee80211/phy9/device"
+	fi
+}
+new_ap $T; healthy_ap; thor_radios 3; : > "$S/calls"
 check "Thor legacy guard re-arms slot 0 (no image variable)" 0 guard
 assert "Thor legacy one-shot is the module's guarded command" [ "$(env_get bootcmd)" = "$(in_lib eval "ab_board $T; ab_guarded_command 0")" ]
-new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1"; : > "$S/calls"
+new_ap $T; healthy_ap; thor_radios 2; : > "$S/calls"
 check "Thor with two of its three radios is unhealthy" 0 guard
 assert "Thor unhealthy start returns to the stock firmware" grep -q reboot "$S/calls"
+# The QCA9887 scanning radio is a phy too, but not a serving radio.
+new_ap $T; healthy_ap; thor_radios 2 scanner; : > "$S/calls"
+check "two serving radios plus the scanner are still unhealthy" 0 guard
+assert "the scanner does not stand in for a serving radio" grep -q reboot "$S/calls"
+new_ap $T; healthy_ap; thor_radios 3 scanner; : > "$S/calls"
+check "three serving radios plus the scanner: healthy" 0 guard
+assert "all three serving radios up re-arms OpenWrt" never_wrote reboot
+# single-8x8 mode: 2.4 GHz plus one 8x8 5 GHz radio.
+new_ap $T; healthy_ap; thor_radios 2 scanner; mkdir -p "$S/module/ath11k/parameters"
+echo single-8x8 > "$S/module/ath11k/parameters/xv3_8_hw_mode"; : > "$S/calls"
+check "single-8x8 with its two serving radios: healthy" 0 guard
+assert "single-8x8 re-arms OpenWrt" never_wrote reboot
+new_ap $T; healthy_ap; thor_radios 1 scanner; mkdir -p "$S/module/ath11k/parameters"
+echo single-8x8 > "$S/module/ath11k/parameters/xv3_8_hw_mode"; : > "$S/calls"
+check "single-8x8 with one serving radio: unhealthy" 0 guard
+assert "single-8x8 missing a radio returns to the stock firmware" grep -q reboot "$S/calls"
 # The guard checks the device the lan network is configured on: a missing
 # VLAN bridge fails the check rather than passing on br-lan.
-new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2"
+new_ap $T; healthy_ap; thor_radios 3
 echo br-lan.1 > "$S/lan_device"; : > "$S/calls"
 check "configured br-lan.1 missing: unhealthy" 0 guard
 assert "missing br-lan.1 returns to the stock firmware" grep -q reboot "$S/calls"
-new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2" "$S/net/br-lan.1"
+new_ap $T; healthy_ap; thor_radios 3; mkdir -p "$S/net/br-lan.1"
 echo br-lan.1 > "$S/lan_device"; : > "$S/calls"
 check "configured br-lan.1 present: healthy" 0 guard
 assert "present br-lan.1 re-arms OpenWrt" never_wrote reboot
-new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2" "$S/net/br-lan.1"
+new_ap $T; healthy_ap; thor_radios 3; mkdir -p "$S/net/br-lan.1"
 echo br-lan > "$S/lan_device"; : > "$S/calls"
 check "a network left on br-lan is checked on br-lan" 0 guard
 assert "br-lan configuration re-arms OpenWrt" never_wrote reboot
 # A validated single-bank install: OpenWrt is the committed default.
-new_ap $T; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2"
+new_ap $T; healthy_ap; thor_radios 3
 sed -i.bak 's/^bootcmd=.*/bootcmd=aq_load_fw; nand device 0; ubi part rootfs; bootm 0x60000000#config@hk02/' "$S/env"; : > "$S/calls"
 check "Thor guard leaves a committed single-bank install alone" 1 guard
 assert "committed single-bank bootcmd kept" never_wrote setenv
@@ -912,7 +943,7 @@ assert "Thor slot 0 untouched" [ "$(bank_hash 0)" = "$active_before" ]
 assert "Thor trial of slot 1 armed" [ "$(env_get bootcmd)" = \
 	'setenv bootcmd run thor_stable0; setenv image 0; setenv thor_ab_state trial-started; saveenv; run thor_boot1; run thor_boot0' ]
 sed -i.bak -e 's/^bootcmd=.*/bootcmd=run thor_stable0/' -e 's/^thor_ab_state=.*/thor_ab_state=trial-started/' "$S/env"
-boot_slot 1; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1" "$S/ieee80211/phy2" "$S/net/br-lan.1"; : > "$S/calls"
+boot_slot 1; healthy_ap; thor_radios 3; mkdir -p "$S/net/br-lan.1"; : > "$S/calls"
 check "Thor healthy trial committed" 0 guard
 assert "Thor slot 1 confirmed" [ "$(env_get thor_ab_confirmed):$(env_get thor_ab_state):$(env_get bootcmd)" = '1:confirmed:run thor_stable1' ]
 assert "status names the Thor family" sh -c "sh '$ab_pkg/cambium-ab-status' | grep -qx 'family=thor'"
