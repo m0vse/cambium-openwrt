@@ -9,6 +9,9 @@ Changes that apply to every family.
   legacy `br-lan` to `br-lan.1`, as it did for `lan6`: the old value named
   the filtered bridge, which carries no management address. Only exactly
   `br-lan` is changed; `wg0` and any other value are kept.
+- The RRM agent no longer puts the device key on `curl`'s command line,
+  where any process on the AP could read it while an upload ran. It passes
+  the header in `curl`'s configuration on stdin instead.
 
 ## 2026.09.27.0
 
