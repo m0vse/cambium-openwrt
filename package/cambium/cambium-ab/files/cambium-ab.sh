@@ -18,8 +18,10 @@
 # bad-block reserve of 20 per 1024 PEBs of the whole NAND and 4 PEBs for the
 # volume table and wear levelling) and AB_PROTECTED (partitions that must
 # stay read-only). Optional: AB_LAN (candidate LAN interfaces for the boot
-# guard's DHCP check, first present wins; default br-lan) and AB_RADIOS
-# (Wi-Fi phys that must be up before a boot counts as healthy; default 0),
+# guard's DHCP check, first present wins; default br-lan), AB_RADIOS
+# (Wi-Fi phys that must be up before a boot counts as healthy; default 0)
+# and AB_RADIO_DEVICE (count only the phys of this device, the end of its
+# /sys/devices path; default: every phy),
 # AB_HEALTH_TRIES (5-second health checks before a boot counts as failed;
 # default 60), AB_MARKER (0: this U-Boot needs no changing_bootcmd marker)
 # and AB_ROOT_MAGIC (the root image's first four bytes as hex, or hsqs).
@@ -33,7 +35,7 @@
 # and ab_<family>_takeover (adopts an earlier A/B state on first boot:
 # returns 0 handled, 1 failed, 2 nothing to adopt).
 #
-# Test hooks: AB_PROC_MTD, AB_CMDLINE, AB_DT, AB_UBI_SYS, AB_MTD_SYS,
+# Test hooks: AB_PROC_MTD, AB_CMDLINE, AB_DT, AB_UBI_SYS, AB_MTD_SYS, AB_SYS_MODULE,
 # AB_DEV, CAMBIUM_AB_MODULES.
 
 AB_BANK_ERASE=00020000
@@ -48,7 +50,7 @@ unset _ab_module
 ab_board() {
 	local family
 	for family in ${AB_FAMILIES:-}; do
-		AB_QUALIFIED=0 AB_VAULT=0 AB_STOCK_BOOTCMD=bootipq AB_LAN=br-lan AB_RADIOS=0
+		AB_QUALIFIED=0 AB_VAULT=0 AB_STOCK_BOOTCMD=bootipq AB_LAN=br-lan AB_RADIOS=0 AB_RADIO_DEVICE=
 		AB_LAYOUT=banks AB_MARKER=1 AB_ROOT_MAGIC=hsqs AB_HEALTH_TRIES=60
 		if "ab_${family}_board" "$1"; then
 			AB_FAMILY=$family
