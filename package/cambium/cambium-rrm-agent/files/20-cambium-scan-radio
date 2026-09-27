@@ -12,13 +12,18 @@
 driver=$(rrm_scan_driver) || exit 0
 dev=$(readlink -f "${RRM_SYSROOT:-/sys}$DEVPATH/device") || exit 0
 [ "$(basename "$(readlink "$dev/driver")")" = "$driver" ] || exit 0
+# The path as wifi-detect (/usr/share/hostap/wifi-detect.uc) writes it: it
+# drops "platform/" from PCI device paths, and matches paths exactly, so the
+# scan section must use the same form for wifi-detect to leave the radio be.
 path=${dev#${RRM_SYSROOT:-/sys}/devices/}
+case "$path" in platform/*/pci*) path=${path#platform/} ;; esac
 
 changed=
 for section in $(uci -q show wireless | sed -n "s/^wireless\.\([^.=]*\)=wifi-device$/\1/p"); do
 	[ "$section" = scan ] && continue
+	# Either form, with or without "platform/".
 	case "$(uci -q get "wireless.$section.path")" in
-	*"$path"|"$path") ;;
+	"$path"|"platform/$path") ;;
 	*) continue ;;
 	esac
 	# Drop the default section wifi-detect made, and any networks on it.
