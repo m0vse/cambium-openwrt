@@ -42,6 +42,25 @@ lan_interface() {
 	echo "$lan"
 }
 
+# The Wi-Fi phys that count towards AB_RADIOS: all of them, or only those of
+# the device AB_RADIO_DEVICE names (the end of its /sys/devices path), so a
+# radio that is not a serving radio (the XV3-8's scanner) cannot stand in
+# for a missing one.
+radios_up() {
+	local phy n=0
+	for phy in "${AB_SYS_IEEE80211:-/sys/class/ieee80211}"/phy*; do
+		[ -e "$phy" ] || continue
+		if [ -n "${AB_RADIO_DEVICE:-}" ]; then
+			case "$(readlink -f "$phy/device" 2>/dev/null)" in
+			*/"$AB_RADIO_DEVICE") ;;
+			*) continue ;;
+			esac
+		fi
+		n=$((n + 1))
+	done
+	echo "$n"
+}
+
 healthy() {
 	local lan
 	ab_identity >/dev/null 2>&1 || return 1
@@ -54,7 +73,7 @@ healthy() {
 	lan=$(lan_interface)
 	ip -4 address show dev "$lan" 2>/dev/null | grep -q 'inet ' || return 1
 	ip -4 route show default dev "$lan" 2>/dev/null | grep -q '^default ' || return 1
-	[ "$(ls -d "${AB_SYS_IEEE80211:-/sys/class/ieee80211}"/phy* 2>/dev/null | wc -l)" -ge "$AB_RADIOS" ] || return 1
+	[ "$(radios_up)" -ge "$AB_RADIOS" ] || return 1
 	[ "$1" != ab ] || [ "$AB_VAULT" != 1 ] || [ "$(cat "$BOARD_DATA_STATUS" 2>/dev/null)" = vault ] || return 1
 	! ab_hook healthy_extra || "ab_${AB_FAMILY}_healthy_extra"
 }
