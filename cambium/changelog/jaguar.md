@@ -2,6 +2,13 @@
 
 XV2-2, XV2-2T1 (validated); XV2-2T0, XE3-4, XE3-4TN (RAM boot only).
 
+## Unreleased
+
+- **Docs:** a Jaguar installed from snapshot 2026.09.24 cannot upgrade into
+  the shared A/B scripts and must be reinstalled from the stock firmware;
+  `update-upgrader` now says so. The `--trial` example names an unvalidated
+  model.
+
 ## 2026.09.25.1
 
 - **Fix:** an upgrade keeps a hostname set by hand or by OpenWISP.
