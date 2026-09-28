@@ -17,9 +17,7 @@
 #   --from SRC      where the release files come from: a directory holding
 #                   them, an http(s) URL of such a directory, or tftp:SERVER
 #   --release TAG   download from the GitHub release TAG (needs https wget)
-#   --tftp SERVER   TFTP server: Sage RAM boot (U-Boot loads the image from
-#                   it) and, if it accepts uploads, the backups
-#   --ap-ip IP      the access point's address for the Sage TFTP boot
+#   --tftp SERVER   TFTP server for backup uploads on non-Sage families
 #   --backed-up     you have copied the backups off the access point
 #                   (not needed when --from is http served by cambium-serve.py:
 #                   the backups are then uploaded to it and checked)
@@ -32,6 +30,9 @@
 #                   for the RAM image
 #   --no-reboot     arm everything but do not reboot
 #   --yes           make the changes; without it only checks and backs up
+#   --overwrite-inactive-rootfs  Sage RAM: confirm replacing the inactive
+#                   OEM rootfs after it has been backed up and hash-verified
+#                   off-AP through cambium-serve.py
 #
 # Nothing is written until every check has passed and --yes is given. Each
 # step that writes stops at the first error and names the command, its exit
@@ -43,19 +44,18 @@ CURL=${CAMBIUM_CURL:-curl}  # a test hook
 WORK=$R/tmp/cambium-install
 LOG=$WORK/install.log
 GITHUB=https://github.com/m0vse/cambium-openwrt/releases/download
-
-cmd= src= tftp= ap_ip= backed_up= trial= yes= reboot=1 ptest= format_inactive=
+cmd= src= tftp= backed_up= trial= yes= reboot=1 ptest= format_inactive= overwrite_inactive_rootfs=
 while [ $# -gt 0 ]; do
 	case "$1" in
 	ram|install|stock|update-upgrader) cmd=$1 ;;
 	--from) src=${2:-}; shift ;;
 	--release) src=$GITHUB/${2:-}; shift ;;
-	--tftp) tftp=${2:-}; shift ;;
-	--ap-ip) ap_ip=${2:-}; shift ;;
 	--backed-up) backed_up=1 ;;
+	--tftp) tftp=${2:-}; shift ;;
 	--trial) trial=1 ;;
 	--persistent-test) ptest=1 ;;
 	--format-inactive) format_inactive=1 ;;
+	--overwrite-inactive-rootfs) overwrite_inactive_rootfs=1 ;;
 	--no-reboot) reboot= ;;
 	--yes) yes=1 ;;
 	-h|--help) sed -n '2,38p' "$0"; exit 0 ;;
@@ -273,9 +273,9 @@ check_stock_bootcmd() {
 # --- backups -------------------------------------------------------------------------
 
 # backup NAME SOURCE...: raw copies of what this run may write, plus the
-# U-Boot environment and ART, into $WORK/backup.
+# U-Boot environment and ART, into ${BACKUP_DIR:-$WORK/backup}.
 backup() {
-	local b=$WORK/backup f n i
+	local b=${BACKUP_DIR:-$WORK/backup} f n i
 	if [ -n "$backed_up" ]; then
 		say "--backed-up: you have copied the backups off the access point"
 		return 0
@@ -306,9 +306,9 @@ backup() {
 	if [ -n "$tftp" ]; then
 		for f in "$b"/*; do
 			step "upload ${f##*/} to TFTP server $tftp (it must accept uploads)" \
-				tftp -b 8192 -p -l "$f" -r "cambium-backup-sku$SKU-${f##*/}" "$tftp"
+				tftp -b 8192 -p -l "$f" -r "${BACKUP_PREFIX:-cambium-backup-sku$SKU}-${f##*/}" "$tftp"
 		done
-		say "backups uploaded to $tftp as cambium-backup-sku$SKU-*; check them against SHA256SUMS"
+		say "backups uploaded to $tftp as ${BACKUP_PREFIX:-cambium-backup-sku$SKU}-*; check them against SHA256SUMS"
 		return 0
 	fi
 	say "backups are in $b; copy them off the access point, e.g. from your computer:"
@@ -340,7 +340,7 @@ upload_http() {
 	fi
 	have hexdump || have od || die "this firmware has neither hexdump nor od to encode the backups for upload"
 	for f in "$1"/*; do
-		name=cambium-backup-sku$SKU-${f##*/}
+		name=${BACKUP_PREFIX:-cambium-backup-sku$SKU}-${f##*/}
 		url=${src%/}/upload/$name
 		size=$(wc -c < "$f")
 		say "uploading ${f##*/} ($size bytes) to your computer as uploads/$name"
@@ -374,7 +374,7 @@ upload_http() {
 upload_curl() {
 	local f name url got want
 	for f in "$1"/*; do
-		name=cambium-backup-sku$SKU-${f##*/}
+		name=${BACKUP_PREFIX:-cambium-backup-sku$SKU}-${f##*/}
 		url=${src%/}/upload/$name
 		say "uploading ${f##*/} ($(wc -c < "$f") bytes) with curl to your computer as uploads/$name"
 		got=$("$CURL" -sS -f -T "$f" "$url" 2> "$WORK/err") || {
@@ -478,7 +478,7 @@ dry_run_stop() {
 # --- commands --------------------------------------------------------------------------
 
 cmd_ram() {
-	local flavour=recovery image off tpart upart t bootargs=
+	local flavour=recovery image off tpart upart t bootargs= vol bytes lebs lebsize capacity magic want hexbytes art
 	on_openwrt && die "this is already OpenWrt: run it from the stock firmware's root shell"
 	load_release
 	[ -n "$ptest" ] && flavour=persistent
@@ -487,22 +487,45 @@ cmd_ram() {
 	case "$FAMILY" in
 	sage)
 		[ -n "$ptest" ] && die "--persistent-test is for Jaguar"
-		[ -n "$tftp" ] || die "Sage U-Boot loads the RAM image over TFTP: give --tftp SERVER, with the recovery image on it as sage-recovery.itb"
+		[ -z "$backed_up" ] || die "Sage RAM recovery's off-AP backup must be hash-verified; --backed-up is not sufficient"
+		case "$src" in http://*|https://*) ;; *) die "Sage RAM recovery needs --from http://COMPUTER_IP:PORT served by cambium-serve.py, to verify the off-AP backup" ;; esac
+		layout_sage
 		image=$(get_image cambiumnetworks_sage-recovery-initramfs-zImage.itb) || exit 1
-		need tftp
-		say "checking that $tftp serves sage-recovery.itb"
-		tftp -b 8192 -g -l "$WORK/tftp-check.itb" -r sage-recovery.itb "$tftp" 2> "$WORK/err" ||
-			die "cannot fetch sage-recovery.itb from $tftp: $(grep . "$WORK/err" | tail -n 1)"
-		cmp -s "$WORK/tftp-check.itb" "$image" ||
-			die "sage-recovery.itb on $tftp is not the release's recovery image"
-		rm -f "$WORK/tftp-check.itb"
-		[ -n "$ap_ip" ] || ap_ip=$(ip route get "$tftp" 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')
-		[ -n "$ap_ip" ] || die "cannot work out this access point's address: give --ap-ip IP"
-		backup
-		dry_run_stop "RAM-boot the recovery image from $tftp"
-		setenv_checked ipaddr "$ap_ip"
-		setenv_checked serverip "$tftp"
-		arm "setenv bootcmd bootipq; saveenv; tftpboot 0x84000000 sage-recovery.itb && bootm 0x84000000#$CONFIG; bootipq"
+		vol=$(vol_of ubi0 "rootfs$T")
+		[ -n "$vol" ] || die "inactive Sage rootfs$T volume is missing"
+		bytes=$(wc -c < "$image" | tr -d ' ')
+		lebs=$(cat "$R/sys/class/ubi/$vol/reserved_ebs" 2>/dev/null)
+		lebsize=$(cat "$R/sys/class/ubi/$vol/usable_eb_size" 2>/dev/null)
+		case "$lebs:$lebsize" in *[!0-9:]*|:*|*:) die "cannot determine the capacity of $vol" ;; esac
+		need od
+		capacity=$((lebs * lebsize))
+		[ -n "$capacity" ] || die "cannot determine the capacity of $vol"
+		[ "$bytes" -le "$capacity" ] || die "recovery image is $bytes bytes, larger than $vol ($capacity bytes)"
+		magic=$(head -c 4 "$R/dev/$vol" | od -An -tx1 | tr -d ' \n')
+		[ "$magic" != d00dfeed ] || die "$vol already contains a FIT image; refusing to replace the previous OEM backup"
+		[ -z "$yes" ] || [ -n "$overwrite_inactive_rootfs" ] ||
+			die "Sage RAM recovery overwrites inactive rootfs$T: confirm with --overwrite-inactive-rootfs"
+		# Fingerprint the AP and the pre-write rootfs, so an interrupted write
+		# can never overwrite the verified OEM backup on a later retry.
+		art=$(mtd_idx 0:ART)
+		[ -n "$art" ] || die "no 0:ART partition in /proc/mtd"
+		BACKUP_DIR=$WORK/backup-sage
+		BACKUP_PREFIX=cambium-backup-sku$SKU-$(sha256sum < "$R/dev/mtd${art}ro" | cut -c1-12)-$(sha256sum < "$R/dev/$vol" | cut -c1-12)
+		rm -f "$BACKUP_DIR/$vol.bin" "$BACKUP_DIR/APPSBLENV.bin" "$BACKUP_DIR/ART.bin" "$BACKUP_DIR/uploaded"
+		backup "$R/dev/$vol"
+		if [ -z "$yes" ]; then
+			say "all checks passed. Nothing has been written to flash. Run again with --yes --overwrite-inactive-rootfs to stage the recovery image"
+			exit 0
+		fi
+		need ubiupdatevol
+		want=$(sha256sum "$image" | cut -d' ' -f1)
+		step "stage recovery image in $vol" ubiupdatevol "$R/dev/$vol" "$image"
+		sync
+		[ "$(head -c "$bytes" "$R/dev/$vol" | sha256sum | cut -d' ' -f1)" = "$want" ] ||
+			die "the staged recovery image does not read back correctly from $vol"
+		say "staged recovery image in inactive $vol and verified its SHA-256"
+		hexbytes=$(printf '%x' "$bytes")
+		arm "setenv bootcmd bootipq; saveenv; nand device 1 && setenv mtdids nand1=nand1 && setenv mtdparts \"mtdparts=nand1:0x8000000@0x0(fs)\" && ubi part fs && ubi read 0x84000000 rootfs$T 0x$hexbytes && bootm 0x84000000#$CONFIG; bootipq"
 		;;
 	jaguar)
 		layout_jaguar
