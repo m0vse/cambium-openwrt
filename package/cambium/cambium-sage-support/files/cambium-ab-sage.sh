@@ -68,8 +68,8 @@ ab_sage_boot_command() {
 	echo
 }
 
-# Sage installs arm their own one-shot trial (sage-migration-mark-good);
-# there is no one-OEM guarded command.
+# Sage first installs and later upgrades use the shared A/B one-shot trial;
+# a single OEM/OpenWrt guarded boot command is not applicable to this pair layout.
 ab_sage_guarded_command() {
 	return 1
 }
@@ -121,8 +121,15 @@ ab_sage_identity() {
 	done
 }
 
+# The reserved capacity is stable even when recovery staging temporarily
+# shrinks a dynamic rootfs volume's data_bytes to the FIT's length.
 ab_sage_volume_bytes() {
-	cat "${AB_UBI_SYS:-/sys/class/ubi}/$(ab_ubi_volume "$AB_ACTIVE_UBI" "$1")/data_bytes"
+	local vol base lebs lebsize
+	vol=$(ab_ubi_volume "$AB_ACTIVE_UBI" "$1") || return 1
+	base=${AB_UBI_SYS:-/sys/class/ubi}/$vol
+	lebs=$(cat "$base/reserved_ebs") || return 1
+	lebsize=$(cat "$base/usable_eb_size") || return 1
+	echo $((lebs * lebsize))
 }
 
 ab_sage_image_fits() {
@@ -142,6 +149,14 @@ ab_sage_write_target() {
 		ab_record_failure write-failed "no linux$AB_TARGET/rootfs$AB_TARGET volumes"
 		return 1
 	}
+	# Invalidate the OEM-return marker before the first write to that pair.
+	# A failed or interrupted upgrade must not claim a damaged OEM fallback.
+	if [ "$(ab_getenv sage_oem_fallback)" = "$AB_TARGET" ]; then
+		ab_setenv sage_oem_fallback || {
+			ab_record_failure write-failed "cannot retire OEM fallback marker"
+			return 1
+		}
+	fi
 	ab_step "mknod $kvol" ab_ubi_node "$kvol" &&
 		ab_step "mknod $rvol" ab_ubi_node "$rvol" &&
 		ab_step "ubiupdatevol linux$AB_TARGET" ubiupdatevol "$dev/$kvol" "$AB_KERNEL" &&
@@ -170,8 +185,9 @@ ab_sage_write_target() {
 			return 1
 		}
 	fi
-	# From here both pairs hold OpenWrt; the running pair is the default.
-	printf "sage_ab_version 1\nsage_ab_confirmed %s\n" "$AB_ACTIVE" > "$batch"
+	# Record the confirmed source before arming the target trial. On the
+	# first stock install that source is OEM; its marker is set afterward.
+	{ echo 'sage_ab_version 1'; echo "sage_ab_confirmed $AB_ACTIVE"; } > "$batch"
 	ab_setenv_batch "$batch" || rc=1
 	rm -f "$batch"
 	[ "$rc" = 0 ] || ab_record_failure write-failed "cannot record the A/B state"
