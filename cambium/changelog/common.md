@@ -2,7 +2,7 @@
 
 Changes that apply to every family.
 
-## Unreleased
+## 2026.09.28.0
 
 - The RRM agent reports each radio's network addresses (BSSIDs), so
   OpenWISP's radio planning recognises all of an AP's own networks in other
@@ -19,6 +19,9 @@ Changes that apply to every family.
   `CAMBIUM_CHANNEL` (`snapshot` or `release`) in
   `/etc/cambium-openwrt-release`, and the site lists release builds beside
   snapshots.
+
+## 2026.09.27.1
+
 - On an AP whose VLAN trunk OpenWISP already set up, the first boot after an
   upgrade also moves the OpenWISP agent's management interface from the
   legacy `br-lan` to `br-lan.1`, as it did for `lan6`: the old value named
