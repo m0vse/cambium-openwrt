@@ -88,11 +88,11 @@
           "persistent": {
             "config": "config@ap.dk01.1-c2",
             "status": "validated",
-            "note": "E410 legacy boot alias of config@5, as used by the validated A/B boot commands"
+            "note": "E410 legacy FIT alias of config@5; the primary board name is now cambiumnetworks,e410"
           },
           "sysupgrade": {
             "status": "validated",
-            "note": "A/B with automatic rollback on the shared cambium-ab code: an E410 upgraded from the earlier Sage code was adopted on first boot, then switched pairs through the shared writer and guard"
+            "note": "A/B upgrade and automatic rollback on the shared cambium-ab writer and guard"
           }
         },
         {
@@ -179,18 +179,18 @@
           "model": "E410B",
           "sku": 21,
           "recovery": {
-            "config": "config@5",
-            "status": "validated",
-            "note": "Same hardware as the E410. The initial deployment deliberately keeps the legacy E410-compatible configuration (config@5), the boot path validated on these units, for backward compatibility. The E410B-aware sysupgrade path (board cambiumnetworks,e410b, SKU 21) can boot the E410B tree, config@17."
+            "config": "config@17",
+            "status": "untested",
+            "note": "E410B-specific tree; validate a RAM boot on B-suffix hardware before deployment"
           },
           "persistent": {
-            "config": "config@ap.dk01.1-c2",
-            "status": "validated",
-            "note": "Same hardware as the E410. The initial deployment deliberately keeps the legacy E410-compatible configuration (config@ap.dk01.1-c2), the boot path validated on these units, for backward compatibility; the OEM migration helper (sage-migration-mark-good) still matches only cambium,e410. After that, the E410B-aware sysupgrade and its commit service (board cambiumnetworks,e410b, SKU 21) can boot the E410B tree, config@17."
+            "config": "config@17",
+            "status": "untested",
+            "note": "The E410B tree differs from E410 only in model identity and board SKU; its config@17 boot still needs hardware validation"
           },
           "sysupgrade": {
-            "status": "validated",
-            "note": "A/B with automatic rollback on the shared cambium-ab code: an E410 upgraded from the earlier Sage code was adopted on first boot, then switched pairs through the shared writer and guard"
+            "status": "untested",
+            "note": "Installed B-suffix units report legacy cambium,e410. First upgrade installs the transition logic; the next A/B upgrade trials config@17 while preserving config@5 for the confirmed fallback pair"
           }
         }
       ]
