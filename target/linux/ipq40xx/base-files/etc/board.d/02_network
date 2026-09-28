@@ -75,6 +75,7 @@ ipq40xx_setup_interfaces()
 		ucidef_set_interface_lan "lan"
 		;;
 	cambium,e410|\
+	cambiumnetworks,e410|\
 	cambiumnetworks,e410b|\
 	cambiumnetworks,e510)
 		# Managed access point: obtain its management address upstream.

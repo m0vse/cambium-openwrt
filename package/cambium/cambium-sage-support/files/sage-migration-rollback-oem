@@ -11,7 +11,10 @@ die() {
 }
 
 [ "$(id -u)" = 0 ] || die 'root is required'
-[ "$(board_name)" = 'cambium,e410' ] || die 'this command is restricted to the Cambium E410'
+case "$(board_name)" in
+cambium,e410|cambiumnetworks,e410|cambiumnetworks,e410b) ;;
+*) die 'this command is restricted to E410-family boards' ;;
+esac
 [ "${1:-}" = '--confirm-oem' ] || die 'use --confirm-oem to select the preserved OEM slot'
 
 fallback=$(fw_printenv -n owrt_fallback_slot 2>/dev/null) || die 'no OEM fallback slot is recorded'
