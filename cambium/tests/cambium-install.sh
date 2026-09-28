@@ -171,6 +171,18 @@ f=$W/http/${url##*/}
 [ -f "$f" ] || { echo "wget: server returned error: HTTP/1.0 404 File not found" >&2; exit 1; }
 cp "$f" "$out"
 EOF
+tool curl <<'EOF'
+#!/bin/sh
+# curl -sS -f -T FILE URL, to cambium-serve.py: stores the whole file and
+# answers its SHA-256 (or refuses, like a plain http.server).
+. "$(dirname "$0")/_sim"
+file=$4 url=$5
+[ -f "$W/plain_server" ] && { echo 'curl: (22) The requested URL returned error: 501' >&2; exit 22; }
+mkdir -p "$W/uploads"; cp "$file" "$W/uploads/${url##*/}"
+[ -f "$W/damage_upload" ] && echo damaged >> "$W/uploads/${url##*/}"
+sha256sum < "$W/uploads/${url##*/}" | cut -d' ' -f1
+log "upload ${url##*/} (curl)"
+EOF
 tool reboot <<'EOF'
 #!/bin/sh
 . "$(dirname "$0")/_sim"; log reboot
@@ -508,9 +520,22 @@ ap jaguar XV2-2T1 31 1; rm -f "$W/plain_server"; touch "$W/damage_upload"
 check "a damaged upload stops" 1 inst --from http://192.0.2.5:8000 --yes ram
 assert "the damage is named" said 'the upload is damaged'
 assert "damaged upload: flash untouched" [ -z "$(grep -E '^(attach|mkvol|update|setenv)' "$W/calls")" ]
-ap jaguar XV2-2T1 31 1; rm -f "$W/damage_upload"; touch "$W/wget_no_post"
-check "a wget without --post-file stops with advice" 1 inst --from http://192.0.2.5:8000 --yes ram
-assert "the advice is given" said 'cannot upload files (no --post-file)'
+# A wget that cannot post (the E410/E410B stock firmware's) hands over to curl.
+ap jaguar XV2-2T1 31 1; rm -f "$W/damage_upload" "$W/uploads"/*; touch "$W/wget_no_post"
+check "a wget without --post-file uploads with curl" 0 inst --from http://192.0.2.5:8000 ram
+assert "curl sent every backup" [ "$(grep -c 'upload .* (curl)' "$W/calls")" -ge 2 ]
+assert "binary backups arrive intact with curl" cmp -s "$W/uploads/cambium-backup-sku31-APPSBLENV.bin" "$RT/tmp/cambium-install/backup/APPSBLENV.bin"
+ap jaguar XV2-2T1 31 1; touch "$W/wget_no_post" "$W/damage_upload"
+check "a damaged curl upload stops" 1 inst --from http://192.0.2.5:8000 --yes ram
+assert "the damage is named (curl)" said 'the upload is damaged'
+assert "curl, not wget, sent it" grep -q 'upload .* (curl)' "$W/calls"
+ap jaguar XV2-2T1 31 1; touch "$W/wget_no_post" "$W/plain_server"
+check "a plain http.server refuses curl uploads too" 1 inst --from http://192.0.2.5:8000 --yes ram
+assert "the reason names cambium-serve.py (curl)" said "serve the release files with 'python3 cambium-serve.py 8000'"
+assert "curl found no server that takes uploads: flash untouched" [ -z "$(grep -E '^(attach|mkvol|update|setenv)' "$W/calls")" ]
+ap jaguar XV2-2T1 31 1; touch "$W/wget_no_post"
+check "no --post-file and no curl stops with advice" 1 env CAMBIUM_CURL=no-such-curl sh "$installer" --from http://192.0.2.5:8000 --yes ram
+assert "the advice is given" said 'cannot upload files (no --post-file) and it has no curl'
 rm -f "$W/wget_no_post"
 cp -R "$W/rel" "$W/rel-bad"; echo tampered >> "$W/rel-bad/$p-qualcommax-ipq60xx-cambiumnetworks_jaguar-recovery-initramfs-uImage.itb"
 ap jaguar XV2-2T1 31 1
