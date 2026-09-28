@@ -272,6 +272,11 @@ jcheck "the result is valid JSON with version 1" 'd["version"] == 1 and d["board
 jcheck "the scanning radio is phy0" 'd["scan_radio"] == "phy0"'
 jcheck "three serving radios, not the scanning radio" 'sorted(r["phy"] for r in d["radios"]) == ["phy1", "phy2", "phy3"]'
 jcheck "phy3: channel 36, 5180 MHz, 40 MHz, both interfaces" '[(r["channel"], r["freq"], r["width"], r["interfaces"]) for r in d["radios"] if r["phy"] == "phy3"] == [(36, 5180, "40 MHz", ["wlan3_5_low", "wlan2_5_low"])]'
+mkdir -p "$W/sys/class/net/wlan3_5_low"
+echo 32:cb:c7:5e:6d:a0 > "$W/sys/class/net/wlan3_5_low/address"
+check "XV3-8 measurement, one interface address known" 0 agent --once
+jcheck "phy3 networks: each interface's address, skipping one without" '[r["bssids"] for r in d["radios"] if r["phy"] == "phy3"] == [["32:cb:c7:5e:6d:a0"]]'
+jcheck "a radio without an address has an empty list" '[r["bssids"] for r in d["radios"] if r["phy"] == "phy1"] == [[]]'
 jcheck "phy3 clients summed across its interfaces" '[r["clients"] for r in d["radios"] if r["phy"] == "phy3"] == [3]'
 jcheck "phy3 survey from the in-use channel" '[r["survey"] for r in d["radios"] if r["phy"] == "phy3"] == [{"noise": -95, "active_ms": 1000, "busy_ms": 230, "rx_ms": 180, "tx_ms": 20}]'
 jcheck "phy3 transmit power, from iw" '[r["txpower"] for r in d["radios"] if r["phy"] == "phy3"] == [23.0]'
