@@ -89,6 +89,10 @@ echo "$name" > "$W/flash/mtd$m/$id.name"; [ "$size" = max ] && size=$((50 * 1269
 echo "$size" > "$W/flash/mtd$m/$id.size"; : > "$W/flash/mtd$m/$id.data"
 refresh "$k" "$m"; log "mkvol mtd$m $name"
 EOF
+tool ubirsvol <<'EOF'
+#!/bin/sh
+exit 0
+EOF
 tool ubirmvol <<'EOF'
 #!/bin/sh
 . "$(dirname "$0")/_sim"
@@ -653,6 +657,24 @@ mkdir -p "$W/no-od"; printf '#!/bin/sh\necho "sh: od: not found" >&2\nexit 127\n
 echo '# old upgrade' > "$RT/lib/upgrade/cambium-ab.sh"
 check "update-upgrader on a firmware without od" 0 env PATH="$W/no-od:$PATH" sh "$installer" --from "$W/rel" --yes update-upgrader
 assert "without od the SKU is read with hexdump" said 'XV2-2 (SKU 20, jaguar)'
+
+# Sage's in-place updater bootstrap installs the board helper as well as the
+# shared writer, allowing two normal SquashFS upgrades without a UBIFS reboot.
+ap sage E410 10 1
+mkdir -p "$RT/etc" "$RT/lib/functions" "$RT/lib/upgrade" "$RT/tmp/sysinfo"
+: > "$RT/etc/openwrt_release"
+echo cambiumnetworks,e410 > "$RT/tmp/sysinfo/board_name"
+echo 'console=ttyMSM0 ubi.mtd=fs root=ubi0:rootfs1 rootfstype=ubifs' > "$RT/proc/cmdline"
+echo '# old core' > "$RT/lib/functions/cambium-ab.sh"
+echo '# old writer' > "$RT/lib/upgrade/cambium-ab.sh"
+echo '# old Sage module' > "$RT/lib/functions/cambium-ab-sage.sh"
+echo '# old Sage board helper' > "$RT/lib/functions/cambium-sage.sh"
+check "Sage updater bootstrap check run" 0 inst --from "$W/rel" update-upgrader
+assert "Sage updater check does not alter running scripts" [ "$(cat "$RT/lib/functions/cambium-sage.sh")" = '# old Sage board helper' ]
+check "Sage updater bootstrap stages shared scripts and helper" 0 inst --from "$W/rel" --yes update-upgrader
+assert "Sage bootstrap installs current board helper" cmp -s "$RT/lib/functions/cambium-sage.sh" "$W/rel/cambium-sage.sh"
+assert "Sage bootstrap installs current module" cmp -s "$RT/lib/functions/cambium-ab-sage.sh" "$W/rel/cambium-ab-sage.sh"
+assert "Sage bootstrap leaves UBI and environment unchanged" nothing_written
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
