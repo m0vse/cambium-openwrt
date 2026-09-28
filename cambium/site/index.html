@@ -296,7 +296,7 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram      # checks, bac
       <tr><td><code>--persistent-test</code></td><td>Jaguar: RAM-boot the A/B persistent trees (the test-only image) with no bank attached.</td></tr>
       <tr><td><code>--format-inactive</code></td><td>Lets <code>ram</code> erase the inactive slot (after backing it up) when its stock firmware copy leaves too little free space for the RAM image, as on a stock XV2-2.</td></tr>
       <tr><td><code>--overwrite-inactive-rootfs</code></td><td>Sage RAM only: explicitly permit replacing the inactive OEM rootfs after its off-AP, hash-verified backup. Use with <code>--yes</code> and <code>cambium-serve.py</code>.</td></tr>
-      <tr><td><code>update-upgrader</code></td><td>Thor, Jaguar and Cheetah, in the installed A/B OpenWrt: installs the release's A/B upgrade scripts on the running system, which is what <code>sysupgrade</code> uses. Run it before an A/B sysupgrade.</td></tr>
+      <tr><td><code>update-upgrader</code></td><td>In installed A/B OpenWrt: installs this release's upgrade scripts on the running system. Sage also stages its board helper and requires UBI resize tools; run it before a UBIFS-to-SquashFS upgrade.</td></tr>
     </tbody>
   </table>
   </div>
@@ -441,6 +441,16 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes install</pre>
   <code>mark-good</code> command is needed. Check the result with
   <code>cambium-ab-status</code>. Before the first sysupgrade replaces the OEM
   pair, <code>cambium-install.sh --yes stock</code> can select it again.</p>
+  <p><strong>Move to per-slot SquashFS after OpenWrt is healthy.</strong>
+  Download this release's installer script onto the AP, then run
+  <code>update-upgrader</code> first (dry run, then <code>--yes</code>).
+  It replaces only the running upgrade scripts and Sage board helper, keeps
+  the old copies, and requires the UBI resize tools. Check the normal
+  <code>...sage-persistent-squashfs-sysupgrade.bin</code> with
+  <code>sysupgrade -T</code> before starting the first upgrade. Wait for
+  <code>cambium-ab-status</code> to show the new pair confirmed; the second
+  upgrade converts the other pair. Never run both upgrades without checking
+  the first boot. The running pair is never resized by an upgrade.</p>
   </details>
 
   <details id="thor">
@@ -711,19 +721,22 @@ cambium-ab-status                                  # a few minutes later: runnin
   <h2>Upgrade &amp; rollback</h2>
   <h3>Upgrading</h3>
   <ul>
-    <li><strong>Sage</strong> uses <code>sysupgrade</code> with the family
-    <code>sysupgrade.bin</code>, from LuCI, the command line or OpenWISP, on
-    the E410, E410B and E510 (the E410-layout models). On the E600, E700, E430W
-    and E430H it refuses to write anything until their layout is captured.
-    Sage now uses the same A/B code as the other families: it writes the
-    volume pair OpenWrt is not running from, trial-boots it, and the guard
-    commits it once the network, both radios and (on a managed AP) OpenWISP
-    are healthy, or returns to the old pair; <code>cambium-ab-status</code>
-    shows the result. <strong>The first
-    upgrade after migration replaces the
-    stock firmware</strong>; from then on the two pairs alternate between
-    OpenWrt versions. Go back to the stock firmware first if you might still
-    want it.</li>
+    <li><strong>Sage</strong> uses the family <code>sysupgrade.bin</code> on
+    E410, E410B and E510 after the running UBIFS image has received the new
+    writer through <code>cambium-install.sh update-upgrader</code>. Do not send
+    the SquashFS image to an older writer before that step. The first normal
+    upgrade converts only the inactive <code>rootfsN</code> volume and creates
+    <code>rootfs_dataN</code>; the existing UBIFS pair remains the fallback.
+    After that trial is confirmed, a second upgrade converts the other pair.
+    Each slot then has its own writable overlay. A fresh OEM/OEM install
+    initially uses the proven UBIFS installer and follows the same two-upgrade
+    path. If the in-place updater cannot run, the one-time
+    <code>sysupgrade-ubifs.bin</code> bridge can install the new writer first.
+    On E600, E700, E430W and E430H persistent upgrades still refuse until
+    their layout is captured. <strong>The first upgrade into an OEM pair
+    replaces the stock firmware</strong>; select stock before then if you
+    might want it. The guard checks LAN, radios and (if configured) OpenWISP
+    before committing; <code>cambium-ab-status</code> shows the result.</li>
     <li><strong>Jaguar</strong>, after conversion to two OpenWrt banks, uses
     <code>sysupgrade</code> with the family <code>sysupgrade.bin</code>, on
     the XV2-2 and XV2-2T1: it writes the inactive bank, trial-boots it and
