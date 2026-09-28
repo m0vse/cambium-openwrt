@@ -305,6 +305,12 @@ if [ -f "$module" ]; then
 	cp package/cambium/cambium-ab/files/cambium-ab.sh "$output/images/cambium-ab.sh"
 	cp package/cambium/cambium-ab/files/cambium-ab-upgrade.sh "$output/images/cambium-ab-upgrade.sh"
 	cp "$module" "$output/images/cambium-ab-$family.sh"
+	# Publish an optional family board helper alongside the A/B module. The
+	# installer can source the same board table as a running OpenWrt image.
+	for helper in target/linux/$target/base-files/lib/functions/cambium-$family.sh \
+		target/linux/$target/$subtarget/base-files/lib/functions/cambium-$family.sh; do
+		[ -f "$helper" ] && cp "$helper" "$output/images/"
+	done
 fi
 # Test images go only to the CI artifact (test-only/), never to a release:
 # a RAM build of the Jaguar persistent trees.
