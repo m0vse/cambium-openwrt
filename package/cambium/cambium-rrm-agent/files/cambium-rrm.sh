@@ -128,9 +128,14 @@ rrm_radios_json() {
 		[ -n "$iface" ] && echo "$phy $iface ${freq:-0} $clients" >> "$RRM_OUT/radios.txt"
 		[ -n "$first" ] || printf ',\n'
 		first=
-		printf '    {"phy": "%s", "driver": "%s", "interfaces": [%s], "channel": %s, "freq": %s, "width": %s, "txpower": %s, "clients": %s, "client_signal": %s, "survey": %s}' \
+		# Each interface's address (BSSID), so OpenWISP can tell this radio's
+		# networks in other APs' scans from outside ones.
+		printf '    {"phy": "%s", "driver": "%s", "interfaces": [%s], "bssids": [%s], "channel": %s, "freq": %s, "width": %s, "txpower": %s, "clients": %s, "client_signal": %s, "survey": %s}' \
 			"$phy" "$(rrm_json_str "$driver")" \
 			"$(for i in $ifaces; do printf '"%s",' "$(rrm_json_str "$i")"; done | sed 's/,$//')" \
+			"$(for i in $ifaces; do
+				a=$(cat "$RRM_NET/$i/address" 2>/dev/null) && [ -n "$a" ] && printf '"%s",' "$(rrm_json_str "$a")"
+			done | sed 's/,$//')" \
 			"${chan:-null}" "${freq:-null}" "$([ -n "$width" ] && printf '"%s"' "$width" || echo null)" \
 			"${txpower:-null}" "$clients" "${signal:-null}" "${survey:-null}"
 	done
