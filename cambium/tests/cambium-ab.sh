@@ -50,6 +50,8 @@ refresh() { # refresh UBI_DEV MTD
 		mkdir -p "$S/sys/ubi/$1_$v"
 		cp "$n" "$S/sys/ubi/$1_$v/name"
 		cp "$S/flash/mtd$2/$v.size" "$S/sys/ubi/$1_$v/data_bytes"
+		echo "$(( $(cat "$S/flash/mtd$2/$v.size") / 126976 ))" > "$S/sys/ubi/$1_$v/reserved_ebs"
+		echo 126976 > "$S/sys/ubi/$1_$v/usable_eb_size"
 		echo "251:$v" > "$S/sys/ubi/$1_$v/dev"
 		hotplug && ln -sf "$S/flash/mtd$2/$v.data" "$S/dev/$1_$v"
 	done
@@ -982,7 +984,7 @@ new_sage_ap() {
 	echo "ubi0:rootfs$active / ubifs rw,noatime 0 0" > "$S/mounts"
 	case "$kind" in
 	stock)
-		# Committed by sage-migration-mark-good: the stock firmware is the fallback.
+		# The preserved OEM pair remains the fallback until the first upgrade.
 		printf '%s\n' "bootcmd=setenv image $active; nand device 1 && bootm 0x84000000#config@ap.dk01.1-c2; setenv image $other; bootipq" \
 			"image=$active" "owrt_migration_state=committed" > "$S/env" ;;
 	adopted)
@@ -1079,12 +1081,26 @@ assert "failed Sage trial reboots to pair 0" grep -q reboot "$S/calls"
 # A Sage with the stock firmware still in its other pair: its first
 # sysupgrade replaces it, as it always has, and records both pairs as OpenWrt.
 new_sage_ap $E 1 stock
+echo 'sage_oem_fallback=0' >> "$S/env"
 check "first sysupgrade over the stock pair" 0 dispatch40xx platform_do_upgrade "$S/sage.bin"
 assert "stock pair 0 replaced" cmp -s "$S/flash/mtd2/1.data" "$S/sage-root"
+assert "replacing the OEM pair clears its fallback marker" [ -z "$(env_get sage_oem_fallback)" ]
 assert "both pairs now OpenWrt: A/B recorded, pair 1 confirmed" [ "$(env_get sage_ab_version):$(env_get sage_ab_confirmed)" = '1:1' ]
 assert "trial of pair 0 armed" [ "$(env_get bootcmd)" = \
 	'setenv bootcmd run sage_stable1; setenv image 1; setenv sage_ab_state trial-started; saveenv; run sage_boot0; run sage_boot1' ]
 
+# The OEM marker is retired before any write, including a write that fails.
+new_sage_ap $E 1 stock
+echo 'sage_oem_fallback=0' >> "$S/env"
+sage_stock_boot=$(env_get bootcmd)
+echo mtd2/1 > "$S/corrupt"
+check "failed first Sage upgrade refuses damaged OEM pair" 1 dispatch40xx platform_do_upgrade "$S/sage.bin"
+assert "failed first upgrade clears OEM fallback marker" [ -z "$(env_get sage_oem_fallback)" ]
+assert "failed first upgrade keeps active pair as default" [ "$(env_get image):$(env_get bootcmd)" = "1:$sage_stock_boot" ]
+# A recovery FIT shortens data_bytes but not the volume's reserved capacity.
+new_sage_ap $E 0 adopted
+echo 4 > "$S/sys/ubi/ubi0_3/data_bytes"
+check "Sage target fits by reserved capacity after RAM staging" 0 dispatch40xx platform_check_image "$S/sage.bin"
 # Refusals: wrong root type, too large, unqualified model, write failures.
 new_sage_ap $E 0 adopted; : > "$S/calls"
 check "a SquashFS root is refused on Sage" 1 dispatch40xx platform_check_image "$S/sage-squashfs.bin"
