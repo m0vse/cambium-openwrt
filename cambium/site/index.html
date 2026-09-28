@@ -279,12 +279,12 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram      # checks, bac
 <pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes ram</pre>
   <p>Use <code>cambium-serve.py</code>, not a plain
   <code>python3 -m http.server</code>: a plain server cannot receive the
-  backups, and the installer stops and says so. If you must use one, copy
-  <code>/tmp/cambium-install/backup/</code> off yourself and add
-  <code>--backed-up</code>. A TFTP server that accepts
-  uploads also works with <code>--tftp COMPUTER_IP</code> (Sage's RAM boot
-  always needs <code>--tftp</code>: its U-Boot loads the image from that
-  server as <code>sage-recovery.itb</code>).</p>
+  backups, and the installer stops and says so. For non-Sage families,
+  manually copied backups can be acknowledged with <code>--backed-up</code>,
+  or a TFTP server accepting uploads can be used with
+  <code>--tftp COMPUTER_IP</code>. Sage RAM boot requires a verified HTTP
+  backup and <code>--overwrite-inactive-rootfs</code> with
+  <code>--yes</code>; it never loads its recovery FIT by TFTP.</p>
   <div class="table-scroll">
   <table>
     <thead><tr><th>Command</th><th>Does</th></tr></thead>
@@ -295,6 +295,7 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram      # checks, bac
       <tr><td><code>--trial</code></td><td>Hardware trial of a persistent image not yet validated on the model, e.g. a Jaguar on an XV2-2T0.</td></tr>
       <tr><td><code>--persistent-test</code></td><td>Jaguar: RAM-boot the A/B persistent trees (the test-only image) with no bank attached.</td></tr>
       <tr><td><code>--format-inactive</code></td><td>Lets <code>ram</code> erase the inactive slot (after backing it up) when its stock firmware copy leaves too little free space for the RAM image, as on a stock XV2-2.</td></tr>
+      <tr><td><code>--overwrite-inactive-rootfs</code></td><td>Sage RAM only: explicitly permit replacing the inactive OEM rootfs after its off-AP, hash-verified backup. Use with <code>--yes</code> and <code>cambium-serve.py</code>.</td></tr>
       <tr><td><code>update-upgrader</code></td><td>Thor, Jaguar and Cheetah, in the installed A/B OpenWrt: installs the release's A/B upgrade scripts on the running system, which is what <code>sysupgrade</code> uses. Run it before an A/B sysupgrade.</td></tr>
     </tbody>
   </table>
@@ -413,16 +414,19 @@ dd if=/dev/mtd7ro of=/tmp/art.bin
 dd if=/dev/ubi0_2 of=/tmp/oem-linux1.bin bs=126976
 dd if=/dev/ubi0_3 of=/tmp/oem-rootfs1.bin bs=126976
 sha256sum /tmp/*.bin    # copy all four files off the AP</pre>
-  <p><strong>RAM boot.</strong> Sage U-Boot loads the recovery image over
-  TFTP. Put <code>...sage-recovery-initramfs-zImage.itb</code> on your TFTP
-  server as <code>sage-recovery.itb</code>. The command restores the stock
-  <code>bootcmd</code> before trying anything:</p>
-<pre>CONFIG=; eval "$(sh /tmp/select-config.sh recovery)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
-fw_setenv ipaddr AP_IP
-fw_setenv serverip SERVER_IP
-[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; saveenv; tftpboot 0x84000000 sage-recovery.itb &amp;&amp; bootm 0x84000000#'"$CONFIG"'; bootipq'
-fw_printenv bootcmd
-sync; reboot</pre>
+  <p><strong>RAM boot without TFTP.</strong> Serve the release with
+  <code>cambium-serve.py</code> in a dedicated folder for this AP. The
+  installer hashes the recovery FIT, backs up the inactive OEM rootfs,
+  APPSBLENV and ART off-AP with SHA-256 verification, then requires explicit
+  confirmation before overwriting that inactive rootfs volume:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes --overwrite-inactive-rootfs ram</pre>
+  <p>The one-shot command restores the stock <code>bootcmd</code> and loads
+  the verified FIT with <code>ubi read</code> from inactive
+  <code>rootfsN</code>. The running OEM pair is untouched. Until the inactive
+  volume is reinstalled, it is <strong>not</strong> an OEM fallback. Sage RAM
+  boot does not accept <code>--backed-up</code>, a plain HTTP server, or TFTP
+  for this safety-critical backup and staging step.</p>
   <p><strong>Install.</strong> Copy <code>...sage-persistent-squashfs-kernel.itb</code>
   and <code>...sage-persistent-squashfs-rootfs.ubifs</code> to
   <code>/tmp</code>, write them into the inactive pair and read them back:</p>
