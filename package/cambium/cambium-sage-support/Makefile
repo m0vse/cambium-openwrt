@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cambium-sage-support
-PKG_RELEASE:=7
+PKG_RELEASE:=8
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Phil Taylor <phil@m0vse.uk>
 
@@ -17,17 +17,15 @@ endef
 
 define Package/cambium-sage-support/description
   The Sage (E410 family) module for cambium-ab (volume-pair layout, U-Boot
-  boot commands and the adoption of the earlier Sage A/B state), OEM
-  migration helpers and management VLAN defaults for Cambium Sage access
-  points.
+  boot commands and guarded upgrades), plus management VLAN defaults for
+  Cambium Sage access points.
 endef
 
 define Build/Compile
 endef
 
 define Package/cambium-sage-support/install
-	$(INSTALL_DIR) $(1)/usr/sbin $(1)/etc/uci-defaults $(1)/lib/functions
-	$(INSTALL_BIN) ./files/sage-migration-mark-good ./files/sage-migration-rollback-oem $(1)/usr/sbin/
+	$(INSTALL_DIR) $(1)/etc/uci-defaults $(1)/lib/functions
 	$(INSTALL_DATA) ./files/cambium-ab-sage.sh $(1)/lib/functions/cambium-ab-sage.sh
 	$(INSTALL_DATA) ./files/96-sage-vlan-management $(1)/etc/uci-defaults/
 endef
