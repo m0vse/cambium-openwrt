@@ -39,6 +39,7 @@
 
 VERSION=1
 R=${CAMBIUM_ROOT:-}
+CURL=${CAMBIUM_CURL:-curl}  # a test hook
 WORK=$R/tmp/cambium-install
 LOG=$WORK/install.log
 GITHUB=https://github.com/m0vse/cambium-openwrt/releases/download
@@ -327,11 +328,16 @@ hexenc() {
 # upload_http DIR: send each backup to cambium-serve.py on the release server
 # in hex-encoded 256 KiB chunks (BusyBox wget stops a posted file at its
 # first zero byte). Every chunk and the whole file must come back with the
-# SHA-256 they have here.
+# SHA-256 they have here. A wget that cannot post (the E410/E410B stock
+# firmware's) hands over to curl, which sends each whole file.
 upload_http() {
 	local f name size off got want chunk=262144 url
-	wget --help 2>&1 | grep -q -- '--post-file' ||
-		die "this firmware's wget cannot upload files (no --post-file): copy $1 off the access point yourself and use --backed-up, or give --tftp SERVER"
+	if ! wget --help 2>&1 | grep -q -- '--post-file'; then
+		have "$CURL" ||
+			die "this firmware's wget cannot upload files (no --post-file) and it has no curl: copy $1 off the access point yourself and use --backed-up, or give --tftp SERVER"
+		upload_curl "$1"
+		return
+	fi
 	have hexdump || have od || die "this firmware has neither hexdump nor od to encode the backups for upload"
 	for f in "$1"/*; do
 		name=cambium-backup-sku$SKU-${f##*/}
@@ -360,6 +366,26 @@ upload_http() {
 			die "your computer stored ${f##*/} with SHA-256 '${got%% *}' but it is $want here: the upload is damaged"
 	done
 	rm -f "$WORK/chunk" "$WORK/chunk.hex"
+	say "backups uploaded to the uploads folder beside the release files, and their SHA-256 checked"
+}
+
+# upload_curl DIR: send each whole backup with curl (an HTTP PUT); the answer
+# must be the SHA-256 it has here.
+upload_curl() {
+	local f name url got want
+	for f in "$1"/*; do
+		name=cambium-backup-sku$SKU-${f##*/}
+		url=${src%/}/upload/$name
+		say "uploading ${f##*/} ($(wc -c < "$f") bytes) with curl to your computer as uploads/$name"
+		got=$("$CURL" -sS -f -T "$f" "$url" 2> "$WORK/err") || {
+			grep -q '50[01]' "$WORK/err" &&
+				die "the server does not accept uploads: serve the release files with 'python3 cambium-serve.py 8000' instead of python3 -m http.server"
+			die "cannot upload ${f##*/} to $url ($(grep . "$WORK/err" | tail -n 1))"
+		}
+		want=$(sha256sum < "$f" | cut -d' ' -f1)
+		[ "${got%% *}" = "$want" ] ||
+			die "your computer stored ${f##*/} with SHA-256 '${got%% *}' but it is $want here: the upload is damaged"
+	done
 	say "backups uploaded to the uploads folder beside the release files, and their SHA-256 checked"
 }
 
