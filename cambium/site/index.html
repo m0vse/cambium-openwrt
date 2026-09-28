@@ -264,7 +264,9 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
   and serve it over http (the stock firmware's <code>wget</code> may not do
   https). <code>cambium-serve.py</code> also receives the backups the
   installer uploads, into an <code>uploads</code> folder, so you never need
-  the stock firmware's root password:</p>
+  the stock firmware's root password. Where the stock firmware's
+  <code>wget</code> cannot upload (the E410 and E410B), the installer uses
+  its <code>curl</code> instead:</p>
 <pre>cd cambium                              # the folder with the release files
 python3 cambium-serve.py 8000</pre>
   <p>On the access point, fetch the script and do a check run. It backs up
@@ -445,7 +447,9 @@ sync; reboot</pre>
   and both radios, then keep OpenWrt with the stock slot as fallback:</p>
 <pre>passwd
 sage-migration-mark-good --confirm</pre>
-  <p>Until then, any reboot returns to the stock firmware. To go back later:
+  <p><code>sage-migration-mark-good</code> refuses while root has no
+  password, and, when the OpenWISP agent is configured, until it has reached
+  its controller. Until then, any reboot returns to the stock firmware. To go back later:
   <code>sage-migration-rollback-oem --confirm-oem</code>, then reboot.
   Later upgrades use <code>sysupgrade</code>.</p>
   </details>
