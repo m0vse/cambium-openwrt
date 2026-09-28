@@ -626,32 +626,48 @@ install_cheetah() {
 	say "guarded first boot armed: after a healthy start OpenWrt re-arms its boot; otherwise the next boot returns to the stock firmware."
 }
 
-install_sage() {
-	local kernel root lk lr ksize rsize
+# The stock firmware has no OpenWrt board-sku node, so identify the pair with
+# layout_sage and select-config first, then use the same family writer and
+# trial arming functions that sysupgrade uses on a running OpenWrt system.
+install_sage_ab() {
+	local kernel root core writer module boardlib board lk lr f
 	layout_sage
 	kernel=$(get_image cambiumnetworks_sage-persistent-squashfs-kernel.itb) || exit 1
 	root=$(get_image cambiumnetworks_sage-persistent-squashfs-rootfs.ubifs) || exit 1
-	need ubiupdatevol
+	core=$(get_image cambium-ab.sh) || exit 1
+	writer=$(get_image cambium-ab-upgrade.sh) || exit 1
+	module=$(get_image cambium-ab-sage.sh) || exit 1
+	boardlib=$(get_image cambium-sage.sh) || exit 1
+	for f in "$core" "$writer" "$module" "$boardlib"; do
+		step "syntax check of ${f##*/}" sh -n "$f"
+	done
+	need fw_printenv fw_setenv ubiupdatevol
+	mkdir -p "$WORK/ab-modules" || die "cannot stage the Sage A/B module"
+	step "stage Sage A/B module" cp "$module" "$WORK/ab-modules/cambium-ab-sage.sh"
+	CAMBIUM_AB_LIB=$core CAMBIUM_AB_MODULES=$WORK/ab-modules CAMBIUM_SAGE_LIB=$boardlib
+	AB_DEV=$R/dev AB_UBI_SYS=$R/sys/class/ubi AB_PROC_MTD=$R/proc/mtd AB_MTD_SYS=$R/sys/class/mtd
+	AB_LOG=$WORK/ab-write.log
+	. "$writer"
+	board=cambiumnetworks,$(printf '%s' "$MODEL" | tr '[:upper:]' '[:lower:]')
+	ab_board "$board" || die "the shared A/B writer has no Sage board $board"
+	[ "$AB_QUALIFIED" = 1 ] || die "the shared A/B writer has not qualified $MODEL for persistent install"
+	[ "$CONFIG" = "$AB_FIT" ] || [ "$AB_SAGE_LEGACY_B" = 1 ] ||
+		die "release selects $CONFIG but the Sage A/B module selects $AB_FIT"
+	AB_ACTIVE=$I AB_TARGET=$T AB_ACTIVE_UBI=ubi0
+	AB_KERNEL=$kernel AB_ROOT=$root
+	AB_KERNEL_SIZE=$(wc -c < "$kernel") AB_ROOT_SIZE=$(wc -c < "$root")
+	ab_sage_image_fits "$AB_KERNEL_SIZE" "$AB_ROOT_SIZE" ||
+		die "the persistent image does not fit the inactive Sage pair"
 	lk=$(vol_of ubi0 "linux$T"); lr=$(vol_of ubi0 "rootfs$T")
-	ksize=$(wc -c < "$kernel"); rsize=$(wc -c < "$root")
-	[ "$ksize" -le "$(cat "$R/sys/class/ubi/$lk/data_bytes")" ] || die "the kernel ($ksize bytes) does not fit linux$T"
-	[ "$rsize" -le "$(cat "$R/sys/class/ubi/$lr/data_bytes")" ] || die "the root filesystem ($rsize bytes) does not fit rootfs$T"
 	backup "$R/dev/$lk" "$R/dev/$lr"
-	dry_run_stop "write the persistent image into pair $T (linux$T, rootfs$T) and trial it once"
-	step "ubiupdatevol linux$T" ubiupdatevol "$R/dev/$lk" "$kernel"
-	step "ubiupdatevol rootfs$T" ubiupdatevol "$R/dev/$lr" "$root"
+	dry_run_stop "write the persistent image into pair $T and arm its guarded A/B trial"
+	ab_sage_write_target || die "the shared A/B writer could not write and verify pair $T"
+	ab_setenv sage_oem_fallback "$I" ||
+		die "cannot record the preserved OEM pair $I"
 	sync
-	[ "$(head -c "$ksize" "$R/dev/$lk" | sha256sum | cut -d' ' -f1)" = "$(sha256sum < "$kernel" | cut -d' ' -f1)" ] ||
-		die "linux$T does not read back correctly"
-	[ "$(head -c "$rsize" "$R/dev/$lr" | sha256sum | cut -d' ' -f1)" = "$(sha256sum < "$root" | cut -d' ' -f1)" ] ||
-		die "rootfs$T does not read back correctly"
-	setenv_checked owrt_trial_slot "$T"
-	setenv_checked owrt_fallback_slot "$I"
-	arm "setenv bootcmd bootipq; setenv image $I; setenv bootcount 0; saveenv; setenv image $T; setenv bootargs \"mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs\${image} rootfstype=ubifs rootwait\"; nand device 1 && setenv mtdids nand1=nand1 && setenv mtdparts \"mtdparts=nand1:0x8000000@0x0(fs)\" && ubi part fs && ubi read 0x84000000 linux\${image} && bootm 0x84000000#$CONFIG; setenv image $I; bootipq"
-	setenv_checked image "$I"
-	setenv_checked bootcount 0
-	say "one-shot trial of pair $T armed; the stock firmware stays the default."
-	say "in OpenWrt: passwd, check the LAN and both radios, then: sage-migration-mark-good --confirm"
+	ab_arm_trial || die "the shared A/B writer could not arm pair $T"
+	say "guarded A/B trial of pair $T armed; pair $I remains the boot default until health checks pass."
+	say "in OpenWrt: check the LAN, radios, root password and OpenWISP management."
 }
 
 # Thor: write the factory image into rootfs (mtd $1), check it and arm its
@@ -722,7 +738,7 @@ cmd_install() {
 	case "$FAMILY" in
 	jaguar) install_jaguar ;;
 	cheetah) install_cheetah ;;
-	sage) install_sage ;;
+	sage) install_sage_ab ;;
 	thor) install_thor ;;
 	*) die "no install procedure for family $FAMILY" ;;
 	esac
@@ -733,7 +749,7 @@ cmd_install() {
 # make the stock firmware the default again, e.g. to reinstall with the
 # current layout. Refused once both banks run OpenWrt.
 cmd_stock() {
-	local board env want
+	local board env want fallback running
 	on_openwrt || die "stock runs in an installed OpenWrt; the stock firmware is already running"
 	grep -q 'ubi.mtd=' "$R/proc/cmdline" || die "this OpenWrt does not run from flash"
 	need fw_printenv fw_setenv
@@ -742,9 +758,23 @@ cmd_stock() {
 	cambiumnetworks,xv3-8) env=thor want='aq_load_fw&&bootipq' ;;
 	cambiumnetworks,xv2-2*|cambiumnetworks,xe3-4*) env=jaguar want=bootipq ;;
 	cambiumnetworks,xv2-21x|cambiumnetworks,xv2-22h|cambiumnetworks,xv2-23t) env=cheetah want=bootipq ;;
-	cambiumnetworks,e*) die "on Sage, use sage-migration-rollback-oem" ;;
+	cambium,e410|cambiumnetworks,e410|cambiumnetworks,e410b|cambiumnetworks,e510) env=sage want=bootipq ;;
 	*) die "$board is not a Cambium family this script knows" ;;
 	esac
+	if [ "$env" = sage ]; then
+		fallback=$(getenv sage_oem_fallback)
+		case "$fallback" in 0|1) ;; *) die "there is no recorded OEM fallback pair on this Sage AP" ;; esac
+		running=$(sed -n 's/.*root=ubi0:rootfs\([01]\).*/\1/p' "$R/proc/cmdline")
+		[ "$running" = "$((1 - fallback))" ] ||
+			die "running Sage pair $running does not match OEM fallback pair $fallback"
+		getenv bootcmd > /dev/null || die "cannot read the U-Boot environment (fw_printenv failed)"
+		dry_run_stop "make OEM pair $fallback the default boot"
+		setenv_checked bootcmd bootipq
+		setenv_checked image "$fallback"
+		say "OEM pair $fallback is the default boot again; the OpenWrt pair is untouched."
+		finish
+		return
+	fi
 	[ "$(getenv "${env}_ab_version")" = 1 ] &&
 		die "both firmware banks run OpenWrt (converted to A/B): there is no stock firmware to return to"
 	getenv bootcmd > /dev/null || die "cannot read the U-Boot environment (fw_printenv failed)"
