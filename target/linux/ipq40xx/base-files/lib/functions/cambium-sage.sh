@@ -16,7 +16,7 @@ cambium_sage_board() {
 
 	SAGE_MODEL= SAGE_SKU= SAGE_FIT= SAGE_QUALIFIED=0
 	case "$board" in
-	cambium,e410)
+	cambium,e410|cambiumnetworks,e410)
 		# Also E410B hardware, which boots the same configuration.
 		SAGE_MODEL=E410 SAGE_SKU=10 SAGE_FIT=config@ap.dk01.1-c2 SAGE_QUALIFIED=1 ;;
 	cambiumnetworks,e410b)	SAGE_MODEL=E410B SAGE_SKU=21 SAGE_FIT=config@17 SAGE_QUALIFIED=1 ;;
