@@ -2,7 +2,7 @@
 
 XV2-2, XV2-2T1 (validated); XV2-2T0, XE3-4, XE3-4TN (RAM boot only).
 
-## Unreleased
+## 2026.09.27.1
 
 - **Docs:** a Jaguar installed from snapshot 2026.09.24 cannot upgrade into
   the shared A/B scripts and must be reinstalled from the stock firmware;
