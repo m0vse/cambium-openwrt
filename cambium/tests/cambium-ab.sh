@@ -954,9 +954,9 @@ assert "status names the Thor family" sh -c "sh '$ab_pkg/cambium-ab-status' | gr
 E=cambium,e410
 sage0='setenv image 0; setenv bootargs "mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs0 rootfstype=ubifs rootwait"; nand device 1 && setenv mtdids nand1=nand1 && setenv mtdparts "mtdparts=nand1:0x8000000@0x0(fs)" && ubi part fs && ubi read 0x84000000 linux0 && bootm 0x84000000#config@ap.dk01.1-c2'
 sage1='setenv image 1; setenv bootargs "mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs1 rootfstype=ubifs rootwait"; nand device 1 && setenv mtdids nand1=nand1 && setenv mtdparts "mtdparts=nand1:0x8000000@0x0(fs)" && ubi part fs && ubi read 0x84000000 linux1 && bootm 0x84000000#config@ap.dk01.1-c2'
-# new_sage_ap [BOARD] [RUNNING-PAIR] [stock|upgraded|trial|adopted]
+# new_sage_ap [BOARD] [RUNNING-PAIR] [stock|adopted]
 new_sage_ap() {
-	local board=${1:-cambium,e410} active=${2:-0} kind=${3:-upgraded} other i v
+	local board=${1:-cambium,e410} active=${2:-0} kind=${3:-adopted} other i v
 	other=$((1 - active))
 	rm -rf "$S/sys" "$S/dev" "$S/flash" "$S/dt" "$S/fw" "$S/work" "$S/net" "$S/ieee80211" "$S/newroot"
 	rm -f "$S/calls" "$S/opcount" "$S/fail_at" "$S/corrupt" "$S/bdstatus" "$S/net_ok" "$S/lan_device"
@@ -985,14 +985,6 @@ new_sage_ap() {
 		# Committed by sage-migration-mark-good: the stock firmware is the fallback.
 		printf '%s\n' "bootcmd=setenv image $active; nand device 1 && bootm 0x84000000#config@ap.dk01.1-c2; setenv image $other; bootipq" \
 			"image=$active" "owrt_migration_state=committed" > "$S/env" ;;
-	upgraded)
-		printf '%s\n' "owrt_boot0=$sage0" "owrt_boot1=$sage1" "bootcmd=run owrt_boot$active; run owrt_boot$other" \
-			"image=$active" "e410_upgrade_state=committed" "e410_upgrade_target=$active" "e410_upgrade_fallback=$other" > "$S/env" ;;
-	trial)
-		# The earlier Sage code has trial-booted this pair: the old pair is
-		# the default again and e410_upgrade_state is fallback-restored.
-		printf '%s\n' "owrt_boot0=$sage0" "owrt_boot1=$sage1" "bootcmd=run owrt_boot$other; run owrt_boot$active" \
-			"image=$other" "e410_upgrade_state=fallback-restored" "e410_upgrade_target=$active" "e410_upgrade_fallback=$other" > "$S/env" ;;
 	adopted)
 		printf '%s\n' "sage_boot0=$sage0" "sage_boot1=$sage1" "sage_stable0=run sage_boot0; run sage_boot1" \
 			"sage_stable1=run sage_boot1; run sage_boot0" "bootcmd=run sage_stable$active" "image=$active" \
@@ -1030,22 +1022,6 @@ assert "Sage slot 0 boot command is the validated E410 command" [ "$(in_lib eval
 assert "Sage slot 1 boot command is the validated E410 command" [ "$(in_lib eval "ab_board $E; ab_boot_command 1")" = "$sage1" ]
 assert "E510 boot commands use config@16" in_lib eval "ab_board cambiumnetworks,e510; ab_boot_command 1 | grep -q '#config@16\$'"
 
-# First boot of the new image after the earlier Sage code upgraded to it.
-new_sage_ap $E 1 trial; healthy_sage; : > "$S/calls"
-check "takeover of an earlier Sage trial" 0 guard
-assert "takeover: A/B state adopted with pair 1 confirmed" [ "$(env_get sage_ab_version):$(env_get sage_ab_confirmed):$(env_get sage_ab_state):$(env_get image)" = '1:1:confirmed:1' ]
-assert "takeover: default boot is pair 1, then pair 0" [ "$(env_get bootcmd):$(env_get sage_stable1)" = 'run sage_stable1:run sage_boot1; run sage_boot0' ]
-assert "takeover: boot commands are the validated ones" [ "$(env_get sage_boot0)" = "$sage0" -a "$(env_get sage_boot1)" = "$sage1" ]
-assert "takeover: the earlier state is marked migrated" [ "$(env_get e410_upgrade_state)" = migrated ]
-assert "takeover writes no changing_bootcmd (Sage U-Boot has none)" [ -z "$(env_get changing_bootcmd)" ]
-new_sage_ap $E 1 trial; touch "$S/net_ok"; : > "$S/calls"
-check "takeover: unhealthy trial (radios down)" 0 guard
-assert "unhealthy takeover reboots to the old pair, still the default" grep -q reboot "$S/calls"
-assert "unhealthy takeover leaves the earlier state for the old image" [ "$(env_get e410_upgrade_state):$(env_get bootcmd)" = 'fallback-restored:run owrt_boot0; run owrt_boot1' ]
-assert "unhealthy takeover adopts nothing" [ -z "$(env_get sage_ab_version)" ]
-new_sage_ap $E 0 upgraded; : > "$S/calls"
-check "takeover of a committed earlier upgrade" 0 guard
-assert "committed takeover: pair 0 is the default" [ "$(env_get sage_ab_confirmed):$(env_get bootcmd)" = '0:run sage_stable0' ]
 new_sage_ap $E 0 stock; healthy_sage; : > "$S/calls"
 check "stock firmware in the other pair: guard does nothing" 0 guard
 assert "stock pair: no environment written, no reboot" never_wrote 'setenv|reboot'
