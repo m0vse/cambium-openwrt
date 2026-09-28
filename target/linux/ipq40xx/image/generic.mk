@@ -1556,10 +1556,13 @@ define Device/cambiumnetworks_sage-persistent
 	KERNEL_SIZE := 4216k
 	BOARD_NAME := cambium_e410
 	SUPPORTED_DEVICES := cambium,e410 cambiumnetworks,e410 cambiumnetworks,e410b cambiumnetworks,e510 cambiumnetworks,e600 cambiumnetworks,e430w cambiumnetworks,e430h cambiumnetworks,e700
-	IMAGES := kernel.itb rootfs.ubifs sysupgrade.bin
+	IMAGES := kernel.itb rootfs.ubifs rootfs.squashfs sysupgrade-ubifs.bin sysupgrade.bin
 	IMAGE/kernel.itb := append-kernel | check-size 4216k
 	IMAGE/rootfs.ubifs := e410-rootfs-ubifs | check-size 46128k
-	IMAGE/sysupgrade.bin := e410-rootfs-ubifs | check-size 46128k | sysupgrade-tar rootfs=$$$$@ | append-metadata
+	# One-time bridge for devices whose installed writer accepts only UBIFS.
+	IMAGE/sysupgrade-ubifs.bin := e410-rootfs-ubifs | check-size 46128k | sysupgrade-tar rootfs=$$$$@ | append-metadata
+	IMAGE/rootfs.squashfs := append-rootfs | check-size 37820k
+	IMAGE/sysupgrade.bin := append-rootfs | check-size 37820k | sysupgrade-tar rootfs=$$$$@ | append-metadata
 	DEVICE_PACKAGES := cambium-sage-support
 endef
 TARGET_DEVICES += cambiumnetworks_sage-persistent
