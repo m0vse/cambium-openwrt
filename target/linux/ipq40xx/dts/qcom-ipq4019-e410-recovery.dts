@@ -1,7 +1,0 @@
-/dts-v1/;
-
-#include "qcom-ipq4019-e410.dtsi"
-
-&fs_partition {
-	read-only;
-};
