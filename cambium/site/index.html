@@ -290,7 +290,7 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram      # checks, bac
     <thead><tr><th>Command</th><th>Does</th></tr></thead>
     <tbody>
       <tr><td><code>ram</code></td><td>RAM-boots the recovery image once, every family. Any later reboot returns to the stock firmware. On a model that is not validated, stop here and <a href="#report">send a report</a>.</td></tr>
-      <tr><td><code>install</code></td><td>Installs the persistent image on a validated model and arms its guarded first boot (Sage: a one-shot trial, then <code>sage-migration-mark-good --confirm</code> in OpenWrt). Thor: if its stock firmware has no <code>ubiformat</code>, it RAM-boots the installer instead; run the same <code>install</code> command again inside it.</td></tr>
+      <tr><td><code>install</code></td><td>Installs the persistent image on a validated model and arms a guarded first boot. Sage uses the shared A/B guard to commit a healthy boot automatically. Thor: if its stock firmware has no <code>ubiformat</code>, it RAM-boots the installer instead; run the same <code>install</code> command again inside it.</td></tr>
       <tr><td><code>stock</code></td><td>In an installed OpenWrt that still has the stock firmware in its other slot (not converted to A/B): makes the stock firmware the default boot again, e.g. to reinstall a single-bank Thor as A/B.</td></tr>
       <tr><td><code>--trial</code></td><td>Hardware trial of a persistent image not yet validated on the model, e.g. a Jaguar on an XV2-2T0.</td></tr>
       <tr><td><code>--persistent-test</code></td><td>Jaguar: RAM-boot the A/B persistent trees (the test-only image) with no bank attached.</td></tr>
@@ -427,35 +427,20 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes --overwrite-inac
   volume is reinstalled, it is <strong>not</strong> an OEM fallback. Sage RAM
   boot does not accept <code>--backed-up</code>, a plain HTTP server, or TFTP
   for this safety-critical backup and staging step.</p>
-  <p><strong>Install.</strong> Copy <code>...sage-persistent-squashfs-kernel.itb</code>
-  and <code>...sage-persistent-squashfs-rootfs.ubifs</code> to
-  <code>/tmp</code>, write them into the inactive pair and read them back:</p>
-<pre>CONFIG=; eval "$(sh /tmp/select-config.sh persistent)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
-[ -n "$CONFIG" ] &amp;&amp;
-ubiupdatevol /dev/ubi0_2 /tmp/KERNEL.itb &amp;&amp;
-ubiupdatevol /dev/ubi0_3 /tmp/ROOTFS.ubifs
-sync
-head -c "$(wc -c &lt; /tmp/KERNEL.itb)" /dev/ubi0_2 | sha256sum    # must match KERNEL.itb
-head -c "$(wc -c &lt; /tmp/ROOTFS.ubifs)" /dev/ubi0_3 | sha256sum  # must match ROOTFS.ubifs
-fw_setenv owrt_trial_slot 1
-fw_setenv owrt_fallback_slot 0</pre>
-  <p>Arm a one-shot trial of slot 1 that saves the stock slot as the
-  default first:</p>
-<pre>CONFIG=; eval "$(sh /tmp/select-config.sh persistent)"; echo "MODEL=$MODEL CONFIG=$CONFIG"
-[ -n "$CONFIG" ] &amp;&amp; fw_setenv bootcmd 'setenv bootcmd bootipq; setenv image 0; setenv bootcount 0; saveenv; setenv image 1; setenv bootargs "mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs${image} rootfstype=ubifs rootwait"; nand device 1 &amp;&amp; setenv mtdids nand1=nand1 &amp;&amp; setenv mtdparts "mtdparts=nand1:0x8000000@0x0(fs)" &amp;&amp; ubi part fs &amp;&amp; ubi read 0x84000000 linux${image} &amp;&amp; bootm 0x84000000#'"$CONFIG"'; setenv image 0; bootipq'
-fw_setenv image 0
-fw_setenv bootcount 0
-fw_printenv bootcmd
-sync; reboot</pre>
-  <p><strong>Commit.</strong> In OpenWrt, set a root password, check the LAN
-  and both radios, then keep OpenWrt with the stock slot as fallback:</p>
-<pre>passwd
-sage-migration-mark-good --confirm</pre>
-  <p><code>sage-migration-mark-good</code> refuses while root has no
-  password, and, when the OpenWISP agent is configured, until it has reached
-  its controller. Until then, any reboot returns to the stock firmware. To go back later:
-  <code>sage-migration-rollback-oem --confirm-oem</code>, then reboot.
-  Later upgrades use <code>sysupgrade</code>.</p>
+  <p><strong>Install.</strong> Use the release installer from the stock firmware.
+  Its dry run identifies the model, checks image sizes and backs up the inactive
+  pair, APPSBLENV and ART. Confirm those backups are safely off the AP before
+  proceeding:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 install
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes install</pre>
+  <p>The installer writes and reads back only the inactive pair, then arms the
+  shared A/B one-shot trial. If OpenWrt fails to boot or fails its health checks,
+  the preserved OEM pair remains the default. Once LAN, radios and (when
+  configured) OpenWISP are healthy, <code>cambium-ab-guard</code> commits
+  OpenWrt automatically. Set a root password after first boot; no manual
+  <code>mark-good</code> command is needed. Check the result with
+  <code>cambium-ab-status</code>. Before the first sysupgrade replaces the OEM
+  pair, <code>cambium-install.sh --yes stock</code> can select it again.</p>
   </details>
 
   <details id="thor">
@@ -760,14 +745,12 @@ cambium-ab-status                                  # a few minutes later: runnin
   <h3>Going back to the stock firmware</h3>
   <p>Until a Sage upgrade or a Jaguar conversion has replaced it, the stock
   firmware is still in its slot. From OpenWrt:</p>
-<pre># Sage (after migration, before any sysupgrade)
-sage-migration-rollback-oem --confirm-oem
-
-# Thor, Jaguar and Cheetah before conversion (reboots)
-sh /tmp/cambium-install.sh --yes stock</pre>
-  <p>It restores the stock boot command and clears the
-  <code>changing_bootcmd</code> marker. The install never changes the U-Boot
-  <code>image</code> variable, so it still names the stock firmware's slot.</p>
+<pre># Before the first OpenWrt sysupgrade replaces the preserved OEM pair:
+sh /tmp/cambium-install.sh --yes stock
+reboot</pre>
+  <p>This restores the OEM <code>bootcmd</code> and selects the recorded OEM
+  <code>image</code> pair. Sage has no <code>changing_bootcmd</code> marker;
+  Thor, Jaguar and Cheetah clear theirs when returning to stock.</p>
 </section>
 
 <section id="safety">
