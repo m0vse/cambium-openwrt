@@ -37,6 +37,7 @@ def role(name, devices):
         ("imagebuilder", r"imagebuilder"),
         ("recovery", re.escape(devices.get("recovery", "\0")) + r"-initramfs-"),
         ("installer", re.escape(devices.get("installer", "\0")) + r"-initramfs-"),
+        ("persistent-transition", re.escape(devices.get("persistent", "\0")) + r"-.*sysupgrade-ubifs\.bin$"),
         ("persistent-sysupgrade", re.escape(devices.get("persistent", "\0")) + r"-.*sysupgrade\.bin$"),
         ("persistent-factory", re.escape(devices.get("persistent", "\0")) + r"-.*factory\.ubi$"),
         ("persistent-kernel", re.escape(devices.get("persistent", "\0")) + r"-.*kernel\.itb$"),

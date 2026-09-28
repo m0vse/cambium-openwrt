@@ -55,6 +55,9 @@ refresh() { # refresh UBI_DEV MTD
 		echo "251:$v" > "$S/sys/ubi/$1_$v/dev"
 		hotplug && ln -sf "$S/flash/mtd$2/$v.data" "$S/dev/$1_$v"
 	done
+	used=0
+	for f in "$S/flash/mtd$2"/*.size; do [ -f "$f" ] && used=$((used + $(cat "$f") / LEB)); done
+	echo "$(( $(cat "$S/bank_lebs" 2>/dev/null || echo 724) - used ))" > "$S/sys/ubi/$1/avail_eraseblocks"
 	:
 }
 EOF
@@ -108,6 +111,10 @@ while [ $# -gt 0 ]; do
 	case "$1" in -n) id=$2; shift ;; -N) name=$2; shift ;; -s) size=$2; shift ;; -m) size=max ;; esac
 	shift
 done
+if [ -z "$id" ]; then
+	id=0
+	while [ -f "$S/flash/mtd$m/$id.name" ]; do id=$((id + 1)); done
+fi
 fail_point ubimkvol
 used=0
 for f in "$S/flash/mtd$m"/*.size; do [ -f "$f" ] && used=$((used + $(cat "$f") / LEB)); done
@@ -120,9 +127,35 @@ echo $((lebs * LEB)) > "$S/flash/mtd$m/$id.size"
 refresh "$dev" "$m"
 echo "mkvol mtd$m $id $name" >> "$S/calls"
 EOF
+tool ubirsvol <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+need_node "$1"
+dev=${1##*/}; shift
+m=$(ubi_mtd "$dev"); id= size=
+while [ $# -gt 0 ]; do
+	case "$1" in -n) id=$2; shift ;; -s) size=$2; shift ;; esac
+	shift
+done
+[ -f "$S/flash/mtd$m/$id.size" ] || exit 1
+[ "$size" -le "$(cat "$S/flash/mtd$m/$id.size")" ] || exit 1
+fail_point ubirsvol
+echo "$(( (size + LEB - 1) / LEB * LEB ))" > "$S/flash/mtd$m/$id.size"
+refresh "$dev" "$m"
+echo "resize mtd$m $id $size" >> "$S/calls"
+EOF
 tool ubiupdatevol <<'EOF'
 #!/bin/sh
 . "$(dirname "$0")/_sim"
+if [ "$1" = -t ]; then
+	shift
+	need_node "$1"
+	vol=${1##*/}; k=${vol%_*}; v=${vol##*_}; m=$(ubi_mtd "$k")
+	fail_point ubiupdatevol
+	: > "$S/flash/mtd$m/$v.data"
+	echo "truncate mtd$m $v" >> "$S/calls"
+	exit 0
+fi
 len=
 [ "$1" = -s ] && { len=$2; shift 2; }
 need_node "$1"
@@ -978,6 +1011,7 @@ new_sage_ap() {
 		printf 'old-%s' "$v" > "$S/flash/mtd2/$i.data"
 		i=$((i + 1))
 	done
+	echo 834 > "$S/bank_lebs"
 	echo 2 > "$S/sys/ubi/ubi0/mtd_num"
 	(. "$S/bin/_sim"; refresh ubi0 2)
 	echo "console=ttyMSM0 root=ubi0:rootfs$active rootfstype=ubifs rootwait" > "$S/cmdline"
@@ -1001,11 +1035,10 @@ dispatch40xx() { (. "$S/system.sh"; . "$S/functions.sh"; . "$CAMBIUM_AB_UPGRADE_
 	[ "$1" = platform_do_upgrade ] && touch "$S/no_hotplug"
 	"$@"; rc=$?; rm -f "$S/no_hotplug"; exit $rc); }
 pair_data() { cat "$S/flash/mtd2/$1.data"; }
-{ printf '\061\030\020\006'; printf 'new-ubifs-root'; } > "$S/sage-root"
+{ printf '\061\030\020\006'; printf 'new-ubifs-root'; } > "$S/sage-ubifs-root"
+printf 'hsqs-new-root' > "$S/sage-root"
 make_fit config@5 config@ap.dk01.1-c2 config@16 config@17 > "$S/sage-fit"
-make_image "$S/sage.bin" "$S/sage-fit" "$S/sage-root" sysupgrade-cambium_e410
-cp "$S/sage.bin" "$S/sage-good.bin"
-make_image "$S/sage-squashfs.bin" "$S/sage-fit" "" sysupgrade-cambium_e410
+make_image "$S/sage-ubifs.bin" "$S/sage-fit" "$S/sage-ubifs-root" sysupgrade-cambium_e410
 make_image "$S/sage.bin" "$S/sage-fit" "$S/sage-root" sysupgrade-cambium_e410
 
 # Board table, identity and boot commands.
@@ -1055,7 +1088,12 @@ export UPGRADE_BACKUP=$S/backup.tgz BACKUP_FILE=sysupgrade.tgz
 check "Sage upgrade pair 0 -> 1" 0 dispatch40xx platform_do_upgrade "$S/sage.bin"
 unset UPGRADE_BACKUP
 assert "pair 1 kernel written" cmp -s "$S/flash/mtd2/2.data" "$S/img/sysupgrade-cambium_e410/kernel"
-assert "pair 1 UBIFS root written" cmp -s "$S/flash/mtd2/3.data" "$S/sage-root"
+assert "pair 1 SquashFS root written" cmp -s "$S/flash/mtd2/3.data" "$S/sage-root"
+assert "converted rootfs1 keeps UBI ID 3 at 305 LEBs" [ "$(cat "$S/sys/ubi/ubi0_3/name" "$S/sys/ubi/ubi0_3/reserved_ebs" | tr '\n' ':')" = 'rootfs1:305:' ]
+assert "pair 1 gets its own 67-LEB overlay" [ "$(cat "$S/sys/ubi/ubi0_5/name" "$S/sys/ubi/ubi0_5/reserved_ebs" | tr '\n' ':')" = 'rootfs_data1:67:' ]
+assert "confirmed pair 0 still boots UBIFS" sh -c "grep -q '^sage_boot0=.*root=ubi0:rootfs0 rootfstype=ubifs' '$S/env'"
+assert "trial pair 1 boots SquashFS with its own overlay" sh -c "grep -q '^sage_boot1=.*ubi.block=0,rootfs1.*fstools_overlay_name=rootfs_data1' '$S/env'"
+assert "shared UBI device was never formatted" never_wrote 'format mtd2'
 assert "running pair 0 untouched" [ "$(pair_data 0):$(pair_data 1)" = 'old-linux0:old-rootfs0' ]
 assert "nvram untouched" [ "$(pair_data 4)" = old-nvram ]
 assert "configuration carried into the new root" cmp -s "$S/newroot/sysupgrade.tgz" "$S/backup.tgz"
@@ -1064,15 +1102,26 @@ assert "trial of pair 1 armed, pair 0 restored first" [ "$(env_get bootcmd)" = \
 assert "no changing_bootcmd written" [ -z "$(env_get changing_bootcmd)" ]
 # U-Boot runs the trial; the new pair comes up healthy.
 sed -i.bak -e 's/^bootcmd=.*/bootcmd=run sage_stable0/' -e 's/^sage_ab_state=.*/sage_ab_state=trial-started/' "$S/env"
-echo 'console=ttyMSM0 root=ubi0:rootfs1 rootfstype=ubifs rootwait' > "$S/cmdline"
-echo 'ubi0:rootfs1 / ubifs rw,noatime 0 0' > "$S/mounts"
+echo 'console=ttyMSM0 ubi.mtd=fs ubi.block=0,rootfs1 root=/dev/ubiblock0_3 rootfstype=squashfs fstools_overlay_name=rootfs_data1 cambium_sage_slot=1' > "$S/cmdline"
+printf '%s\n' '/dev/ubiblock0_3 /rom squashfs ro 0 0' 'ubi0:rootfs_data1 /overlay ubifs rw 0 0' 'overlayfs:/overlay / overlay rw 0 0' > "$S/mounts"
 healthy_sage; : > "$S/calls"
 check "healthy Sage trial committed" 0 guard
 assert "pair 1 confirmed and the default" [ "$(env_get sage_ab_confirmed):$(env_get sage_ab_state):$(env_get bootcmd)" = '1:confirmed:run sage_stable1' ]
+check "mixed-layout slot 1 is the active pair" 0 in_lib eval 'ab_identity && [ "$AB_ACTIVE:$AB_TARGET" = 1:0 ]'
+# An overlay that fell back to tmpfs must never be committed as healthy.
+printf '%s\n' '/dev/ubiblock0_3 /rom squashfs ro 0 0' 'tmpfs /overlay tmpfs rw 0 0' 'overlayfs:/overlay / overlay rw 0 0' > "$S/mounts"
+check "tmpfs overlay fails the Sage health guard" 1 in_lib eval 'ab_identity && ab_sage_root_healthy'
+printf '%s\n' '/dev/ubiblock0_3 /rom squashfs ro 0 0' 'ubi0:rootfs_data1 /overlay ubifs rw 0 0' 'overlayfs:/overlay / overlay rw 0 0' > "$S/mounts"
+# The following upgrade converts the remaining UBIFS pair; rollback is now
+# SquashFS on slot 1, and neither overlay is shared between the pairs.
+check "second upgrade converts pair 0" 0 dispatch40xx platform_do_upgrade "$S/sage.bin"
+assert "pair 0 gets its own overlay" [ "$(cat "$S/sys/ubi/ubi0_6/name" "$S/sys/ubi/ubi0_6/reserved_ebs" | tr '\n' ':')" = 'rootfs_data0:67:' ]
+assert "pair 1 overlay survives pair 0 conversion" [ "$(cat "$S/sys/ubi/ubi0_5/name")" = rootfs_data1 ]
+assert "both pair boot commands now select their own overlays" sh -c "grep -q '^sage_boot0=.*fstools_overlay_name=rootfs_data0' '$S/env' && grep -q '^sage_boot1=.*fstools_overlay_name=rootfs_data1' '$S/env'"
 new_sage_ap $E 0 adopted; dispatch40xx platform_do_upgrade "$S/sage.bin" >/dev/null 2>&1
 sed -i.bak -e 's/^bootcmd=.*/bootcmd=run sage_stable0/' -e 's/^sage_ab_state=.*/sage_ab_state=trial-started/' "$S/env"
-echo 'console=ttyMSM0 root=ubi0:rootfs1 rootfstype=ubifs rootwait' > "$S/cmdline"
-echo 'ubi0:rootfs1 / ubifs rw,noatime 0 0' > "$S/mounts"
+echo 'console=ttyMSM0 ubi.mtd=fs ubi.block=0,rootfs1 root=/dev/ubiblock0_3 rootfstype=squashfs fstools_overlay_name=rootfs_data1 cambium_sage_slot=1' > "$S/cmdline"
+printf '%s\n' '/dev/ubiblock0_3 /rom squashfs ro 0 0' 'ubi0:rootfs_data1 /overlay ubifs rw 0 0' 'overlayfs:/overlay / overlay rw 0 0' > "$S/mounts"
 touch "$S/net_ok"; : > "$S/calls"
 check "Sage trial without its radios" 0 guard
 assert "failed Sage trial rolled back to pair 0" [ "$(env_get sage_ab_state):$(env_get bootcmd)" = 'rolled-back:run sage_stable0' ]
@@ -1103,7 +1152,7 @@ echo 4 > "$S/sys/ubi/ubi0_3/data_bytes"
 check "Sage target fits by reserved capacity after RAM staging" 0 dispatch40xx platform_check_image "$S/sage.bin"
 # Refusals: wrong root type, too large, unqualified model, write failures.
 new_sage_ap $E 0 adopted; : > "$S/calls"
-check "a SquashFS root is refused on Sage" 1 dispatch40xx platform_check_image "$S/sage-squashfs.bin"
+check "a UBIFS root is refused on new Sage writer" 1 dispatch40xx platform_check_image "$S/sage-ubifs.bin"
 echo 10 > "$S/flash/mtd2/2.size"; (. "$S/bin/_sim"; refresh ubi0 2)
 check "a kernel larger than linux1 is refused" 1 dispatch40xx platform_check_image "$S/sage.bin"
 assert "refusals wrote nothing" never_wrote 'update|setenv'

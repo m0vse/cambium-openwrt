@@ -65,6 +65,8 @@ rm -f "$work/sku"; check "no board-sku node is accepted" 0 cambium_sage_check_sk
 # --- running pair ------------------------------------------------------------------
 echo "console=ttyMSM0 root=ubi0:rootfs1 rootfstype=ubifs" > "$work/cmdline"
 assert "running pair read from root=ubi0:rootfs1" test "$(cambium_sage_running_slot)" = 1
+echo "console=ttyMSM0 root=/dev/ubiblock0_3 rootfstype=squashfs cambium_sage_slot=1" > "$work/cmdline"
+assert "running SquashFS pair read from explicit marker" test "$(cambium_sage_running_slot)" = 1
 echo "console=ttyMSM0 root=/dev/mtdblock3" > "$work/cmdline"
 assert "no pair on another command line" test -z "$(cambium_sage_running_slot)"
 
@@ -74,6 +76,12 @@ validated1='setenv image 1; setenv bootargs "mtdparts=spi0.1:128M(fs) ubi.mtd=fs
 cambium_sage_board cambium,e410
 assert "E410 slot 0 boot command matches the validated command" test "$(cambium_sage_boot_command 0)" = "$validated0"
 assert "E410 slot 1 boot command matches the validated command" test "$(cambium_sage_boot_command 1)" = "$validated1"
+SAGE_ROOT_TYPE=squashfs
+squash0=$(cambium_sage_boot_command 0)
+squash1=$(cambium_sage_boot_command 1)
+assert "SquashFS slot 0 boots UBI block ID 1 with overlay 0" sh -c 'case "$1" in *"ubi.block=0,rootfs0 root=/dev/ubiblock0_1 rootfstype=squashfs ro rootwait fstools_overlay_name=rootfs_data0 cambium_sage_slot=0"*) exit 0 ;; esac; exit 1' sh "$squash0"
+assert "SquashFS slot 1 boots UBI block ID 3 with overlay 1" sh -c 'case "$1" in *"ubi.block=0,rootfs1 root=/dev/ubiblock0_3 rootfstype=squashfs ro rootwait fstools_overlay_name=rootfs_data1 cambium_sage_slot=1"*) exit 0 ;; esac; exit 1' sh "$squash1"
+unset SAGE_ROOT_TYPE
 while read -r board fit; do
 	cambium_sage_board "$board"
 	case "$(cambium_sage_boot_command 0)" in

@@ -804,6 +804,10 @@ cmd_update_upgrader() {
 	set -- "cambium-ab.sh:/lib/functions/cambium-ab.sh" \
 		"cambium-ab-upgrade.sh:/lib/upgrade/cambium-ab.sh" \
 		"cambium-ab-$FAMILY.sh:/lib/functions/cambium-ab-$FAMILY.sh"
+	if [ "$FAMILY" = sage ]; then
+		need ubirsvol ubimkvol
+		set -- "$@" "cambium-sage.sh:/lib/functions/cambium-sage.sh"
+	fi
 	for f; do
 		new=$(get_image "${f%%:*}") || exit 1
 		step "syntax check of ${new##*/}" sh -n "$new"
@@ -821,7 +825,7 @@ cmd_update_upgrader() {
 		step "install ${f#*:}" cp "$WORK/$(asset "${f%%:*}")" "$dst"
 	done
 	(board_name() { cat "$R/tmp/sysinfo/board_name"; }
-	 CAMBIUM_AB_LIB=$R/lib/functions/cambium-ab.sh CAMBIUM_AB_MODULES=$R/lib/functions \
+	 CAMBIUM_SAGE_LIB=$R/lib/functions/cambium-sage.sh CAMBIUM_AB_LIB=$R/lib/functions/cambium-ab.sh CAMBIUM_AB_MODULES=$R/lib/functions \
 		. "$R/lib/upgrade/cambium-ab.sh" && command -v ab_ubi_node && command -v ab_step &&
 		command -v cambium_ab_do_upgrade && ab_board "$(board_name)") > /dev/null 2>&1 || {
 		for f; do [ -f "$old/${f%%:*}" ] && cp "$old/${f%%:*}" "$R${f#*:}"; done

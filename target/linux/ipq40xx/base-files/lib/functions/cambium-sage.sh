@@ -60,13 +60,29 @@ cambium_sage_check_sku() {
 # cambium_sage_boot_command SLOT
 # U-Boot command that boots slot SLOT (0 or 1) on the current board.
 cambium_sage_boot_command() {
-	local slot="$1"
+	local slot="$1" rootargs
 
-	printf '%s' "setenv image $slot; setenv bootargs \"$SAGE_KERNEL_MTDPARTS ubi.mtd=$SAGE_UBI_PART root=ubi0:$SAGE_ROOTFS_VOL$slot rootfstype=ubifs rootwait\"; nand device $SAGE_NAND_DEV && setenv mtdids nand$SAGE_NAND_DEV=nand$SAGE_NAND_DEV && setenv mtdparts \"$SAGE_NAND_MTDPARTS\" && ubi part $SAGE_UBI_PART && ubi read $SAGE_LOADADDR $SAGE_KERNEL_VOL$slot && bootm $SAGE_LOADADDR#$SAGE_FIT"
+	case "${SAGE_ROOT_TYPE:-ubifs}" in
+	ubifs)
+		rootargs="root=ubi0:$SAGE_ROOTFS_VOL$slot rootfstype=ubifs rootwait"
+		;;
+	squashfs)
+		# The captured E410 layout keeps rootfs0 at ID 1 and rootfs1 at ID 3.
+		# Resizing these volumes must never change their IDs.
+		case "$slot" in 0) rootargs='root=/dev/ubiblock0_1' ;; 1) rootargs='root=/dev/ubiblock0_3' ;; *) return 1 ;; esac
+		rootargs="ubi.block=0,$SAGE_ROOTFS_VOL$slot $rootargs rootfstype=squashfs ro rootwait fstools_overlay_name=rootfs_data$slot cambium_sage_slot=$slot"
+		;;
+	*) return 1 ;;
+	esac
+
+	printf '%s' "setenv image $slot; setenv bootargs \"$SAGE_KERNEL_MTDPARTS ubi.mtd=$SAGE_UBI_PART $rootargs\"; nand device $SAGE_NAND_DEV && setenv mtdids nand$SAGE_NAND_DEV=nand$SAGE_NAND_DEV && setenv mtdparts \"$SAGE_NAND_MTDPARTS\" && ubi part $SAGE_UBI_PART && ubi read $SAGE_LOADADDR $SAGE_KERNEL_VOL$slot && bootm $SAGE_LOADADDR#$SAGE_FIT"
 }
 
 # cambium_sage_running_slot
 # Print the slot the running system booted from (0 or 1).
 cambium_sage_running_slot() {
-	sed -n "s/.*root=ubi0:$SAGE_ROOTFS_VOL\([01]\).*/\1/p" "${CAMBIUM_CMDLINE:-/proc/cmdline}"
+	local slot
+	slot=$(sed -n 's/.*cambium_sage_slot=\([01]\).*/\1/p' "${CAMBIUM_CMDLINE:-/proc/cmdline}")
+	[ -n "$slot" ] || slot=$(sed -n "s/.*root=ubi0:$SAGE_ROOTFS_VOL\([01]\).*/\1/p" "${CAMBIUM_CMDLINE:-/proc/cmdline}")
+	[ -n "$slot" ] && echo "$slot"
 }
