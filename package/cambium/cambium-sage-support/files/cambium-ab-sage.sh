@@ -9,10 +9,6 @@
 # marker. The board table, boot commands and running slot come from
 # cambium-sage.sh, which the earlier Sage upgrade code also used.
 #
-# The earlier Sage code kept its state in e410_upgrade_* and owrt_boot0/1.
-# On the first boot of an image carrying this module, ab_sage_takeover
-# adopts that state, so an installed E410 moves over with a normal
-# sysupgrade.
 
 . "${CAMBIUM_SAGE_LIB:-/lib/functions/cambium-sage.sh}"
 
@@ -170,54 +166,4 @@ ab_sage_healthy_extra() {
 	[ -f "${CAMBIUM_OPENWISP_LED_STATE:-/tmp/cambium-openwisp-managed}" ] &&
 		/etc/init.d/openwisp-config running >/dev/null 2>&1 &&
 		/etc/init.d/openwisp-monitoring running >/dev/null 2>&1
-}
-
-# Make the running pair the committed default under the sage_* state.
-ab_sage_adopt() {
-	local slot=$1 batch=/tmp/cambium-ab-sage.$$ rc=0
-	ab_write_boot_vars || return 1
-	printf "sage_ab_version 1\nsage_ab_confirmed %s\nsage_ab_state confirmed\nimage %s\ne410_upgrade_state migrated\n" \
-		"$slot" "$slot" > "$batch"
-	printf "sage_ab_target\nsage_ab_last_failure\nbootcount 0\n" >> "$batch"
-	ab_setenv_batch "$batch" || rc=1
-	rm -f "$batch"
-	[ "$rc" = 0 ] && ab_setenv bootcmd "run sage_stable$slot"
-}
-
-# First boot of this module on an E410 that the earlier Sage code upgraded:
-# both pairs hold OpenWrt (owrt_boot0/1 exist). A trial it armed
-# (e410_upgrade_state fallback-restored, running the target pair) is
-# committed once healthy, or left for the old pair, which is still the
-# default, to take back on the next boot. An E410 still holding the stock
-# firmware in its other pair has no owrt_boot0/1 and is left alone.
-ab_sage_takeover() {
-	local state target fallback
-	ab_converted && return 2
-	[ -n "$(ab_getenv owrt_boot0)" ] && [ -n "$(ab_getenv owrt_boot1)" ] || return 2
-	state=$(ab_getenv e410_upgrade_state)
-	target=$(ab_getenv e410_upgrade_target)
-	fallback=$(ab_getenv e410_upgrade_fallback)
-	case "$target:$fallback" in 0:1|1:0) ;; *) return 2 ;; esac
-	ab_identity || return 1
-	[ "$AB_ACTIVE" = "$target" ] || return 2
-	case "$state" in
-	fallback-restored)
-		if wait_healthy ab; then
-			ab_sage_adopt "$AB_ACTIVE" || { log "could not adopt the Sage A/B state"; return 1; }
-			log "Sage pair $AB_ACTIVE healthy; adopted as the default, pair $fallback the fallback"
-			return 0
-		fi
-		# bootcmd still boots the old pair first; its own commit service
-		# records the rollback.
-		log "startup checks failed; returning to pair $fallback"
-		do_reboot
-		return 0
-		;;
-	committed)
-		ab_sage_adopt "$AB_ACTIVE" || { log "could not adopt the Sage A/B state"; return 1; }
-		log "Sage pair $AB_ACTIVE adopted as the default, pair $fallback the fallback"
-		return 0
-		;;
-	esac
-	return 2
 }
