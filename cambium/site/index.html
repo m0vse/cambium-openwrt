@@ -730,11 +730,7 @@ cambium-ab-status                                  # a few minutes later: runnin
     volume pair OpenWrt is not running from, trial-boots it, and the guard
     commits it once the network, both radios and (on a managed AP) OpenWISP
     are healthy, or returns to the old pair; <code>cambium-ab-status</code>
-    shows the result. An E410 on an image from before this code (snapshot
-    2026.09.25.2 or earlier) needs nothing extra: its next
-    <code>sysupgrade</code> installs the new image, which adopts the earlier
-    upgrade state on its first healthy boot; this is validated on an E410,
-    which then also switched pairs through the shared code. <strong>The first
+    shows the result. <strong>The first
     upgrade after migration replaces the
     stock firmware</strong>; from then on the two pairs alternate between
     OpenWrt versions. Go back to the stock firmware first if you might still
