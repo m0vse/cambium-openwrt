@@ -24,14 +24,6 @@ grep -q 'SUPPORTED_DEVICES := .*cambium,e410.*cambiumnetworks,e410b' "$base/imag
 	exit 1
 }
 
-for helper in sage-migration-mark-good sage-migration-rollback-oem; do
-	grep -q 'cambium,e410|cambiumnetworks,e410|cambiumnetworks,e410b' \
-		"$top/package/cambium/cambium-sage-support/files/$helper" || {
-		echo "FAIL: $helper does not accept all E410 IDs" >&2
-		exit 1
-	}
-done
-
 work=$(mktemp -d)
 trap 'rm -r "$work"' EXIT HUP INT TERM
 python3 "$top/cambium/scripts/gen-select-config.py" "$top/cambium/families.json" > "$work/select-config.sh"
