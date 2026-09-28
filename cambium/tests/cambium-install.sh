@@ -10,7 +10,7 @@
 set -u
 
 top=$(cd "$(dirname "$0")/../.." && pwd)
-installer=$top/cambium/site/cambium-install.sh
+installer=${CAMBIUM_INSTALL_TEST_INSTALLER:-$top/cambium/site/cambium-install.sh}
 W=$(mktemp -d)
 trap 'rm -rf "$W"' EXIT HUP INT TERM
 pass=0 fail=0
@@ -110,6 +110,7 @@ EOF
 tool fw_printenv <<'EOF'
 #!/bin/sh
 . "$(dirname "$0")/_sim"
+[ "$1" = -c ] && shift 2
 [ "$1" = -n ] && shift
 grep -q "^$1=" "$W/env" || exit 1
 sed -n "s/^$1=//p" "$W/env"
@@ -117,6 +118,15 @@ EOF
 tool fw_setenv <<'EOF'
 #!/bin/sh
 . "$(dirname "$0")/_sim"
+[ "$1" = -c ] && shift 2
+if [ "$1" = -s ]; then
+	while read -r n value; do
+		grep -v "^$n=" "$W/env" > "$W/env.new"
+		[ -n "$value" ] && printf '%s=%s\n' "$n" "$value" >> "$W/env.new"
+		mv "$W/env.new" "$W/env"; log "setenv $n"
+	done < "$2"
+	exit 0
+fi
 n=$1; shift
 grep -v "^$n=" "$W/env" > "$W/env.new"; [ $# -gt 0 ] && printf '%s=%s\n' "$n" "$*" >> "$W/env.new"
 mv "$W/env.new" "$W/env"; log "setenv $n"
@@ -227,7 +237,11 @@ done
 cp "$top/package/cambium/cambium-ab/files/cambium-ab.sh" "$W/rel/jaguar-cambium-ab.sh"
 cp "$top/package/cambium/cambium-ab/files/cambium-ab-upgrade.sh" "$W/rel/jaguar-cambium-ab-upgrade.sh"
 cp "$top/package/cambium/cambium-jaguar-support/files/cambium-ab-jaguar.sh" "$W/rel/jaguar-cambium-ab-jaguar.sh"
-(cd "$W/rel" && sha256sum -- openwrt-* jaguar-* > SHA256SUMS)
+cp "$top/package/cambium/cambium-ab/files/cambium-ab.sh" "$W/rel/cambium-ab.sh"
+cp "$top/package/cambium/cambium-ab/files/cambium-ab-upgrade.sh" "$W/rel/cambium-ab-upgrade.sh"
+cp "$top/package/cambium/cambium-sage-support/files/cambium-ab-sage.sh" "$W/rel/cambium-ab-sage.sh"
+cp "$top/target/linux/ipq40xx/base-files/lib/functions/cambium-sage.sh" "$W/rel/cambium-sage.sh"
+(cd "$W/rel" && sha256sum -- openwrt-* jaguar-* cambium-* > SHA256SUMS)
 mkdir -p "$W/rel-test"
 echo "image jaguar persistent ram" > "$W/rel-test/$p-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-initramfs-uImage.itb"
 (cd "$W/rel-test" && sha256sum -- openwrt-* > test-only-SHA256SUMS)
@@ -530,12 +544,38 @@ assert "Sage corrupt image leaves default bootcmd" [ "$(env_get bootcmd)" = boot
 ap sage E410B 21 0
 check "Sage E410B RAM uses inactive UBI volume" 0 inst --from http://192.0.2.5:8000 --yes --overwrite-inactive-rootfs ram
 assert "Sage E410B selects its recovery FIT tree" said 'bootm 0x84000000#config@17'
+# A staged recovery FIT shrinks data_bytes, but not the reserved UBI volume.
 ap sage E410 10 0
-check "Sage install (stock on pair 0)" 0 inst --from "$W/rel" --yes --backed-up install
-assert "Sage trial is the validated command" [ "$(env_get bootcmd)" = \
-	'setenv bootcmd bootipq; setenv image 0; setenv bootcount 0; saveenv; setenv image 1; setenv bootargs "mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs${image} rootfstype=ubifs rootwait"; nand device 1 && setenv mtdids nand1=nand1 && setenv mtdparts "mtdparts=nand1:0x8000000@0x0(fs)" && ubi part fs && ubi read 0x84000000 linux${image} && bootm 0x84000000#config@ap.dk01.1-c2; setenv image 0; bootipq' ]
-assert "Sage trial metadata" [ "$(env_get owrt_trial_slot):$(env_get owrt_fallback_slot):$(env_get image)" = 1:0:0 ]
+echo 4 > "$RT/sys/class/ubi/ubi0_3/data_bytes"
+check "Sage install after RAM staging uses reserved volume capacity" 0 inst --from "$W/rel" --yes --backed-up install
+assert "Sage trial is the shared A/B command" [ "$(env_get bootcmd)" = \
+	'setenv bootcmd run sage_stable0; setenv image 0; setenv sage_ab_state trial-started; saveenv; run sage_boot1; run sage_boot0' ]
+assert "Sage trial records shared A/B state and OEM fallback" [ "$(env_get sage_ab_version):$(env_get sage_ab_confirmed):$(env_get sage_ab_state):$(env_get sage_ab_target):$(env_get sage_oem_fallback):$(env_get image)" = '1:0:armed:1:0:0' ]
+assert "Sage has no legacy trial metadata or boot marker" [ -z "$(env_get owrt_trial_slot)$(env_get owrt_fallback_slot)$(env_get changing_bootcmd)" ]
 assert "Sage wrote only linux1/rootfs1" [ "$(grep '^update' "$W/calls" | tr '\n' ';')" = 'update mtd0 linux1;update mtd0 rootfs1;' ]
+ap sage E410B 21 0
+check "Sage E410B native model remains unvalidated for install" 1 inst --from "$W/rel" --yes --backed-up install
+ap sage E410 10 0
+printf '%s\n' 'mtd8: 00010000 00010000 "mfginfo"' >> "$RT/proc/mtd"
+printf '%s\000' 'PL-E410XXXB-EU' > "$RT/dev/mtd8ro"
+check "Sage legacy E410B install selects B target" 0 inst --from "$W/rel" --yes --backed-up install
+assert "Sage legacy B keeps proven E410 fallback" sh -c "grep -q '^sage_boot0=.*#config@ap.dk01.1-c2$' '$W/env'"
+assert "Sage legacy B targets config@17" sh -c "grep -q '^sage_boot1=.*#config@17$' '$W/env'"
+ap sage E410 10 1
+mkdir -p "$RT/etc" "$RT/tmp/sysinfo"
+touch "$RT/etc/openwrt_release"
+echo cambiumnetworks,e410 > "$RT/tmp/sysinfo/board_name"
+echo 'console=ttyMSM0 ubi.mtd=fs root=ubi0:rootfs1 rootfstype=ubifs' > "$RT/proc/cmdline"
+echo sage_oem_fallback=0 >> "$W/env"
+check "Sage stock return selects preserved OEM pair" 0 inst --yes --no-reboot stock
+assert "Sage stock return restores OEM selector" [ "$(env_get bootcmd):$(env_get image)" = bootipq:0 ]
+ap sage E410 10 1
+mkdir -p "$RT/etc" "$RT/tmp/sysinfo"
+touch "$RT/etc/openwrt_release"
+echo cambiumnetworks,e410 > "$RT/tmp/sysinfo/board_name"
+echo 'console=ttyMSM0 ubi.mtd=fs root=ubi0:rootfs1 rootfstype=ubifs' > "$RT/proc/cmdline"
+check "Sage stock return refuses without OEM marker" 1 inst --yes --no-reboot stock
+assert "Sage absent OEM marker leaves environment untouched" [ "$(env_get bootcmd):$(env_get image)" = bootipq:1 ]
 ap sage E510 16 0
 check "Sage E510 install refused (untested)" 1 inst --from "$W/rel" --yes --backed-up install
 
