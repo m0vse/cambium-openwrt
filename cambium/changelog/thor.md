@@ -2,7 +2,7 @@
 
 XV3-8 (validated); XE5-8 (RAM boot only).
 
-## Unreleased
+## 2026.09.27.1
 
 - The XV3-8's scanning radio is now reliably kept out of service. OpenWrt's
   radio detection writes PCI device paths without their `platform/` prefix,
