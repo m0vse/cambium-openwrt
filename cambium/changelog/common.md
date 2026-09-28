@@ -2,6 +2,11 @@
 
 Changes that apply to every family.
 
+## Unreleased
+
+- The installer uploads its backups with `curl` where the stock firmware's
+  `wget` cannot post files, as on the E410 and E410B, instead of stopping.
+
 ## 2026.09.28.0
 
 - The RRM agent reports each radio's network addresses (BSSIDs), so
