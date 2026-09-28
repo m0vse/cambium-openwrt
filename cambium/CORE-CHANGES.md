@@ -6,6 +6,9 @@ This note lists what can move into our own packages, what has to stay in the
 tree (and how to make it touch upstream files as little as possible), and
 what Sage needs to become an ordinary family like Thor, Jaguar and Cheetah.
 
+Sections 1 and 2 are one task for all four families together, to be done
+later. Section 4 (Sage) is a separate task and leaves them alone.
+
 ## 1. Move into our packages
 
 These are edits to upstream files that only matter at run time, on Cambium
@@ -61,10 +64,10 @@ differences are hardware and stay (listed at the end).
    `Device/cambium_e410-recovery` in `generic.mk`, with
    `qcom-ipq4019-e410*.dts{,i}`, predate the family images and are not in
    `cambium/configs/sage.config`. Remove them once nothing refers to them.
-2. **Core-file edits** (section 1): `cambium-sage.sh` in the target's
-   base-files, the Sage branches in `platform.sh` and `02_network`, and the
-   ipq40xx uboot-envtools entry. Move them into `cambium-sage-support` and
-   `cambium-ab`.
+2. **Core-file edits**: `cambium-sage.sh` in the target's base-files, the
+   Sage branches in `platform.sh` and `02_network`, and the ipq40xx
+   uboot-envtools entry. Not part of the Sage task: they move with the other
+   families' in the later packaging task (section 1).
 3. **The earlier Sage upgrade state.** `ab_sage_takeover` in
    `cambium-ab-sage.sh` adopts `e410_upgrade_*` and `owrt_boot0/1` from
    images before the shared A/B code, with its test fixtures and site note.
