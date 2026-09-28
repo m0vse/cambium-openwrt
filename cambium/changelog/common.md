@@ -4,6 +4,9 @@ Changes that apply to every family.
 
 ## Unreleased
 
+- The RRM agent reports each radio's network addresses (BSSIDs), so
+  OpenWISP's radio planning recognises all of an AP's own networks in other
+  APs' scans, including those monitoring lists without an address.
 - **Fix:** publishing a snapshot pruned the newest release instead of the
   oldest once 14 existed, deleting the build it had just published
   (`snapshot-2026.09.27.1`).
