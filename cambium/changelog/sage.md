@@ -4,6 +4,7 @@ E410, E410B, E510 (validated layout); E430H, E430W, E600, E700 (RAM boot only).
 
 ## Unreleased
 
+- Sage recovery now stages its verified FIT in the inactive rootfs UBI volume and RAM-boots it with U-Boot `ubi read`, without TFTP. The installer requires an off-AP SHA-256-verified backup and explicit inactive-rootfs overwrite confirmation; the active OEM pair stays untouched.
 - Give E410 its model-specific board ID while retaining the legacy ID for installed APs. E410B uses its own FIT tree; B-suffix units on the legacy tree trial that configuration on the second upgrade, keeping the old pair as fallback.
 - Retire the pre-A/B Sage takeover helper, its test fixtures and obsolete site note; deployed E410s already use shared A/B mode.
 - Remove the obsolete E410 image definitions and leaf trees; use a Sage-named shared device-tree include for family images.
