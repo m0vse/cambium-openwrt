@@ -350,44 +350,6 @@ define Device/cellc_rtl30vw
 endef
 TARGET_DEVICES += cellc_rtl30vw
 
-# The OEM bootloader reads a FIT from a 34-LEB linuxN volume and mounts the
-# matching 372-LEB rootfsN volume as UBIFS. Keep these size limits explicit;
-# platform upgrade code will manage the existing A/B volumes separately.
-define Device/cambium_e410-recovery
-	$(call Device/FitzImage)
-	DEVICE_VENDOR := Cambium Networks
-	DEVICE_MODEL := cnPilot E410
-	DEVICE_VARIANT := RAM recovery
-	DEVICE_DTS := qcom-ipq4019-e410-recovery
-	DEVICE_DTS_CONFIG := config@ap.dk01.1-c2
-	DEVICE_FIT_COMPATIBLE := cambium,e410
-	SOC := qcom-ipq4019
-	BLOCKSIZE := 128k
-	PAGESIZE := 2048
-	IMAGES :=
-endef
-TARGET_DEVICES += cambium_e410-recovery
-
-define Device/cambium_e410
-	$(call Device/FitzImage)
-	KERNEL_INITRAMFS = kernel-bin | fit none $$(KDIR)/image-$$(DEVICE_DTS).dtb
-	DEVICE_VENDOR := Cambium Networks
-	DEVICE_MODEL := cnPilot E410
-	SOC := qcom-ipq4019
-	DEVICE_DTS_CONFIG := config@ap.dk01.1-c2
-	DEVICE_FIT_COMPATIBLE := cambium,e410
-	BLOCKSIZE := 128k
-	PAGESIZE := 2048
-	KERNEL_INSTALL := 1
-	KERNEL_SIZE := 4216k
-	IMAGES := $(if $(CONFIG_TARGET_ROOTFS_INITRAMFS),,kernel.itb rootfs.ubifs sysupgrade.bin)
-	IMAGE/kernel.itb := append-kernel | check-size 4216k
-	IMAGE/rootfs.ubifs := e410-rootfs-ubifs | check-size 46128k
-	IMAGE/sysupgrade.bin := e410-rootfs-ubifs | check-size 46128k | sysupgrade-tar rootfs=$$$$@ | append-metadata
-	DEVICE_PACKAGES := cambium-sage-support
-endef
-TARGET_DEVICES += cambium_e410
-
 define Device/cilab_meshpoint-one
 	$(call Device/8dev_jalapeno-common)
 	DEVICE_VENDOR := Crisis Innovation Lab
