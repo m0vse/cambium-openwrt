@@ -4,6 +4,7 @@ E410, E410B, E510 (validated layout); E430H, E430W, E600, E700 (RAM boot only).
 
 ## Unreleased
 
+- Retire the pre-A/B Sage takeover helper, its test fixtures and obsolete site note; deployed E410s already use shared A/B mode.
 - Remove the obsolete E410 image definitions and leaf trees; use a Sage-named shared device-tree include for family images.
 
 ## 2026.09.26.2
