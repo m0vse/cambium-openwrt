@@ -12,6 +12,7 @@ platform_check_image() {
 	fi
 	case "$(board_name)" in
 	cambium,e410|\
+	cambiumnetworks,e410|\
 	cambiumnetworks,e410b|\
 	cambiumnetworks,e430h|\
 	cambiumnetworks,e430w|\
@@ -125,6 +126,7 @@ platform_do_upgrade() {
 	fi
 	case "$(board_name)" in
 	cambium,e410|\
+	cambiumnetworks,e410|\
 	cambiumnetworks,e410b|\
 	cambiumnetworks,e430h|\
 	cambiumnetworks,e430w|\
