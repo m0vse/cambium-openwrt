@@ -1,6 +1,6 @@
 --- a/mount_root.c
 +++ b/mount_root.c
-@@ -108,7 +108,13 @@ static int
+@@ -116,6 +116,12 @@ static int
  done(int argc, char *argv[1])
  {
 -	struct volume *v = volume_find("rootfs_data");
@@ -14,23 +14,29 @@
  
  	if (!v)
  		return -1;
-
 --- a/factoryreset.c
 +++ b/factoryreset.c
-@@ -28,3 +28,4 @@
- #include <mtd/ubi-user.h>
+@@ -31,6 +31,7 @@
+ 
  #include "libfstools/libfstools.h"
  #include "libfstools/volume.h"
 +#include "libfstools/common.h"
-@@ -97,6 +98,8 @@ int main(int argc, char **argv)
+ 
+ static int jffs2_mark(struct volume *v);
+ 
+@@ -102,6 +103,8 @@
+ 
+ int main(int argc, char **argv)
  {
 +	char dataparam[64];
 +	char *dataname = "rootfs_data";
  	struct volume *v;
  	int ch, yes = 0, reset = 0, keep = 0;
  
- 	if (!strcmp(basename(argv[0]), "jffs2reset"))
-@@ -132,5 +135,7 @@ int main(int argc, char **argv)
+@@ -136,9 +139,11 @@
+ 		return -1;
+ 	}
+ 
 -	v = volume_find("rootfs_data");
 +	if (get_var_from_file("/proc/cmdline", "fstools_overlay_name", dataparam, sizeof(dataparam)))
 +		dataname = dataparam;
@@ -40,3 +46,4 @@
 +		ULOG_ERR("MTD partition '%s' not found\n", dataname);
  		return -1;
  	}
+ 
