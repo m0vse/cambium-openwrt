@@ -92,7 +92,7 @@
           },
           "sysupgrade": {
             "status": "validated",
-            "note": "A/B upgrade and automatic rollback on the shared cambium-ab writer and guard"
+            "note": "A/B upgrade and automatic rollback on the shared cambium-ab writer and guard; the two-upgrade conversion of both pairs to SquashFS with a per-pair rootfs_data overlay was validated on hardware"
           }
         },
         {
@@ -186,11 +186,11 @@
           "persistent": {
             "config": "config@17",
             "status": "untested",
-            "note": "The E410B tree differs from E410 only in model identity and board SKU; its config@17 boot still needs hardware validation"
+            "note": "The E410B tree differs from E410 only in model identity and board SKU. config@17 boots both SquashFS pairs on B-suffix hardware reached by sysupgrade; a fresh install on stock firmware that reports E410B (whose OEM fallback would also boot config@17) is untested. B-suffix units reporting E410 install as legacy B"
           },
           "sysupgrade": {
-            "status": "untested",
-            "note": "Installed B-suffix units report legacy cambium,e410. First upgrade installs the transition logic; the next A/B upgrade trials config@17 while preserving config@5 for the confirmed fallback pair"
+            "status": "validated",
+            "note": "A/B upgrade and automatic rollback on the shared cambium-ab writer and guard. B-suffix units installed on the legacy cambium,e410 configuration moved to config@17 through the guarded trial, and both pairs converted to SquashFS with a per-pair rootfs_data overlay"
           }
         }
       ]
