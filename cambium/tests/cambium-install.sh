@@ -34,6 +34,8 @@ refresh() { # UBI MTD
 		mkdir -p "$RT/sys/class/ubi/$1_$v"
 		cp "$n" "$RT/sys/class/ubi/$1_$v/name"
 		cp "$W/flash/mtd$2/$v.size" "$RT/sys/class/ubi/$1_$v/data_bytes"
+		echo "$(( $(cat "$W/flash/mtd$2/$v.size") / 126976 ))" > "$RT/sys/class/ubi/$1_$v/reserved_ebs"
+		echo 126976 > "$RT/sys/class/ubi/$1_$v/usable_eb_size"
 		ln -sf "$W/flash/mtd$2/$v.data" "$RT/dev/$1_$v"
 	done
 }
@@ -211,6 +213,7 @@ for f in \
 	qualcommax-ipq60xx-cambiumnetworks_jaguar-recovery-initramfs-uImage.itb; do
 	echo "image $f" > "$W/rel/$p-$f"
 done
+printf '\320\015\376\355sage-recovery' > "$W/rel/$p-ipq40xx-generic-cambiumnetworks_sage-recovery-initramfs-zImage.itb"
 echo "UBI-FACTORY kernel rootfs rootfs_data cambium_device_data" > "$W/rel/$p-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-squashfs-factory.ubi"
 echo "UBI-FACTORY kernel rootfs rootfs_data cambium_device_data" > "$W/rel/$p-qualcommax-ipq807x-cambiumnetworks_thor-persistent-squashfs-factory.ubi"
 echo "UBI-FACTORY kernel rootfs rootfs_data cambium_device_data" > "$W/rel/$p-qualcommax-ipq50xx-cambiumnetworks_cheetah-persistent-squashfs-factory.ubi"
@@ -480,15 +483,53 @@ assert "Cheetah bad read-back: nothing armed" [ "$(env_get bootcmd)" = bootipq ]
 
 # --- Sage -----------------------------------------------------------------------------------
 ap sage E410 10 0
-check "Sage RAM boot needs a TFTP server" 1 inst --from "$W/rel" --yes --backed-up ram
-assert "Sage TFTP reason" said 'Sage U-Boot loads the RAM image over TFTP'
+sage_backup_prefix=cambium-backup-sku10-$(sha256sum < "$RT/dev/mtd7ro" | cut -c1-12)-$(sha256sum < "$W/flash/mtd0/3.data" | cut -c1-12)
+check "Sage RAM dry run backs up inactive rootfs off-AP" 0 inst --from http://192.0.2.5:8000 ram
+assert "Sage inactive rootfs backup uploaded" [ -f "$W/uploads/$sage_backup_prefix-ubi0_3.bin" ]
+assert "Sage inactive rootfs backup matches source" cmp -s "$W/uploads/$sage_backup_prefix-ubi0_3.bin" "$W/flash/mtd0/3.data"
+assert "Sage dry run keeps OEM rootfs and bootcmd" [ "$(cat "$W/flash/mtd0/3.data"):$(env_get bootcmd)" = 'oem-rootfs1:bootipq' ]
 ap sage E410 10 0
-check "Sage RAM boot" 0 inst --tftp 192.0.2.5 --yes ram
-assert "Sage one-shot is the validated command" [ "$(env_get bootcmd)" = \
-	'setenv bootcmd bootipq; saveenv; tftpboot 0x84000000 sage-recovery.itb && bootm 0x84000000#config@5; bootipq' ]
-assert "Sage addresses set" [ "$(env_get ipaddr):$(env_get serverip)" = 192.0.2.20:192.0.2.5 ]
-assert "Sage backups uploaded over TFTP" [ -f "$W/tftpd/cambium-backup-sku10-SHA256SUMS" ]
+check "Sage RAM refuses without explicit overwrite flag" 1 inst --from http://192.0.2.5:8000 --yes ram
+assert "Sage asks for overwrite confirmation" said 'overwrite-inactive-rootfs'
+assert "Sage refusal leaves volumes and environment unchanged" nothing_written
+ap sage E410 10 0
+check "Sage RAM refuses unverified backup assertion" 1 inst --from http://192.0.2.5:8000 --yes --backed-up --overwrite-inactive-rootfs ram
+assert "Sage disallows --backed-up shortcut" said 'off-AP backup must be hash-verified'
+assert "Sage unverified backup refusal writes nothing" nothing_written
+ap sage E410 10 0; touch "$W/damage_upload"
+check "Sage damaged off-AP backup blocks staging" 1 inst --from http://192.0.2.5:8000 --yes --overwrite-inactive-rootfs ram
+assert "Sage damaged backup leaves OEM volume and bootcmd intact" [ "$(cat "$W/flash/mtd0/3.data"):$(env_get bootcmd)" = 'oem-rootfs1:bootipq' ]
+ap sage E410 10 0
+check "Sage RAM boot from inactive UBI volume" 0 inst --from http://192.0.2.5:8000 --yes --overwrite-inactive-rootfs ram
+sage_bytes=$(wc -c < "$W/rel/$p-ipq40xx-generic-cambiumnetworks_sage-recovery-initramfs-zImage.itb" | tr -d ' ')
+sage_hexbytes=$(printf '%x' "$sage_bytes")
+assert "Sage one-shot loads exact image from inactive rootfs" [ "$(env_get bootcmd)" = \
+	"setenv bootcmd bootipq; saveenv; nand device 1 && setenv mtdids nand1=nand1 && setenv mtdparts \"mtdparts=nand1:0x8000000@0x0(fs)\" && ubi part fs && ubi read 0x84000000 rootfs1 0x$sage_hexbytes && bootm 0x84000000#config@5; bootipq" ]
+assert "Sage only overwrote inactive rootfs" [ "$(grep '^update' "$W/calls")" = 'update mtd0 rootfs1' ]
+assert "Sage active OEM rootfs remains intact" [ "$(cat "$W/flash/mtd0/1.data")" = oem-rootfs0 ]
+assert "Sage boot selector remains on active OEM pair" [ "$(env_get image):$(env_get changing_bootcmd)" = '0:' ]
 assert "Sage RAM boot sets no changing_bootcmd" [ -z "$(env_get changing_bootcmd)" ]
+# After a failed RAM boot, the stock bootcmd returns, but the staged FIT
+# must not replace the only verified OEM backup on a retry.
+sed -i.bak 's/^bootcmd=.*/bootcmd=bootipq/' "$W/env"
+check "Sage refuses to re-backup an already staged FIT" 1 inst --from http://192.0.2.5:8000 --yes --overwrite-inactive-rootfs ram
+assert "Sage repeat-run refusal names the staged image" said 'already contains a FIT image'
+assert "Sage off-AP OEM backup remains intact" [ "$(cat "$W/uploads/$sage_backup_prefix-ubi0_3.bin")" = oem-rootfs1 ]
+# A torn write may not have the FIT magic; its different content hash must
+# still prevent the next backup upload from clobbering the OEM copy.
+printf 'partial-write' > "$W/flash/mtd0/3.data"
+check "Sage retry after partial write keeps original remote backup" 0 inst --from http://192.0.2.5:8000 --yes --overwrite-inactive-rootfs ram
+assert "Sage original OEM backup survived the retry" [ "$(cat "$W/uploads/$sage_backup_prefix-ubi0_3.bin")" = oem-rootfs1 ]
+ap sage E410 10 1
+check "Sage RAM from pair 1 uses rootfs0" 0 inst --from http://192.0.2.5:8000 --yes --overwrite-inactive-rootfs ram
+assert "Sage pair 1 stages only rootfs0" [ "$(grep '^update' "$W/calls")" = 'update mtd0 rootfs0' ]
+assert "Sage pair 1 boot loads rootfs0" said 'rootfs0'
+ap sage E410 10 0; echo ubi0_3 > "$W/corrupt"
+check "Sage corrupt flash read-back stops before arming" 1 inst --from http://192.0.2.5:8000 --yes --overwrite-inactive-rootfs ram
+assert "Sage corrupt image leaves default bootcmd" [ "$(env_get bootcmd)" = bootipq ]
+ap sage E410B 21 0
+check "Sage E410B RAM uses inactive UBI volume" 0 inst --from http://192.0.2.5:8000 --yes --overwrite-inactive-rootfs ram
+assert "Sage E410B selects its recovery FIT tree" said 'bootm 0x84000000#config@17'
 ap sage E410 10 0
 check "Sage install (stock on pair 0)" 0 inst --from "$W/rel" --yes --backed-up install
 assert "Sage trial is the validated command" [ "$(env_get bootcmd)" = \
