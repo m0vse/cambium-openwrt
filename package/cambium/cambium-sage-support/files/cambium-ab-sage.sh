@@ -17,8 +17,28 @@ case " ${AB_FAMILIES:-} " in
 *) AB_FAMILIES="${AB_FAMILIES:+$AB_FAMILIES }sage" ;;
 esac
 
+# Factory product ID is read only. A legacy B-suffix unit trials config@17
+# on its next upgrade while retaining the confirmed E410 boot command.
+ab_sage_legacy_b() {
+	local idx
+	idx=$(ab_mtd_index mfginfo)
+	case "$idx" in ''|*[!0-9]*) return 1 ;; esac
+	[ -r "${AB_DEV:-/dev}/mtd${idx}ro" ] || return 1
+	tr '\000' '\n' < "${AB_DEV:-/dev}/mtd${idx}ro" | grep -Fq 'PL-E410XXXB-'
+}
+
 ab_sage_board() {
 	cambium_sage_board "$1" || return 1
+	AB_SAGE_LEGACY_B=0
+	case "$1" in
+	cambium,e410|cambiumnetworks,e410)
+		if ab_sage_legacy_b; then
+			AB_SAGE_LEGACY_B=1
+			SAGE_MODEL=E410B
+			SAGE_FIT=config@17
+		fi
+		;;
+	esac
 	AB_NAME=Sage
 	AB_ENV=sage
 	AB_LAYOUT=pair
@@ -38,10 +58,14 @@ ab_sage_board() {
 }
 
 ab_sage_boot_command() {
-	case "$1" in
-	0|1) cambium_sage_boot_command "$1"; echo ;;
-	*) echo "cambium-ab: invalid slot $1" >&2; return 1 ;;
-	esac
+	case "$1" in 0|1) ;; *) echo "cambium-ab: invalid slot $1" >&2; return 1 ;; esac
+	if [ "$AB_SAGE_LEGACY_B" = 1 ] && [ "$1" = "${AB_ACTIVE:-}" ]; then
+		# Keep the confirmed pair on its proven E410 FIT configuration.
+		(SAGE_FIT=config@ap.dk01.1-c2; cambium_sage_boot_command "$1")
+	else
+		cambium_sage_boot_command "$1"
+	fi
+	echo
 }
 
 # Sage installs arm their own one-shot trial (sage-migration-mark-good);

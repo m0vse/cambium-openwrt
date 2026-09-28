@@ -11,7 +11,10 @@ die() {
 }
 
 [ "$(id -u)" = 0 ] || die 'root is required'
-[ "$(board_name)" = 'cambium,e410' ] || die 'this command is restricted to the Cambium E410'
+case "$(board_name)" in
+cambium,e410|cambiumnetworks,e410|cambiumnetworks,e410b) ;;
+*) die 'this command is restricted to E410-family boards' ;;
+esac
 [ "${1:-}" = '--confirm' ] || die 'use --confirm only after checking networking, radios and (if used) OpenWISP'
 
 trial=$(fw_printenv -n owrt_trial_slot 2>/dev/null) || die 'no migration trial is recorded'
@@ -37,7 +40,10 @@ mkdir -p /etc/openwisp
 umask 077
 fw_printenv > /etc/openwisp/sage-env-before-mark-good
 
-bootcmd="setenv image $trial; setenv bootargs \"mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs\${image} rootfstype=ubifs rootwait\"; nand device 1 && setenv mtdids nand1=nand1 && setenv mtdparts \"mtdparts=nand1:0x8000000@0x0(fs)\" && ubi part fs && ubi read 0x84000000 linux\${image} && bootm 0x84000000#config@ap.dk01.1-c2; setenv image $fallback; bootipq"
+fit=config@ap.dk01.1-c2
+[ "$(board_name)" = 'cambiumnetworks,e410b' ] && fit=config@17
+
+bootcmd="setenv image $trial; setenv bootargs \"mtdparts=spi0.1:128M(fs) ubi.mtd=fs root=ubi0:rootfs\${image} rootfstype=ubifs rootwait\"; nand device 1 && setenv mtdids nand1=nand1 && setenv mtdparts \"mtdparts=nand1:0x8000000@0x0(fs)\" && ubi part fs && ubi read 0x84000000 linux\${image} && bootm 0x84000000#$fit; setenv image $fallback; bootipq"
 fw_setenv bootcmd "$bootcmd"
 fw_setenv image "$trial"
 fw_setenv bootcount 0

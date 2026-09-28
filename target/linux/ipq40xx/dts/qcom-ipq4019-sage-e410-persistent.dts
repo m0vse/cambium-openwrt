@@ -5,7 +5,7 @@
 
 / {
 	model = "Cambium Networks E410";
-	compatible = "cambium,e410", "cambiumnetworks,e410", "qcom,ipq4019";
+	compatible = "cambiumnetworks,e410", "cambium,e410", "qcom,ipq4019";
 
 	cambium-platform {
 		compatible = "cambium-platform";

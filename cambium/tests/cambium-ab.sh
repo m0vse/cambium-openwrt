@@ -1022,6 +1022,21 @@ assert "Sage slot 0 boot command is the validated E410 command" [ "$(in_lib eval
 assert "Sage slot 1 boot command is the validated E410 command" [ "$(in_lib eval "ab_board $E; ab_boot_command 1")" = "$sage1" ]
 assert "E510 boot commands use config@16" in_lib eval "ab_board cambiumnetworks,e510; ab_boot_command 1 | grep -q '#config@16\$'"
 
+# A B-suffix unit running the legacy E410 tree keeps its confirmed pair on
+# config@5, and trials config@17 only on the freshly written pair.
+new_sage_ap $E 0 adopted
+printf '%s\n' 'mtd3: 00010000 00010000 "mfginfo"' >> "$S/proc_mtd"
+printf '%s\000' 'PL-E410XXXB-EU' > "$S/dev/mtd3ro"
+check "legacy E410B factory marker selects config@17 target" 0 in_lib eval \
+	'ab_identity && [ "$AB_FIT:$AB_MODEL:$AB_SKU" = "config@17:E410B:0000000a" ]'
+assert "legacy B confirmed pair still boots config@5" in_lib eval \
+	'ab_identity && ab_boot_command 0 | grep -q "#config@ap.dk01.1-c2$"'
+assert "legacy B target pair trials config@17" in_lib eval \
+	'ab_identity && ab_boot_command 1 | grep -q "#config@17$"'
+check "legacy B pair upgrade arms the model-specific trial" 0 dispatch40xx platform_do_upgrade "$S/sage.bin"
+assert "legacy B fallback boot command remains E410" sh -c "grep -q '^sage_boot0=.*#config@ap.dk01.1-c2$' '$S/env'"
+assert "legacy B trial boot command selects E410B" sh -c "grep -q '^sage_boot1=.*#config@17$' '$S/env'"
+
 new_sage_ap $E 0 stock; healthy_sage; : > "$S/calls"
 check "stock firmware in the other pair: guard does nothing" 0 guard
 assert "stock pair: no environment written, no reboot" never_wrote 'setenv|reboot'

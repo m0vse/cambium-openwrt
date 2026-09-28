@@ -46,6 +46,7 @@ while read -r board sku qualified; do
 	assert "$board is SKU $sku, qualified=$qualified" test "$SAGE_SKU:$SAGE_QUALIFIED" = "$sku:$qualified"
 done <<EOF
 cambium,e410 10 1
+cambiumnetworks,e410 10 1
 cambiumnetworks,e410b 21 1
 cambiumnetworks,e510 16 1
 cambiumnetworks,e600 11 0
@@ -88,7 +89,7 @@ EOF
 # --- platform.sh: a Sage image without A/B support never writes flash ---------------
 eval "$(sed -n '/^platform_check_image() {/,/^}/p; /^platform_do_upgrade() {/,/^}/p' "$base/lib/upgrade/platform.sh")"
 nand_do_upgrade() { echo "generic nand_do_upgrade"; }
-for board in cambium,e410 cambiumnetworks,e600; do
+for board in cambium,e410 cambiumnetworks,e410 cambiumnetworks,e600; do
 	TEST_BOARD=$board
 	check "$board without cambium-ab: check_image refuses" 1 platform_check_image /dev/null
 	check "$board without cambium-ab: do_upgrade refuses" 1 platform_do_upgrade /dev/null
@@ -101,9 +102,10 @@ import json, re, sys
 top, lib = sys.argv[1:]
 text = open(lib).read()
 table = {}
-for board, body in re.findall(r"^\t(cambium[\w,]+)\)\s*(?:#[^\n]*\n\t*)?(SAGE_[^\n;]+)", text, re.M):
+for boards, body in re.findall(r"^\t((?:cambium|cambiumnetworks)[\w,|]+)\)\s*(?:#[^\n]*\n\t*)?(SAGE_[^\n;]+)", text, re.M):
     vals = dict(re.findall(r"(SAGE_\w+)=(\S+)", body))
-    table[board] = vals
+    for board in boards.split("|"):
+        table[board] = vals
 fams = json.load(open(f"{top}/cambium/families.json"))["families"]
 sage = {m["model"]: m for f in fams if f["family"] == "sage" for m in f["models"]}
 mk = open(f"{top}/target/linux/ipq40xx/image/generic.mk").read()
@@ -120,8 +122,8 @@ for board, v in table.items():
         errors.append(f"{board}: SKU {v['SAGE_SKU']} != families.json {sage[model]['sku']}")
     if v["SAGE_FIT"].replace("config@", "") not in fit:
         errors.append(f"{board}: {v['SAGE_FIT']} is not in the Sage persistent FIT")
-if len(table) != 7:
-    errors.append(f"expected 7 Sage boards in the table, found {len(table)}")
+if len(table) != 8:
+    errors.append(f"expected 8 Sage board IDs in the table, found {len(table)}")
 print("\n".join(errors))
 sys.exit(1 if errors else 0)
 PY
