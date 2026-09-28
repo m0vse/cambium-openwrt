@@ -144,8 +144,10 @@ sh "$(dirname "$0")/prune-feeds.sh" "$site"
 
 [ "$kind" = snapshot ] || { echo "Published $tag"; exit 0; }
 echo "Pruning old snapshot releases"
+# Newest first. (sort -r does not reverse keys with their own n flag, so
+# the per-field sort used before listed the newest last and deleted it.)
 gh release list --repo "$repo" --limit 200 --json tagName --jq '.[].tagName' |
-	grep '^snapshot-' | sort -t. -k1,1 -k2,2n -k3,3n -k4,4n -r |
+	grep '^snapshot-' | sort -V -r |
 	tail -n "+$((keep_releases + 1))" |
 	while read -r old; do gh release delete "$old" --repo "$repo" --yes --cleanup-tag; done
 

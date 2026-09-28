@@ -4,6 +4,9 @@ Changes that apply to every family.
 
 ## Unreleased
 
+- **Fix:** publishing a snapshot pruned the newest release instead of the
+  oldest once 14 existed, deleting the build it had just published
+  (`snapshot-2026.09.27.1`).
 - Release builds: Cambium on OpenWrt's final stable releases, from the first
   series after 25.12. Each series gets a `cambium-X.Y` branch that only
   moves forward (point releases merged, fixes cherry-picked from `main`);
