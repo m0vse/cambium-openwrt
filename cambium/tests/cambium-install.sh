@@ -558,7 +558,8 @@ assert "Sage trial records shared A/B state and OEM fallback" [ "$(env_get sage_
 assert "Sage has no legacy trial metadata or boot marker" [ -z "$(env_get owrt_trial_slot)$(env_get owrt_fallback_slot)$(env_get changing_bootcmd)" ]
 assert "Sage wrote only linux1/rootfs1" [ "$(grep '^update' "$W/calls" | tr '\n' ';')" = 'update mtd0 linux1;update mtd0 rootfs1;' ]
 ap sage E410B 21 0
-check "Sage E410B native model remains unvalidated for install" 1 inst --from "$W/rel" --yes --backed-up install
+check "Sage E410B installs with its own configuration" 0 inst --from "$W/rel" --yes --backed-up install
+assert "Sage E410B targets config@17" sh -c "grep -q '^sage_boot1=.*#config@17$' '$W/env'"
 ap sage E410 10 0
 printf '%s\n' 'mtd8: 00010000 00010000 "mfginfo"' >> "$RT/proc/mtd"
 printf '%s\000' 'PL-E410XXXB-EU' > "$RT/dev/mtd8ro"
