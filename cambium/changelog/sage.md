@@ -4,7 +4,7 @@ E410, E410B, E510 (validated layout); E430H, E430W, E600, E700 (RAM boot only).
 
 ## Unreleased
 
-- The E410B's own configuration, `config@17`, is validated for RAM boot and persistent install, so the installer no longer needs `CAMBIUM_HARDWARE_TRIAL=1` on an E410B.
+- No firmware change. The E410B's `config@17` (in the images since 2026.09.28.1) is now marked validated for RAM boot and persistent install, so the installer accepts an E410B without `CAMBIUM_HARDWARE_TRIAL=1`.
 
 ## 2026.09.28.1
 
