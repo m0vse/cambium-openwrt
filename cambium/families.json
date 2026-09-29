@@ -180,13 +180,13 @@
           "sku": 21,
           "recovery": {
             "config": "config@17",
-            "status": "untested",
-            "note": "E410B-specific tree; validate a RAM boot on B-suffix hardware before deployment"
+            "status": "validated",
+            "note": "E410B-specific tree; the stock firmware reports SKU 21"
           },
           "persistent": {
             "config": "config@17",
-            "status": "untested",
-            "note": "The E410B tree differs from E410 only in model identity and board SKU. config@17 boots both SquashFS pairs on B-suffix hardware reached by sysupgrade; a fresh install on stock firmware that reports E410B (whose OEM fallback would also boot config@17) is untested. B-suffix units reporting E410 install as legacy B"
+            "status": "validated",
+            "note": "The E410B tree differs from E410 only in model identity and board SKU; the stock kernel has config@17 too"
           },
           "sysupgrade": {
             "status": "validated",
