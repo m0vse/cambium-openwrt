@@ -2,7 +2,7 @@
 
 Changes that apply to every family.
 
-## Unreleased
+## 2026.09.28.1
 
 - The installer uploads its backups with `curl` where the stock firmware's
   `wget` cannot post files, as on the E410 and E410B, instead of stopping.

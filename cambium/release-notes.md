@@ -57,9 +57,11 @@ untested or unported model, please open an issue on this repository.
   board file its own stock firmware uses from the retained, read-only OEM
   slot; the OEM slot and calibration (ART) are never modified. If that slot
   is gone or unreadable, the radios stay down and wired operation continues.
-- Sage now uses the same A/B code as the other families; an E410 on an
-  earlier image upgrades to it with a normal sysupgrade and adopts its
-  earlier upgrade state on first boot (validated on an E410). Thor,
+- Sage uses the same A/B code as the other families and, from 2026.09.28.1,
+  a SquashFS root with a writable overlay per slot. An E410 or E410B on an
+  earlier (UBIFS) image converts in two stages: run `cambium-install.sh
+  update-upgrader` on it, then two normal sysupgrades, each converting one
+  pair (validated on the E410 and E410B). Thor,
   Jaguar and Cheetah have A/B sysupgrade with automatic rollback after
   conversion (validated on the Jaguar XV2-2 and XV2-2T1 and
   the Thor XV3-8 and the Cheetah XV2-21X). An XV3-8 on the earlier single-bank image
