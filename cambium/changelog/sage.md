@@ -5,8 +5,10 @@ E410, E410B, E510 (validated layout); E430H, E430W, E600, E700 (RAM boot only).
 ## Unreleased
 
 - The E410B's own configuration, `config@17`, is validated for RAM boot and persistent install, so the installer no longer needs `CAMBIUM_HARDWARE_TRIAL=1` on an E410B.
-- Sage's normal sysupgrade image now uses SquashFS with a separate 67-LEB UBIFS overlay per slot. Existing UBIFS APs run `update-upgrader` before the first SquashFS upgrade (the UBIFS bridge image is a fallback); that upgrade converts the inactive pair and the next converts the remaining pair. Fresh OEM/OEM devices still use the proven UBIFS installer, then the same two upgrades. Each trial retains the running pair as fallback; the guard requires a persistent overlay before committing.
 
+## 2026.09.28.1
+
+- Sage's normal sysupgrade image now uses SquashFS with a separate 67-LEB UBIFS overlay per slot. Existing UBIFS APs run `update-upgrader` before the first SquashFS upgrade (the UBIFS bridge image is a fallback); that upgrade converts the inactive pair and the next converts the remaining pair. Fresh OEM/OEM devices still use the proven UBIFS installer, then the same two upgrades. Each trial retains the running pair as fallback; the guard requires a persistent overlay before committing.
 - Sage installation now writes and verifies the inactive volume pair through the shared A/B writer and automatically commits a healthy first boot through the shared guard. The preserved OEM pair is recorded for a safe `stock` return until the first sysupgrade; the manual migration commit/rollback helpers are retired.
 - Sage recovery now stages its verified FIT in the inactive rootfs UBI volume and RAM-boots it with U-Boot `ubi read`, without TFTP. The installer requires an off-AP SHA-256-verified backup and explicit inactive-rootfs overwrite confirmation; the active OEM pair stays untouched.
 - Give E410 its model-specific board ID while retaining the legacy ID for installed APs. E410B uses its own FIT tree; B-suffix units on the legacy tree trial that configuration on the second upgrade, keeping the old pair as fallback.
