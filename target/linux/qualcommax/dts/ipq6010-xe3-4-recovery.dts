@@ -22,3 +22,10 @@
 &sdhc { status = "disabled"; };
 
 &blsp1_i2c3 { clock-frequency = <400000>; };
+
+/* Physical XE3-4, SKU 32, OEM 7.2-r1 reports BCH4/512 in MTD sysfs. */
+&qpic_nand {
+	nand@0 {
+		nand-ecc-strength = <4>;
+	};
+};
