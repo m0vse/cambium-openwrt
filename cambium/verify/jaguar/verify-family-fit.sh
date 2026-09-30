@@ -83,6 +83,10 @@ for fdt in cp01-c1 cp01-c1-2T cp01-c1-2T1 cp01-c3-xv3-4 cp01-c3-2; do
 		test "$(fdtget -t x "$dtb" "$nand/partition@0" reg)" = '0 6000000'
 		test "$(fdtget -t x "$dtb" "$nand/partition@6000000" reg)" = '6000000 6000000'
 	fi
+	# XE3-4 shares the 96 MiB geometry, but its physical OEM NAND uses BCH4.
+	if [ "$fdt" = cp01-c3-xv3-4 ]; then
+		ecc=4
+	fi
 	# NVRAM and crashLog are never firmware banks.
 	for partition in $protected; do
 		fdtget "$dtb" "$nand/partition@$partition" read-only >/dev/null

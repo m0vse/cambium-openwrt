@@ -16,3 +16,10 @@
 /* The OEM TN tree enables SD and uses a 100 kHz I2C bus. */
 &sdhc { status = "okay"; };
 &blsp1_i2c3 { clock-frequency = <100000>; };
+
+/* Preserve XE3-4TN's existing BCH8 assumption; SKU 32 alone is BCH4. */
+&qpic_nand {
+	nand@0 {
+		nand-ecc-strength = <8>;
+	};
+};
