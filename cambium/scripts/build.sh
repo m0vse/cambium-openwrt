@@ -2,7 +2,7 @@
 # Build, verify and collect one Cambium family snapshot or release.
 #
 # Usage: cambium/scripts/build.sh FAMILY [BUILD_ID]
-#   FAMILY    sage | thor | cheetah | jaguar
+#   FAMILY    sage | thor | cheetah | jaguar | gambit (E400 RAM image only)
 #   BUILD_ID  a snapshot, YYYY.MM.DD.N (default: today's date with N=0), or
 #             a release, X.Y.Z-N: Cambium release N of OpenWrt X.Y.Z, built
 #             from that release (see cambium/README.md)
@@ -20,7 +20,7 @@
 
 set -eu
 
-family=${1:?usage: $0 sage|thor|cheetah|jaguar [build-id]}
+family=${1:?usage: $0 sage|thor|cheetah|jaguar|gambit [build-id]}
 build_id=${2:-$(date -u +%Y.%m.%d).0}
 top=$(git rev-parse --show-toplevel)
 cd "$top"
@@ -30,6 +30,7 @@ sage)    name=Sage;    target=ipq40xx;    subtarget=generic ;;
 thor)    name=Thor;    target=qualcommax; subtarget=ipq807x ;;
 cheetah) name=Cheetah; target=qualcommax; subtarget=ipq50xx ;;
 jaguar)  name=Jaguar;  target=qualcommax; subtarget=ipq60xx ;;
+gambit)  name=Gambit;  target=ath79;      subtarget=generic ;;
 *) echo "Unknown family: $family" >&2; exit 2 ;;
 esac
 case "$build_id" in
@@ -225,6 +226,11 @@ persistent=$kernel"
 		fail "Jaguar image needs $lebs LEBs; the XV2-2's 52 MiB bank has 392"
 	echo "Jaguar image uses $lebs of 392 LEBs in an XV2-2 bank"
 	;;
+gambit)
+	# Bring-up: only the E400's RAM-only recovery image (no FIT, no
+	# persistent or sysupgrade image yet).
+	image '*cambiumnetworks_e400-recovery-initramfs-kernel.bin' >/dev/null
+	;;
 esac
 
 # Per-device root filesystems are staged as $(KDIR)/target-dir-* copies.
@@ -261,10 +267,13 @@ gate() { # gate ROOT IMAGE_NAME LABEL
 gate_extra=
 [ "$family" = thor ] && gate_extra="kmod-ath10k-ct ath10k-firmware-qca9887-ct"
 mkdir -p "$work/manifests"
-sysupgrade=$(image "*cambiumnetworks_$family-persistent-squashfs-sysupgrade.bin")
-tar -xOf "$sysupgrade" "$(tar -tf "$sysupgrade" | grep '/root$' | head -n 1)" > "$work/persistent-root" ||
-	fail "cannot read the root filesystem of ${sysupgrade##*/}"
-gate "$work/persistent-root" "${sysupgrade##*/}" "$name persistent sysupgrade.bin"
+# Gambit has no persistent image to gate yet.
+if [ "$family" != gambit ]; then
+	sysupgrade=$(image "*cambiumnetworks_$family-persistent-squashfs-sysupgrade.bin")
+	tar -xOf "$sysupgrade" "$(tar -tf "$sysupgrade" | grep '/root$' | head -n 1)" > "$work/persistent-root" ||
+		fail "cannot read the root filesystem of ${sysupgrade##*/}"
+	gate "$work/persistent-root" "${sysupgrade##*/}" "$name persistent sysupgrade.bin"
+fi
 if [ "$family" = sage ]; then
 	rootfs=$(image '*cambiumnetworks_sage-persistent-squashfs-rootfs.ubifs')
 	gate "$rootfs" "${rootfs##*/}" "Sage persistent rootfs.ubifs"
@@ -285,6 +294,7 @@ cp -R "$bin_dir/packages" "$output/feed/targets/$target/$subtarget/"
 # The installed-package manifests the release gate wrote (test images'
 # manifests go with the test images).
 for m in "$work/manifests/"*.manifest; do
+	[ -f "$m" ] || continue
 	case "$m" in
 	*cambiumnetworks_thor-*-test-*) ;;
 	*) cp "$m" "$output/images/" ;;
@@ -326,8 +336,10 @@ fi
 # cambium/families.json names a configuration the built FITs lack.
 old_ifs=$IFS; IFS='
 '
-python3 cambium/scripts/manifest.py cambium/families.json "$family" "$output/images" \
-	files/etc/cambium-openwrt-release $fits
+# Gambit has no persistent image or family FIT for a manifest yet.
+[ "$family" = gambit ] ||
+	python3 cambium/scripts/manifest.py cambium/families.json "$family" "$output/images" \
+		files/etc/cambium-openwrt-release $fits
 IFS=$old_ifs
 (cd "$output/images" && sha256sum -- * > SHA256SUMS)
 printf '%s\n' "$build_id" > "$output/BUILD_ID"
