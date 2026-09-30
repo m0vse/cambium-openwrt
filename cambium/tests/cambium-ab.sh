@@ -307,6 +307,7 @@ oem_bdfs() {
 	cambiumnetworks,xv2-22h) echo lib/firmware/IPQ5018/WIFI_FW/bdwlan.b24-cheetah:131072 lib/firmware/IPQ5018/WIFI_FW/qcn6122/bdwlan.b50-cheetah:131072 ;;
 	cambiumnetworks,xv2-23t) echo lib/firmware/IPQ5018/WIFI_FW/bdwlan.b24-lynx:131072 lib/firmware/IPQ5018/WIFI_FW/qcn6122/bdwlan.b60.stock:131072 ;;
 	cambiumnetworks,xv2-2|cambiumnetworks,xv2-2t0|cambiumnetworks,xv2-2t1) echo "$BDF:65536" ;;
+	cambiumnetworks,xe3-4) echo lib/firmware/IPQ6018/WIFI_FW/bdwlan.b10-puma:65536 lib/firmware/qcn9000/WIFI_FW/bdwlan.bab-puma:131072 ;;
 	cambiumnetworks,xv3-8) echo lib/firmware/IPQ8074/WIFI_FW/bdwlan.b215.accton:131072 ;;
 	esac
 }
@@ -535,9 +536,14 @@ check "--check-vault detects a corrupted board file" 1 run_board_data --check-va
 check "corrupted vault is refilled while the OEM slot exists" 0 run_board_data
 assert "refill rewrote the vault" grep -q 'update mtd0 3' "$S/calls"
 new_ap cambiumnetworks,xe3-4
-check "XE3-4 gets a manifest-only vault" 0 run_board_data
-assert "XE3-4 never attaches the OEM slot" never_wrote 'attach|mount-oem'
+check "XE3-4 fills the vault from the OEM slot" 0 run_board_data
+assert "XE3-4 IPQ6018 board file installed" [ -s "$S/fw/ath11k/IPQ6018/hw1.0/board.bin" ]
+assert "XE3-4 QCN9074 board file installed" [ -s "$S/fw/ath11k/QCN9074/hw1.0/board.bin" ]
 check "XE3-4 vault is valid" 0 run_board_data --check-vault
+new_ap cambiumnetworks,xe3-4tn
+check "XE3-4TN gets a manifest-only vault" 0 run_board_data
+assert "XE3-4TN never attaches the OEM slot" never_wrote 'attach|mount-oem'
+check "XE3-4TN vault is valid" 0 run_board_data --check-vault
 new_ap; rm -rf "$S/oem_root"
 check "no OEM board file: radios stay down" 1 run_board_data
 assert "status is missing" [ "$(cat "$S/bdstatus")" = missing ]
