@@ -57,6 +57,10 @@ board_files() {
 	cambiumnetworks,xv2-2t1)
 		echo "lib/firmware/IPQ6018/WIFI_FW/bdwlan.b13.stock 65536 ath11k/IPQ6018/hw1.0/board.bin"
 		;;
+	cambiumnetworks,xe3-4)
+		echo "lib/firmware/IPQ6018/WIFI_FW/bdwlan.b10-puma 65536 ath11k/IPQ6018/hw1.0/board.bin"
+		echo "lib/firmware/qcn9000/WIFI_FW/bdwlan.bab-puma 131072 ath11k/QCN9074/hw1.0/board.bin"
+		;;
 	esac
 }
 
@@ -269,7 +273,7 @@ vault_write() {
 }
 
 # Fill an empty vault from the OEM slot. Models without board files (the
-# XE3-4 variants) get a manifest-only vault and never touch the OEM slot.
+# XE3-4TN) get a manifest-only vault and never touch the OEM slot.
 vault_fill_from_oem() {
 	local mtd src size dst stage=$WORK/stage
 	rm -rf "$stage" && mkdir -p "$stage/files"
