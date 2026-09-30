@@ -360,11 +360,12 @@
           },
           "persistent": {
             "config": "config@cp01-c3-xv3-4",
-            "status": "untested"
+            "status": "validated",
+            "note": "Installed on both A/B banks; NAND uses BCH4 ECC. The third radio's 5 GHz works; its 6 GHz mode is not validated"
           },
           "sysupgrade": {
-            "status": "none",
-            "note": "Not yet: the family sysupgrade.bin leaves out cambiumnetworks,xe3-4 because upstream OpenWrt's own XE3-4 image uses the same board name and would accept it. Upgrade by reinstalling until the image can tell the two apart"
+            "status": "validated",
+            "note": "A/B with automatic rollback: both banks booted, switched both ways and upgraded from bank 1 to bank 0 with the device-data vault intact. Upstream OpenWrt's XE3-4 image shares the board name cambiumnetworks,xe3-4, so this image MUST NOT be used to upgrade an XE3-4 running upstream OpenWrt"
           }
         },
         {
