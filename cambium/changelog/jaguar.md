@@ -1,6 +1,19 @@
 # Jaguar changelog
 
-XV2-2, XV2-2T1 (validated); XV2-2T0, XE3-4, XE3-4TN (RAM boot only).
+XV2-2, XV2-2T1, XE3-4 (validated); XV2-2T0, XE3-4TN (RAM boot only).
+
+## Unreleased
+
+- The XE3-4 (SKU 32) is validated for persistent install and A/B
+  sysupgrade: both banks booted, switched both ways and upgraded from bank
+  1 to bank 0, with the device-data vault, Ethernet, DHCP and VLAN 1
+  filtering checked. Its NAND uses BCH4 ECC (the XE3-4TN keeps BCH8), its
+  two OEM Wi-Fi board files are copied into the vault, and the family
+  sysupgrade image now accepts it. The third radio works on 5 GHz; 6 GHz is
+  not validated. No other Jaguar model gains hardware validation.
+- **Warning:** upstream OpenWrt's XE3-4 image uses the same board name, so
+  this sysupgrade image MUST NOT be used to upgrade an XE3-4 running
+  upstream OpenWrt.
 
 ## 2026.09.27.1
 
