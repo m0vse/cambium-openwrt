@@ -444,11 +444,12 @@ define Device/cambiumnetworks_jaguar-persistent
 	IMAGE/factory.ubi := cambium-ab-ubi
 	IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
 	BOARD_NAME := cambiumnetworks_jaguar
-	# Upstream's own cambiumnetworks,xe3-4 image shares the XE3-4 board name,
-	# so the family sysupgrade metadata leaves it out: upstream firmware would
-	# otherwise accept this image and write it with nand_do_upgrade.
+	# WARNING: upstream OpenWrt's own XE3-4 image uses the same board name,
+	# cambiumnetworks,xe3-4, so an XE3-4 running upstream firmware accepts
+	# this image as well and would write it with upstream's nand_do_upgrade,
+	# not the A/B writer. It MUST NOT be used to upgrade an upstream XE3-4.
 	SUPPORTED_DEVICES := cambiumnetworks,xv2-2 cambiumnetworks,xv2-2t0 \
-		cambiumnetworks,xv2-2t1 cambiumnetworks,xe3-4tn
+		cambiumnetworks,xv2-2t1 cambiumnetworks,xe3-4 cambiumnetworks,xe3-4tn
 	DEVICE_PACKAGES := ipq-wifi-cambiumnetworks_xe34 ath11k-firmware-qcn9074 kmod-ath11k-pci uboot-envtools cambium-board-data cambium-jaguar-support
 endef
 TARGET_DEVICES += cambiumnetworks_jaguar-persistent
