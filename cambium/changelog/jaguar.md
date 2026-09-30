@@ -14,6 +14,8 @@ XV2-2, XV2-2T1, XE3-4 (validated); XV2-2T0, XE3-4TN (RAM boot only).
 - **Warning:** upstream OpenWrt's XE3-4 image uses the same board name, so
   this sysupgrade image MUST NOT be used to upgrade an XE3-4 running
   upstream OpenWrt.
+- `profiles.json` lists every supported board after a local rebuild of the
+  same commit; the build no longer keeps a stale copy.
 
 ## 2026.09.27.1
 
