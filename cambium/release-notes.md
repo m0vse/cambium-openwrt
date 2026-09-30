@@ -22,7 +22,7 @@ SKU. Hardware status per model:
 | Jaguar (IPQ6018) | 7.2-r1 | XV2-2T1 | validated | validated (A/B build) | A/B, validated |
 | | | XV2-2 (128 MiB NAND, 52 MiB slots) | validated | validated (A/B build) | A/B, validated |
 | | | XV2-2T0, XE3-4TN | untested | untested: RAM boot only | A/B, untested |
-| | | XE3-4 | untested | untested: RAM boot only | not yet: shares its board name with upstream's XE3-4 image |
+| | | XE3-4 | untested | validated (A/B build); 6 GHz not validated | A/B, validated; **must not** be used on an XE3-4 running upstream OpenWrt |
 | Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | validated (A/B build) | A/B, validated |
 | | | XV2-22H, XV2-23T | untested | untested: RAM boot only | A/B, untested |
 | Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X, X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
@@ -63,10 +63,15 @@ untested or unported model, please open an issue on this repository.
   update-upgrader` on it, then two normal sysupgrades, each converting one
   pair (validated on the E410 and E410B). Thor,
   Jaguar and Cheetah have A/B sysupgrade with automatic rollback after
-  conversion (validated on the Jaguar XV2-2 and XV2-2T1 and
+  conversion (validated on the Jaguar XV2-2, XV2-2T1 and XE3-4 and
   the Thor XV3-8 and the Cheetah XV2-21X). An XV3-8 on the earlier single-bank image
   sysupgrades in place to this image, then reinstalls once
   (`cambium-install.sh stock`, then `install`) to move to A/B.
+- **The Jaguar sysupgrade image MUST NOT be used to upgrade an XE3-4
+  running upstream OpenWrt.** Upstream's XE3-4 image has the same board
+  name, so its sysupgrade accepts this image but writes it without the A/B
+  writer, into a layout it was not built for. Upgrade only an XE3-4
+  installed with `cambium-install.sh`.
 - Kernel modules must come from the same build as the image. The package
   feed for each build is configured in the image and kept for the two most
   recent snapshots and each OpenWrt series' newest release (fewer snapshots
