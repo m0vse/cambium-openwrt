@@ -120,6 +120,9 @@ make download -j8 || make download -j1 V=s
 log "Building"
 # base-files caches release strings; always regenerate them.
 make package/base-files/clean >/dev/null
+# OpenWrt keeps an existing profiles.json whose version code matches, so a
+# rebuild of the same commit would keep stale supported-device lists.
+rm -f tmp/.profiles.json
 # As on the OpenWrt buildbots, packages built only for the feed (=m, e.g. the
 # kernel modules of every feed pulled in by ALL_KMODS) may fail without
 # stopping the snapshot. Anything an image needs still fails image assembly.
