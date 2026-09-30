@@ -21,7 +21,7 @@ on:
       families:
         description: Families to build (space separated)
         type: string
-        default: sage thor cheetah jaguar
+        default: sage thor cheetah jaguar gambit
       republish_run:
         description: Only publish the build output of this earlier run ID (no sync or build)
         type: string
@@ -198,7 +198,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REBASED: ${{ steps.sync.outputs.rebased }}
           FORCE: ${{ inputs.force }}
-          FAMILIES: ${{ inputs.families || 'sage thor cheetah jaguar' }}
+          FAMILIES: ${{ inputs.families || 'sage thor cheetah jaguar gambit' }}
         run: |
           head=$(git rev-parse HEAD)
           echo "sha=$head" >> "$GITHUB_OUTPUT"
@@ -212,7 +212,12 @@ jobs:
           done)
           missing=
           for family in $FAMILIES; do
-            printf '%s\n' "$assets" | grep -q "cambiumnetworks_$family-persistent" ||
+            # Gambit has only the E400 RAM image so far.
+            case "$family" in
+            gambit) built=cambiumnetworks_e400-recovery ;;
+            *) built=cambiumnetworks_$family-persistent ;;
+            esac
+            printf '%s\n' "$assets" | grep -q "$built" ||
               missing="$missing $family"
           done
           if [ "$REBASED" = true ] || [ "$FORCE" = true ] || [ -n "$missing" ]; then
