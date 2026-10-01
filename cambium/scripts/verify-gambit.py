@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""Verify the actual E400 uImage, appended DT and NAND partition layout.
+
+Usage: verify-gambit.py recovery|installer|persistent IMAGE
+No external FDT tools are required (Gambit uses legacy uImages, not FITs).
+"""
+import lzma
+import struct
+import sys
+import zlib
+
+
+def require(condition, message):
+    if not condition:
+        sys.exit("Gambit image verification failed: " + message)
+
+
+def dt_properties(data):
+    start = data.rfind(b"\xd0\x0d\xfe\xed")
+    require(start >= 0, "no appended device tree")
+    tree = data[start:]
+    require(len(tree) >= 40, "truncated device tree header")
+    _, total, structures, strings, _, version, _, _, string_size, struct_size = struct.unpack(
+        ">10I", tree[:40])
+    require(version >= 17 and total <= len(tree), "invalid device tree header")
+    require(structures + struct_size <= total and strings + string_size <= total,
+            "invalid device tree bounds")
+    table = tree[strings:strings + string_size]
+    pos, end, stack, nodes = structures, structures + struct_size, [], {}
+    while pos + 4 <= end:
+        token = struct.unpack_from(">I", tree, pos)[0]
+        pos += 4
+        if token == 1:  # FDT_BEGIN_NODE
+            stop = tree.index(0, pos, end)
+            stack.append(tree[pos:stop].decode())
+            pos = (stop + 4) & ~3
+            nodes.setdefault("/" + "/".join(stack[1:]), {})
+        elif token == 2:
+            require(bool(stack), "unbalanced device tree")
+            stack.pop()
+        elif token == 3:
+            length, name = struct.unpack_from(">II", tree, pos)
+            pos += 8
+            require(pos + length <= end and name < len(table), "invalid DT property")
+            key = table[name:table.index(0, name)].decode()
+            nodes["/" + "/".join(stack[1:])][key] = tree[pos:pos + length]
+            pos = (pos + length + 3) & ~3
+        elif token == 4:
+            continue
+        elif token == 9:
+            require(not stack, "unclosed device tree nodes")
+            return nodes
+        else:
+            require(False, "invalid device tree token")
+    require(False, "device tree has no end token")
+
+
+def main():
+    require(len(sys.argv) == 3, __doc__)
+    flavour, path = sys.argv[1:]
+    require(flavour in ("recovery", "installer", "persistent"), "unknown flavour")
+    with open(path, "rb") as file:
+        image = file.read()
+    require(len(image) > 64, "empty or truncated uImage")
+    magic, header_crc, _, size, load, entry, data_crc = struct.unpack(">7I", image[:28])
+    require(magic == 0x27051956, "not a legacy uImage")
+    require(image[28:32] == bytes((5, 5, 2, 3)), "not Linux/MIPS/kernel/LZMA")
+    require(load == entry == 0x80060000, "unexpected load or entry address")
+    require(size == len(image) - 64, "payload length mismatch")
+    require(zlib.crc32(image[:4] + bytes(4) + image[8:64]) == header_crc,
+            "header CRC mismatch")
+    require(zlib.crc32(image[64:]) == data_crc, "payload CRC mismatch")
+    payload = lzma.decompress(image[64:], format=lzma.FORMAT_ALONE)
+    require(load + len(payload) <= 0x83000000, "expanded kernel overlaps the nboot source")
+    if flavour == "persistent":
+        require(len(image) <= 3840 * 1024, "kernel lacks its bad-block reserve")
+    nodes = dt_properties(payload)
+    require(b"cambiumnetworks,e400" in nodes["/"]["compatible"].split(b"\0"),
+            "wrong board compatible")
+    require(nodes["/cambium-platform"]["board-sku"] == struct.pack(">I", 6), "wrong SKU")
+    bootargs = nodes.get("/chosen", {}).get("bootargs")
+    require((bootargs is None) == (flavour == "persistent"),
+            "persistent must take bootargs from U-Boot; RAM must use DT bootargs")
+    parts = {}
+    for properties in nodes.values():
+        if "label" in properties and "reg" in properties:
+            label = properties["label"].rstrip(b"\0").decode()
+            if label in ("linux0", "rootfs0", "linux1", "rootfs1", "nvram",
+                         "u-boot", "u-boot-env", "CrashLog", "mfginfo", "ART"):
+                require(label not in parts, "duplicate partition " + label)
+                parts[label] = properties
+    kernel = 0x300000 if flavour == "recovery" else 0x400000
+    geometry = {
+        "linux0": (0, kernel), "rootfs0": (kernel, 0x3000000 - kernel),
+        "linux1": (0x3000000, kernel),
+        "rootfs1": (0x3000000 + kernel, 0x3000000 - kernel),
+        "nvram": (0x6000000, 0x2000000), "u-boot": (0, 0x40000),
+        "u-boot-env": (0x40000, 0x10000), "CrashLog": (0x50000, 0x790000),
+        "mfginfo": (0x7e0000, 0x10000), "ART": (0x7f0000, 0x10000),
+    }
+    for label, reg in geometry.items():
+        require(label in parts and parts[label]["reg"] == struct.pack(">II", *reg),
+                "wrong partition geometry: " + label)
+        protected = flavour == "recovery" or label not in (
+            "linux0", "rootfs0", "linux1", "rootfs1", "u-boot-env")
+        require(("read-only" in parts[label]) == protected,
+                "wrong partition protection: " + label)
+    print(f"Gambit {flavour}: uImage CRCs, LZMA, E400 DT and partition protection OK "
+          f"({len(image)} bytes; expands to {len(payload)} bytes)")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (ValueError, KeyError, IndexError, struct.error, lzma.LZMAError) as error:
+        sys.exit("Gambit image verification failed: " + str(error))

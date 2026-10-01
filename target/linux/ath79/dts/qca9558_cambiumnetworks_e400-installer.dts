@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+#include "qca9558_cambiumnetworks_e400.dts"
+
+// Bank boundaries remain at 0 and 48 MiB; factory data stays read-only.
+&gambit_linux0 {
+	reg = <0x0000000 0x0400000>;
+	/delete-property/ read-only;
+};
+&gambit_rootfs0 {
+	reg = <0x0400000 0x2c00000>;
+	/delete-property/ read-only;
+};
+&gambit_linux1 {
+	reg = <0x3000000 0x0400000>;
+	/delete-property/ read-only;
+};
+&gambit_rootfs1 {
+	reg = <0x3400000 0x2c00000>;
+	/delete-property/ read-only;
+};
+&gambit_env {
+	/delete-property/ read-only;
+};

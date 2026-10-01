@@ -655,18 +655,6 @@ define Device/buffalo_bhr-4grv
 endef
 TARGET_DEVICES += buffalo_bhr-4grv
 
-define Device/cambiumnetworks_e400-recovery
-  SOC := qca9558
-  DEVICE_VENDOR := Cambium Networks
-  DEVICE_MODEL := E400
-  DEVICE_VARIANT := RAM-only recovery
-  DEVICE_DTS := qca9558_cambiumnetworks_e400
-  DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca988x-ct \
-	ethtool iw-full mtd pciutils
-  IMAGES :=
-endef
-TARGET_DEVICES += cambiumnetworks_e400-recovery
-
 define Device/buffalo_bhr-4grv2
   SOC := qca9557
   DEVICE_VENDOR := Buffalo

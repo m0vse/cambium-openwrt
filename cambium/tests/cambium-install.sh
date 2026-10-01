@@ -23,6 +23,7 @@ W=${SIM:?}; RT=$W/root
 log() { echo "$*" >> "$W/calls"; }
 mtd_of() { cat "$RT/sys/class/ubi/$1/mtd_num"; }
 refresh() { # UBI MTD
+	touch "$RT/dev/$1"
 	rm -rf "$RT/sys/class/ubi/$1"_*; rm -f "$RT/dev/$1"_*
 	used=0
 	for f in "$W/flash/mtd$2"/*.size; do [ -f "$f" ] && used=$((used + ($(cat "$f") + 126975) / 126976)); done
@@ -81,11 +82,11 @@ EOF
 tool ubimkvol <<'EOF'
 #!/bin/sh
 . "$(dirname "$0")/_sim"
-k=${1##*/}; shift; m=$(mtd_of "$k"); name= size=
-while [ $# -gt 0 ]; do case "$1" in -N) name=$2; shift ;; -s) size=$2; shift ;; -m) size=max ;; esac; shift; done
+k=${1##*/}; shift; m=$(mtd_of "$k"); name= size= id=
+while [ $# -gt 0 ]; do case "$1" in -n) id=$2; shift ;; -N) name=$2; shift ;; -s) size=$2; shift ;; -m) size=max ;; esac; shift; done
 [ -f "$W/fail_mkvol" ] && { echo 'ubimkvol: error!: cannot UBI create volume' >&2; exit 255; }
-id=0; while [ -f "$W/flash/mtd$m/$id.name" ]; do id=$((id + 1)); done
-echo "$name" > "$W/flash/mtd$m/$id.name"; [ "$size" = max ] && size=$((50 * 126976))
+if [ -z "$id" ]; then id=0; while [ -f "$W/flash/mtd$m/$id.name" ]; do id=$((id + 1)); done; fi
+echo "$name" > "$W/flash/mtd$m/$id.name"; [ "$size" = max ] && size=$((100 * 126976))
 echo "$size" > "$W/flash/mtd$m/$id.size"; : > "$W/flash/mtd$m/$id.data"
 refresh "$k" "$m"; log "mkvol mtd$m $name"
 EOF
@@ -676,6 +677,127 @@ check "Sage updater bootstrap stages shared scripts and helper" 0 inst --from "$
 assert "Sage bootstrap installs current board helper" cmp -s "$RT/lib/functions/cambium-sage.sh" "$W/rel/cambium-sage.sh"
 assert "Sage bootstrap installs current module" cmp -s "$RT/lib/functions/cambium-ab-sage.sh" "$W/rel/cambium-ab-sage.sh"
 assert "Sage bootstrap leaves UBI and environment unchanged" nothing_written
+
+# Gambit uses raw NAND RAM staging before the shared persistent installer.
+tool flash_erase <<'EOF'
+#!/bin/sh
+echo "erase $1" >> "$SIM/calls"
+: > "$1"
+EOF
+tool nandwrite <<'EOF'
+#!/bin/sh
+[ "$1" = -p ] && shift
+echo "nandwrite $1" >> "$SIM/calls"
+cp "$2" "$1"
+EOF
+tool nanddump <<'EOF'
+#!/bin/sh
+while [ $# -gt 0 ]; do
+	case "$1" in -f) out=$2; shift ;; -l) length=$2; shift ;; -*) ;; *) dev=$1 ;; esac
+	shift
+done
+head -c "$length" "$dev" > "$out"
+EOF
+for variant in e400-recovery gambit-installer; do
+	f=$W/rel/openwrt-ath79-nand-cambiumnetworks_$variant-initramfs-kernel.bin
+	printf '\047\005\031\126' > "$f"
+	head -c 100 /dev/zero >> "$f"
+done
+(cd "$W/rel" && sha256sum -- openwrt-* jaguar-* cambium-* > SHA256SUMS)
+ap_gambit() {
+	local active=${1:-0}
+	ap gambit E400 6 "$active"
+	printf '%s\n' 'mtd6: 00300000 00020000 "linux0"' 'mtd7: 02d00000 00020000 "rootfs0"' \
+		'mtd8: 00300000 00020000 "linux1"' 'mtd9: 02d00000 00020000 "rootfs1"' \
+		'mtd1: 00010000 00010000 "u-boot-env"' 'mtd4: 00010000 00010000 "ART"' > "$RT/proc/mtd"
+	printf 'root=/dev/mtdblock%s rootfstype=yaffs2\n' "$((7 + 2 * active))" > "$RT/proc/cmdline"
+	printf 'bootcmd=nboot 0x81000000 0 0x%08x\n' $((active * 0x3000000)) > "$W/env"
+	printf OEM-rootfs0 > "$RT/dev/mtd7"
+	printf OEM-linux0 > "$RT/dev/mtd6"
+	printf OEM-linux1 > "$RT/dev/mtd8"
+	printf OEM-rootfs1 > "$RT/dev/mtd9"
+	: > "$W/calls"
+}
+ap_gambit
+check 'Gambit persistent installation requires hardware trial override' 1 inst --from "$W/rel" --backed-up install
+assert 'Gambit untested image refusal leaves banks untouched' nothing_written
+check 'Gambit installer staging dry run' 0 inst --from "$W/rel" --trial --backed-up install
+assert 'Gambit staging dry run does not erase NAND' [ -z "$(grep -E 'erase|nandwrite' "$W/calls")" ]
+check 'Gambit installer stages only inactive OEM rootfs1' 0 inst --from "$W/rel" --trial --backed-up --yes --no-reboot install
+assert 'Gambit staging leaves OEM kernel0/rootfs0 unchanged' [ "$(cat "$RT/dev/mtd6")/$(cat "$RT/dev/mtd7")" = OEM-linux0/OEM-rootfs0 ]
+assert 'Gambit installer staged and verified' cmp -s "$RT/dev/mtd9" "$W/rel/openwrt-ath79-nand-cambiumnetworks_gambit-installer-initramfs-kernel.bin"
+assert 'Gambit stages RAM with the proven load address and stock restoration' [ "$(env_get bootcmd)" = 'setenv bootcmd nboot 0x81000000 0 0x00000000; saveenv; nboot 0x83000000 0 0x03300000' ]
+assert 'Gambit does not set an unsupported changing_bootcmd marker' [ -z "$(env_get changing_bootcmd)" ]
+ap_gambit 1
+check 'Gambit OEM bank 1 stages installer in inactive bank 0' 0 inst --from "$W/rel" --trial --backed-up --yes --no-reboot install
+assert 'Gambit staging leaves active OEM kernel1/rootfs1 unchanged' [ "$(cat "$RT/dev/mtd8")/$(cat "$RT/dev/mtd9")" = OEM-linux1/OEM-rootfs1 ]
+assert 'Gambit bank 0 installer staged and verified' cmp -s "$RT/dev/mtd7" "$W/rel/openwrt-ath79-nand-cambiumnetworks_gambit-installer-initramfs-kernel.bin"
+assert 'Gambit restores OEM bank 1 before booting RAM from bank 0' [ "$(env_get bootcmd)" = 'setenv bootcmd nboot 0x81000000 0 0x03000000; saveenv; nboot 0x83000000 0 0x00300000' ]
+assert 'Gambit records which bank contains preserved OEM' [ "$(env_get gambit_oem_slot)" = 1 ]
+ap_gambit 1
+echo 'root=/dev/mtdblock7 rootfstype=yaffs2' > "$RT/proc/cmdline"
+check 'Gambit cmdline and bootcmd bank disagreement refused' 1 inst --from "$W/rel" --trial --backed-up --yes install
+assert 'Gambit bank disagreement does not erase anything' [ -z "$(grep -E 'erase|nandwrite' "$W/calls")" ]
+ap_gambit
+echo 'root=/dev/mtdblock7 root=/dev/mtdblock9' > "$RT/proc/cmdline"
+check 'Gambit ambiguous OEM bank refused' 1 inst --from "$W/rel" --trial --backed-up --yes install
+ap_gambit
+check 'Gambit recovery remains available without trial override' 0 inst --from "$W/rel" --backed-up --yes --no-reboot ram
+assert 'Gambit recovery uses read-only recovery image, not installer' cmp -s "$RT/dev/mtd9" "$W/rel/openwrt-ath79-nand-cambiumnetworks_e400-recovery-initramfs-kernel.bin"
+
+# Run the actual second installation step from the writable RAM installer,
+# against both possible preserved OEM banks, using the real shared writer.
+cp "$top/package/cambium/cambium-gambit-support/files/cambium-ab-gambit.sh" "$W/rel/cambium-ab-gambit.sh"
+mkdir -p "$W/gambit-image/sysupgrade-cambiumnetworks_gambit-persistent"
+k=$W/gambit-image/sysupgrade-cambiumnetworks_gambit-persistent/kernel
+dd if=/dev/zero of="$k" bs=64 count=1 2>/dev/null
+printf '\047\005\031\126' | dd of="$k" conv=notrunc 2>/dev/null
+printf '\000\000\000\003' | dd of="$k" bs=1 seek=12 conv=notrunc 2>/dev/null
+printf '\005\005\002\003' | dd of="$k" bs=1 seek=28 conv=notrunc 2>/dev/null
+printf new >> "$k"
+printf hsqs-new-root > "$W/gambit-image/sysupgrade-cambiumnetworks_gambit-persistent/root"
+(cd "$W/gambit-image" && tar -cf "$W/rel/openwrt-ath79-nand-cambiumnetworks_gambit-persistent-squashfs-sysupgrade.bin" sysupgrade-cambiumnetworks_gambit-persistent)
+(cd "$W/rel" && sha256sum -- openwrt-* jaguar-* cambium-* > SHA256SUMS)
+ap_gambit_installer() {
+	local oem=$1 n
+	ap_gambit "$oem"
+	mkdir -p "$RT/etc" "$RT/tmp/sysinfo" "$RT/proc/device-tree/cambium-platform"
+	: > "$RT/etc/openwrt_release"
+	echo cambiumnetworks,e400 > "$RT/tmp/sysinfo/board_name"
+	cp "$RT/sku" "$RT/proc/device-tree/cambium-platform/board-sku"
+	echo 'console=ttyS0,115200n8' > "$RT/proc/cmdline"
+	echo "gambit_oem_slot=$oem" >> "$W/env"
+	printf '%s\n' 'mtd0: 00400000 00020000 "linux0"' 'mtd1: 02c00000 00020000 "rootfs0"' \
+		'mtd2: 00400000 00020000 "linux1"' 'mtd3: 02c00000 00020000 "rootfs1"' \
+		'mtd4: 02000000 00020000 "nvram"' 'mtd5: 00040000 00010000 "u-boot"' \
+		'mtd6: 00010000 00010000 "u-boot-env"' 'mtd7: 00790000 00010000 "CrashLog"' \
+		'mtd8: 00010000 00010000 "mfginfo"' 'mtd9: 00010000 00010000 "ART"' > "$RT/proc/mtd"
+	rm -rf "$RT/sys/class/ubi"
+	mkdir -p "$RT/sys/class/ubi"
+	for n in 0 1 2 3 4 5 6 7 8 9; do
+		mkdir -p "$RT/sys/class/mtd/mtd$n"
+		echo 0x800 > "$RT/sys/class/mtd/mtd$n/flags"
+	done
+	for n in 0 1 2 3 6; do echo 0xc00 > "$RT/sys/class/mtd/mtd$n/flags"; done
+	echo 0 > "$RT/sys/class/mtd/mtd0/offset"
+	echo 4194304 > "$RT/sys/class/mtd/mtd1/offset"
+	echo 50331648 > "$RT/sys/class/mtd/mtd2/offset"
+	echo 54525952 > "$RT/sys/class/mtd/mtd3/offset"
+	printf OEM-kernel0 > "$RT/dev/mtd0"; printf OEM-rootfs0 > "$RT/dev/mtd1"
+	printf OEM-kernel1 > "$RT/dev/mtd2"; printf OEM-rootfs1 > "$RT/dev/mtd3"
+}
+export AB_PROC_MTD=$RT/proc/mtd AB_DT=$RT/proc/device-tree AB_MTD_SYS=$RT/sys/class/mtd
+export AB_UBI_SYS=$RT/sys/class/ubi AB_DEV=$RT/dev AB_WORK=$RT/tmp/ab-work AB_LOG=$W/gambit-upgrade.log
+for oem in 0 1; do
+	ap_gambit_installer "$oem"
+	check "Gambit RAM installer requires verified OEM backups (bank $oem)" 1 inst --from "$W/rel" --trial --yes --no-reboot install
+	check "Gambit RAM installer writes the inactive bank opposite OEM $oem" 0 inst --from "$W/rel" --trial --backed-up --yes --no-reboot install
+	target=$((1 - oem)); ki=$((2 * target)); ri=$((ki + 1))
+	assert "Gambit RAM installer wrote raw kernel$target" cmp -s "$RT/dev/mtd$ki" "$k"
+	assert "Gambit RAM installer wrote UBI rootfs$target" cmp -s "$W/flash/mtd$ri/1.data" "$W/gambit-image/sysupgrade-cambiumnetworks_gambit-persistent/root"
+	assert "Gambit RAM installer preserved OEM bank $oem" [ "$(cat "$RT/dev/mtd$((2 * oem))")/$(cat "$RT/dev/mtd$((2 * oem + 1))")" = "OEM-kernel$oem/OEM-rootfs$oem" ]
+	assert "Gambit RAM installer armed the inactive bank $target" grep -q "^bootcmd=.*ubi.mtd=rootfs$target" "$W/env"
+done
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
