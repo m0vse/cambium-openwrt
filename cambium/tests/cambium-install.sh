@@ -315,7 +315,7 @@ ap() {
 	*) printf '%s\n' 'bootcmd=bootipq' "image=$run" > "$W/env" ;;
 	esac
 }
-inst() { sh "$installer" "$@"; }
+inst() { ${CAMBIUM_INSTALL_TEST_SHELL:-sh} "$installer" "$@"; }
 env_get() { sed -n "s/^$1=//p" "$W/env"; }
 writes() { grep -E '^(attach|detach|format|mkvol|rmvol|update|setenv|upload|reboot)' "$W/calls" | tr '\n' ';'; }
 
@@ -747,6 +747,9 @@ assert 'Gambit recovery uses read-only recovery image, not installer' cmp -s "$R
 
 # Run the actual second installation step from the writable RAM installer,
 # against both possible preserved OEM banks, using the real shared writer.
+# Match build.sh's published bare filenames: prefixed Jaguar copies would
+# hide the recursive module-glob bug by selecting a differently named writer.
+rm -f "$W/rel/jaguar-cambium-ab.sh" "$W/rel/jaguar-cambium-ab-upgrade.sh" "$W/rel/jaguar-cambium-ab-jaguar.sh"
 cp "$top/package/cambium/cambium-gambit-support/files/cambium-ab-gambit.sh" "$W/rel/cambium-ab-gambit.sh"
 mkdir -p "$W/gambit-image/sysupgrade-cambiumnetworks_gambit-persistent"
 k=$W/gambit-image/sysupgrade-cambiumnetworks_gambit-persistent/kernel
@@ -757,7 +760,7 @@ printf '\005\005\002\003' | dd of="$k" bs=1 seek=28 conv=notrunc 2>/dev/null
 printf new >> "$k"
 printf hsqs-new-root > "$W/gambit-image/sysupgrade-cambiumnetworks_gambit-persistent/root"
 (cd "$W/gambit-image" && tar -cf "$W/rel/openwrt-ath79-nand-cambiumnetworks_gambit-persistent-squashfs-sysupgrade.bin" sysupgrade-cambiumnetworks_gambit-persistent)
-(cd "$W/rel" && sha256sum -- openwrt-* jaguar-* cambium-* > SHA256SUMS)
+(cd "$W/rel" && sha256sum -- openwrt-* cambium-* > SHA256SUMS)
 ap_gambit_installer() {
 	local oem=$1 n
 	ap_gambit "$oem"
@@ -788,10 +791,12 @@ ap_gambit_installer() {
 }
 export AB_PROC_MTD=$RT/proc/mtd AB_DT=$RT/proc/device-tree AB_MTD_SYS=$RT/sys/class/mtd
 export AB_UBI_SYS=$RT/sys/class/ubi AB_DEV=$RT/dev AB_WORK=$RT/tmp/ab-work AB_LOG=$W/gambit-upgrade.log
+inst_gambit() { (ulimit -n 64; inst "$@"); }
 for oem in 0 1; do
 	ap_gambit_installer "$oem"
 	check "Gambit RAM installer requires verified OEM backups (bank $oem)" 1 inst --from "$W/rel" --trial --yes --no-reboot install
-	check "Gambit RAM installer writes the inactive bank opposite OEM $oem" 0 inst --from "$W/rel" --trial --backed-up --yes --no-reboot install
+	check "Gambit RAM installer writes the inactive bank opposite OEM $oem" 0 inst_gambit --from "$W/rel" --trial --backed-up --yes --no-reboot install
+	assert "Gambit core scans family modules only (OEM bank $oem)" [ -f "$RT/tmp/cambium-install/ab-modules/cambium-ab-gambit.sh" ]
 	target=$((1 - oem)); ki=$((2 * target)); ri=$((ki + 1))
 	assert "Gambit RAM installer wrote raw kernel$target" cmp -s "$RT/dev/mtd$ki" "$k"
 	assert "Gambit RAM installer wrote UBI rootfs$target" cmp -s "$W/flash/mtd$ri/1.data" "$W/gambit-image/sysupgrade-cambiumnetworks_gambit-persistent/root"
