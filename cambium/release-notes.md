@@ -12,7 +12,8 @@ SKU. Hardware status per model:
 
 | Family | Stock firmware | Model | Recovery (RAM) | Persistent | Sysupgrade |
 | --- | --- | --- | --- | --- | --- |
-| Gambit (Wi-Fi 5, MIPS) | 4.2.3.3-r10 | E400, E500, E501S, E502S | no build yet | no build yet | no build yet |
+| Gambit (QCA9558, Wi-Fi 5) | 4.2.3.3-r10 | E400 | validated | validated (A/B build, raw uImage kernel) | A/B, validated |
+| | | E500, E501S, E502S | no build yet | no build yet | no build yet |
 | Sage (IPQ4019) | 4.2.3.3-r10 | E410, E410B | validated | validated | A/B, validated (shared A/B code) |
 | | | E510 | untested | untested | A/B, untested (same layout as the E410) |
 | | | E430H, E430W, E600, E700 | untested | untested | refused: layout not yet captured |
@@ -28,9 +29,9 @@ SKU. Hardware status per model:
 | Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X, X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
 
 Families are listed oldest first. Run the listed (latest) stock firmware,
-ideally in both slots, before installing. Gambit, Lila and Miami have no OpenWrt
-port yet; they are listed so the table covers every Cambium access point
-family.
+ideally in both slots, before installing. Lila and Miami, and the Gambit
+models other than the E400, have no OpenWrt build yet; they are listed so
+the table covers every Cambium access point family.
 
 **Installing:** `cambium-install.sh` (a release asset) RAM-boots or installs
 from the stock firmware's root shell for every family, with all checks,
@@ -62,9 +63,9 @@ untested or unported model, please open an issue on this repository.
   earlier (UBIFS) image converts in two stages: run `cambium-install.sh
   update-upgrader` on it, then two normal sysupgrades, each converting one
   pair (validated on the E410 and E410B). Thor,
-  Jaguar and Cheetah have A/B sysupgrade with automatic rollback after
-  conversion (validated on the Jaguar XV2-2, XV2-2T1 and XE3-4 and
-  the Thor XV3-8 and the Cheetah XV2-21X). An XV3-8 on the earlier single-bank image
+  Jaguar, Cheetah and Gambit have A/B sysupgrade with automatic rollback
+  after conversion (validated on the Jaguar XV2-2, XV2-2T1 and XE3-4, the
+  Thor XV3-8, the Cheetah XV2-21X and the Gambit E400). An XV3-8 on the earlier single-bank image
   sysupgrades in place to this image, then reinstalls once
   (`cambium-install.sh stock`, then `install`) to move to A/B.
 - **The Jaguar sysupgrade image MUST NOT be used to upgrade an XE3-4
