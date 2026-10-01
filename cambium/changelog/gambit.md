@@ -4,6 +4,8 @@ E400 (recovery validated; persistent/A-B hardware trials pending).
 
 ## Unreleased
 
+- Isolate the downloaded family module during RAM installation, so the
+  upgrade writer is not recursively loaded by the core's module scan.
 - Read Ethernet's OEM MAC from the manufacturing-data hexadecimal cell,
   not the integrated radio's calibration MAC. Verify the reference in all
   built recovery, installer and persistent device trees.
