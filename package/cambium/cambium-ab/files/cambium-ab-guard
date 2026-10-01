@@ -133,7 +133,8 @@ save_network_health() (
 		printf 'failure=%s\nmanagement=%s\n' "$AB_HEALTH_FAILURE" "$lan"
 		date -u
 		bridge vlan show 2>&1
-		ip -d link show 2>&1
+		# BusyBox ip on these images does not support -d.
+		ip link show 2>&1
 		ip -4 addr show 2>&1
 		ip -4 route show 2>&1
 		for bridge in up down; do
@@ -147,7 +148,7 @@ save_network_health() (
 		printf '\nDHCP client PIDs (no arguments):\n'
 		pgrep udhcpc 2>/dev/null || :
 		printf '\nNetwork log tail:\n'
-		logread 2>/dev/null | grep -Ei 'netifd|udhcpc|ess_edma|nss-dp|Link is (Up|Down)' | tail -n 30 | cut -c 1-200
+		logread 2>/dev/null | grep -Ei 'netifd|udhcpc|ess_edma|nss-dp|Link is (Up|Down)' | tail -n 100 | cut -c 1-200
 	} | head -c 12288 > "$dir/network-boot.health.tmp"
 	mv "$dir/network-boot.health.tmp" "$dir/network-boot.health" && sync
 )
