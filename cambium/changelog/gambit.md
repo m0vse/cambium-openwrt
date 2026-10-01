@@ -12,6 +12,8 @@ E400 (recovery validated; persistent/A-B hardware trials pending).
 - Generate the E400 U-Boot environment configuration by partition label and
   publish Gambit installer/upgrade assets through the common build pipeline.
   Persistent installation and A/B upgrades remain untested on hardware.
+- Apply the temporary recovery DHCP/hostname defaults only in RAM boots;
+  saved persistent network settings are retained across upgrades.
 
 - Move the E400 recovery image to the NAND subtarget, use the factory Ethernet
   MAC from ART, and filter recovery management to untagged VLAN 1.
