@@ -105,6 +105,11 @@
 
 &nand {
 	status = "okay";
+	/* Match OEM/U-Boot: 8 x 256-byte Hamming steps, ECC at OOB 40..63. */
+	nand-ecc-mode = "soft";
+	nand-ecc-algo = "hamming";
+	nand-ecc-step-size = <256>;
+	nand-ecc-strength = <1>;
 
 	partitions {
 		compatible = "fixed-partitions";
