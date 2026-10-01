@@ -834,9 +834,13 @@ install_gambit_installer() {
 	core=$(get_image cambium-ab.sh) || exit 1
 	module=$(get_image cambium-ab-gambit.sh) || exit 1
 	writer=$(get_image cambium-ab-upgrade.sh) || exit 1
-	CAMBIUM_AB_MODULES=$WORK CAMBIUM_AB_LIB=$core
+	# Only family modules belong in the core's cambium-ab-*.sh scan.
+	# The downloaded writer matches that glob too and sources the core:
+	# scanning the download folder would recurse until ash runs out of FDs.
+	step 'create Gambit family module directory' mkdir -p "$WORK/ab-modules"
+	step 'isolate Gambit family module' cp "$module" "$WORK/ab-modules/cambium-ab-gambit.sh"
+	CAMBIUM_AB_MODULES=$WORK/ab-modules CAMBIUM_AB_LIB=$core
 	. "$core"
-	. "$module"
 	. "$writer"
 	ab_board cambiumnetworks,e400 && [ "$(ab_dt_sku)" = "$AB_SKU" ] &&
 		ab_gambit_layout || die 'the E400 SKU or 4+44 MiB installer layout does not match'
