@@ -1,0 +1,30 @@
+#!/bin/sh
+
+. /lib/functions/system.sh
+
+[ "$(board_name)" = "cambiumnetworks,e400" ] || exit 0
+
+# Recovery is an upstream DHCP client and must not offer DHCP or RA on the
+# attached network.
+uci -q set network.lan.proto='dhcp'
+uci -q delete network.lan.ipaddr
+uci -q delete network.lan.netmask
+uci -q delete network.lan.gateway
+uci -q delete network.lan.dns
+uci -q delete network.lan.ip6assign
+uci -q commit network
+
+uci -q set dhcp.lan.ignore='1'
+uci -q set dhcp.lan.dhcpv4='disabled'
+uci -q set dhcp.lan.dhcpv6='disabled'
+uci -q set dhcp.lan.ra='disabled'
+uci -q commit dhcp
+
+if grep -q 'ubi.mtd=rootfs[01]' /proc/cmdline; then
+	uci -q set system.@system[0].hostname='e400'
+else
+	uci -q set system.@system[0].hostname='gambit-recovery'
+fi
+uci -q commit system
+
+exit 0

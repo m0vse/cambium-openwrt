@@ -69,7 +69,11 @@ else
 	ab_ubi_for_mtd "$AB_TARGET_MTD" >/dev/null &&
 		die "bank $AB_TARGET_PART is attached; reboot first"
 	echo "Hashing the OEM bank $AB_TARGET_PART (mtd$AB_TARGET_MTD)..."
-	live=$(sha256sum < "$dev/mtd$AB_TARGET_MTD" | cut -d' ' -f1)
+	if ab_hook oem_hash; then
+		live=$("ab_${AB_FAMILY}_oem_hash") || die 'cannot read the complete OEM bank'
+	else
+		live=$(sha256sum < "$dev/mtd$AB_TARGET_MTD" | cut -d' ' -f1)
+	fi
 	[ "$live" = "$oem_sha" ] ||
 		die "live OEM bank hash $live does not match your backup $oem_sha"
 fi
@@ -84,7 +88,7 @@ if [ -z "$resume" ]; then
 	ab_setenv_batch "$batch" || die 'cannot record the conversion'
 	rm -f "$batch"
 fi
-[ "$(ab_getenv changing_bootcmd)" = 1 ] || ab_setenv changing_bootcmd 1 ||
+[ "$AB_MARKER" != 1 ] || [ "$(ab_getenv changing_bootcmd)" = 1 ] || ab_setenv changing_bootcmd 1 ||
 	die 'cannot save changing_bootcmd'
 ab_write_boot_vars || die 'cannot write the boot commands'
 ab_setenv bootcmd "run ${AB_ENV}_stable$AB_ACTIVE" || die 'cannot write bootcmd'
@@ -99,6 +103,9 @@ fail() {
 }
 
 echo "Writing slot $AB_TARGET ($AB_TARGET_PART) from running slot $AB_ACTIVE..."
+if ab_hook convert_target; then
+	"ab_${AB_FAMILY}_convert_target" || fail "cannot copy slot $AB_ACTIVE to slot $AB_TARGET"
+else
 src_kernel=$dev/$(ab_ubi_volume "$AB_ACTIVE_UBI" kernel)
 src_root=$dev/$(ab_ubi_volume "$AB_ACTIVE_UBI" rootfs)
 kernel_size=$(cat "${AB_UBI_SYS:-/sys/class/ubi}/${src_kernel##*/}/data_bytes")
@@ -112,6 +119,7 @@ ab_verify_volume "$dev/${AB_TARGET_UBI}_0" "$src_kernel" "$kernel_size" &&
 	ab_verify_volume "$dev/${AB_TARGET_UBI}_1" "$src_root" "$root_size" ||
 	fail "slot $AB_TARGET readback mismatch"
 [ "$AB_VAULT" != 1 ] || ab_copy_vault || fail 'cannot copy the device-data vault'
+fi
 sync
 
 # Converted: ${AB_ENV}_ab_version is written last.
