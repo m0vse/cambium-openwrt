@@ -2,7 +2,7 @@
 # Build, verify and collect one Cambium family snapshot or release.
 #
 # Usage: cambium/scripts/build.sh FAMILY [BUILD_ID]
-#   FAMILY    sage | thor | cheetah | jaguar | gambit (E400 RAM image only)
+#   FAMILY    sage | thor | cheetah | jaguar | gambit
 #   BUILD_ID  a snapshot, YYYY.MM.DD.N (default: today's date with N=0), or
 #             a release, X.Y.Z-N: Cambium release N of OpenWrt X.Y.Z, built
 #             from that release (see cambium/README.md)
@@ -30,7 +30,7 @@ sage)    name=Sage;    target=ipq40xx;    subtarget=generic ;;
 thor)    name=Thor;    target=qualcommax; subtarget=ipq807x ;;
 cheetah) name=Cheetah; target=qualcommax; subtarget=ipq50xx ;;
 jaguar)  name=Jaguar;  target=qualcommax; subtarget=ipq60xx ;;
-gambit)  name=Gambit;  target=ath79;      subtarget=generic ;;
+gambit)  name=Gambit;  target=ath79;      subtarget=nand ;;
 *) echo "Unknown family: $family" >&2; exit 2 ;;
 esac
 case "$build_id" in
@@ -227,9 +227,12 @@ persistent=$kernel"
 	echo "Jaguar image uses $lebs of 392 LEBs in an XV2-2 bank"
 	;;
 gambit)
-	# Bring-up: only the E400's RAM-only recovery image (no FIT, no
-	# persistent or sysupgrade image yet).
-	image '*cambiumnetworks_e400-recovery-initramfs-kernel.bin' >/dev/null
+	fits=
+	python3 cambium/scripts/verify-gambit.py recovery "$(image '*cambiumnetworks_e400-recovery-initramfs-kernel.bin')" || fail 'invalid Gambit recovery'
+	python3 cambium/scripts/verify-gambit.py installer "$(image '*cambiumnetworks_gambit-installer-initramfs-kernel.bin')" || fail 'invalid Gambit installer'
+	python3 cambium/scripts/verify-gambit.py persistent "$(image '*cambiumnetworks_gambit-persistent-squashfs-kernel.bin')" || fail 'invalid Gambit persistent kernel'
+	image '*cambiumnetworks_gambit-persistent-squashfs-rootfs.squashfs' >/dev/null
+	image '*cambiumnetworks_gambit-persistent-squashfs-sysupgrade.bin' >/dev/null
 	;;
 esac
 
@@ -267,13 +270,10 @@ gate() { # gate ROOT IMAGE_NAME LABEL
 gate_extra=
 [ "$family" = thor ] && gate_extra="kmod-ath10k-ct ath10k-firmware-qca9887-ct"
 mkdir -p "$work/manifests"
-# Gambit has no persistent image to gate yet.
-if [ "$family" != gambit ]; then
 	sysupgrade=$(image "*cambiumnetworks_$family-persistent-squashfs-sysupgrade.bin")
 	tar -xOf "$sysupgrade" "$(tar -tf "$sysupgrade" | grep '/root$' | head -n 1)" > "$work/persistent-root" ||
 		fail "cannot read the root filesystem of ${sysupgrade##*/}"
 	gate "$work/persistent-root" "${sysupgrade##*/}" "$name persistent sysupgrade.bin"
-fi
 if [ "$family" = sage ]; then
 	rootfs=$(image '*cambiumnetworks_sage-persistent-squashfs-rootfs.ubifs')
 	gate "$rootfs" "${rootfs##*/}" "Sage persistent rootfs.ubifs"
@@ -336,8 +336,6 @@ fi
 # cambium/families.json names a configuration the built FITs lack.
 old_ifs=$IFS; IFS='
 '
-# Gambit has no persistent image or family FIT for a manifest yet.
-[ "$family" = gambit ] ||
 	python3 cambium/scripts/manifest.py cambium/families.json "$family" "$output/images" \
 		files/etc/cambium-openwrt-release $fits
 IFS=$old_ifs
