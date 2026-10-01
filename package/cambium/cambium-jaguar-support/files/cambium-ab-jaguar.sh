@@ -34,7 +34,7 @@ ab_jaguar_board() {
 		;;
 	cambiumnetworks,xv2-2t0) AB_MODEL=XV2-2T0; AB_SKU=00000016; AB_FIT=config@cp01-c1-1 ;;
 	cambiumnetworks,xv2-2t1) AB_MODEL=XV2-2T1; AB_SKU=0000001f; AB_FIT=config@cp01-c1-2; AB_QUALIFIED=1 ;;
-	cambiumnetworks,xe3-4) AB_MODEL=XE3-4; AB_SKU=00000020; AB_FIT=config@cp01-c3-xv3-4 ;;
+	cambiumnetworks,xe3-4) AB_MODEL=XE3-4; AB_SKU=00000020; AB_FIT=config@cp01-c3-xv3-4; AB_QUALIFIED=1 ;;
 	cambiumnetworks,xe3-4tn) AB_MODEL=XE3-4TN; AB_SKU=00000021; AB_FIT=config@cp01-c3-2 ;;
 	*) return 1 ;;
 	esac
