@@ -849,6 +849,9 @@ install_gambit_installer() {
 	image=$(get_image cambiumnetworks_gambit-persistent-squashfs-sysupgrade.bin) || exit 1
 	ab_image_extract "$image" || die 'invalid persistent image'
 	eval "idx=\$AB_KERNEL_MTD$AB_TARGET"
+	[ "$(cat "$R/sys/class/mtd/mtd$idx/ecc_strength" 2>/dev/null)" = 1 ] &&
+		[ "$(cat "$R/sys/class/mtd/mtd$idx/ecc_step_size" 2>/dev/null)" = 256 ] ||
+		die 'RAM installer NAND ECC is incompatible with OEM/U-Boot; boot the corrected software-Hamming installer first'
 	ab_mtd_writable "$idx" && ab_mtd_writable "$AB_TARGET_MTD" || die 'boot the writable Gambit RAM installer first'
 	# A marker accidentally left by an earlier conversion must never make the
 	# boot guard treat the preserved OEM bank as an OpenWrt bank.
