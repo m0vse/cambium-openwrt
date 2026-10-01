@@ -719,8 +719,8 @@ ap_gambit() {
 	: > "$W/calls"
 }
 ap_gambit
-check 'Gambit persistent installation requires hardware trial override' 1 inst --from "$W/rel" --backed-up install
-assert 'Gambit untested image refusal leaves banks untouched' nothing_written
+check 'Gambit validated E400 installs without the hardware trial override' 0 inst --from "$W/rel" --backed-up install
+assert 'Gambit install dry run leaves banks untouched' nothing_written
 check 'Gambit installer staging dry run' 0 inst --from "$W/rel" --trial --backed-up install
 assert 'Gambit staging dry run does not erase NAND' [ -z "$(grep -E 'erase|nandwrite' "$W/calls")" ]
 check 'Gambit installer stages only inactive OEM rootfs1' 0 inst --from "$W/rel" --trial --backed-up --yes --no-reboot install

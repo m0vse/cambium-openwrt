@@ -23,16 +23,17 @@
           },
           "installer": {
             "config": "uimage",
-            "status": "untested"
+            "status": "validated",
+            "note": "Staged from the stock firmware in the inactive OEM bank and RAM-booted once; it refuses an installer whose NAND ECC is not the OEM software Hamming"
           },
           "persistent": {
             "config": "uimage",
-            "status": "untested",
-            "note": "4 MiB raw kernel plus 44 MiB UBI per bank; first install writes the inactive bank and preserves the running OEM bank; shared cambium-ab guard rearms healthy OpenWrt"
+            "status": "validated",
+            "note": "4 MiB raw kernel plus 44 MiB UBI per bank; first install writes only the inactive bank and preserves the running OEM bank; shared cambium-ab guard rearms healthy OpenWrt. Warm reboot and cold power-cycle passed"
           },
           "sysupgrade": {
-            "status": "untested",
-            "note": "Shared A/B upgrade and rollback after explicit conversion of the preserved OEM bank; not yet validated on hardware"
+            "status": "validated",
+            "note": "Shared A/B after explicit conversion of the preserved OEM bank (verified off-device backup): sysupgrade 1->0 and 0->1 kept the configuration, and a failed-health trial rolled back automatically. Validated on one SKU 6 unit, not fleet or power-loss qualification"
           }
         },
         {
