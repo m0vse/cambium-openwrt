@@ -138,7 +138,14 @@ ab_verify_volume() {
 ab_prepare_bank() {
 	local kernel_size="$1" root_size="$2" dev=${AB_DEV:-/dev} data ubi
 	if ab_ubi_for_mtd "$AB_TARGET_MTD" >/dev/null; then
-		ab_step "ubidetach mtd$AB_TARGET_MTD" ubidetach -m "$AB_TARGET_MTD" || return 1
+		# Some ubidetach versions report EINVAL after a successful detach.
+		# Never format an attached bank, even if the command reported success.
+		ab_step "ubidetach mtd$AB_TARGET_MTD" ubidetach -m "$AB_TARGET_MTD" || :
+		if ab_ubi_for_mtd "$AB_TARGET_MTD" >/dev/null; then
+			AB_STEP_ERROR=${AB_STEP_ERROR:-"mtd$AB_TARGET_MTD remains attached after ubidetach"}
+			return 1
+		fi
+		AB_STEP_ERROR=
 	fi
 	ab_step "ubiformat mtd$AB_TARGET_MTD" ubiformat "$dev/mtd$AB_TARGET_MTD" -y -q || return 1
 	ab_step "ubiattach mtd$AB_TARGET_MTD" ubiattach -m "$AB_TARGET_MTD" || return 1
