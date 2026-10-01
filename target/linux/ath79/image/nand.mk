@@ -565,3 +565,37 @@ define Device/zyxel_emg2926_q10a
   RAS_BOARD := AAVK-EMG2926Q10A
 endef
 TARGET_DEVICES += zyxel_emg2926_q10a
+
+define Device/cambiumnetworks_e400-recovery
+  SOC := qca9558
+  DEVICE_VENDOR := Cambium Networks
+  DEVICE_MODEL := E400
+  DEVICE_VARIANT := RAM-only recovery
+  DEVICE_DTS := qca9558_cambiumnetworks_e400
+  DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca988x-ct \
+	cambium-gambit-support ethtool iw-full mtd pciutils
+  IMAGES :=
+endef
+TARGET_DEVICES += cambiumnetworks_e400-recovery
+
+define Device/cambiumnetworks_gambit-installer
+  $(Device/cambiumnetworks_e400-recovery)
+  DEVICE_VARIANT := RAM installer (4 MiB kernel + 44 MiB UBI)
+  DEVICE_DTS := qca9558_cambiumnetworks_e400-installer
+endef
+TARGET_DEVICES += cambiumnetworks_gambit-installer
+
+define Device/cambiumnetworks_gambit-persistent
+  $(Device/cambiumnetworks_e400-recovery)
+  DEVICE_VARIANT := persistent
+  DEVICE_DTS := qca9558_cambiumnetworks_e400-persistent
+  SUPPORTED_DEVICES := cambiumnetworks,e400
+  BLOCKSIZE := 128k
+  PAGESIZE := 2048
+  KERNEL_SIZE := 4096k
+  IMAGES := kernel.bin rootfs.squashfs sysupgrade.bin
+  IMAGE/kernel.bin := append-kernel | check-size 3840k
+  IMAGE/rootfs.squashfs := append-rootfs | check-size 32240k
+  IMAGE/sysupgrade.bin := append-rootfs | check-size 32240k | sysupgrade-tar rootfs=$$$$@ | append-metadata
+endef
+TARGET_DEVICES += cambiumnetworks_gambit-persistent
