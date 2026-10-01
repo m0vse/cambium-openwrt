@@ -59,5 +59,23 @@ run 0 1
 expect "upstream image untouched" '' "$(val dhcp.lan.ignore)$(cat "$W/commits" 2>/dev/null)"
 expect "upstream image: irqbalance left off" 0 "$(val 'irqbalance.@irqbalance\[0\].enabled')"
 
+# Gambit recovery's DHCP/hostname changes are RAM-only. Restored static
+# addressing and OpenWISP settings on either persistent bank must survive.
+mkdir -p "$W/root/proc"
+printf 'board_name() { echo cambiumnetworks,e400; }\n' > "$W/system.sh"
+export CAMBIUM_SYSTEM_FUNCTIONS=$W/system.sh
+gambit=$top/package/cambium/cambium-gambit-support/files/12_gambit_recovery
+for slot in 0 1; do
+	printf '%s\n' network.lan.proto=static network.lan.ipaddr=192.0.2.10 system.hostname=custom-ap > "$W/uci"
+	cp "$W/uci" "$W/before"
+	echo "ubi.mtd=rootfs$slot" > "$W/root/proc/cmdline"
+	sh "$gambit"
+	expect "Gambit bank $slot leaves saved settings unchanged" 0 "$(cmp -s "$W/uci" "$W/before"; echo $?)"
+done
+echo 'console=ttyS0,115200n8' > "$W/root/proc/cmdline"
+sh "$gambit"
+expect 'Gambit RAM recovery gets DHCP' dhcp "$(val network.lan.proto)"
+expect 'Gambit RAM recovery gets its temporary hostname' gambit-recovery "$(val 'system.@system\[0\].hostname')"
+
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
