@@ -6,20 +6,33 @@
       "name": "Gambit",
       "platform": "MIPS (OpenWrt ath79), Wi-Fi 5",
       "stock_firmware": "4.2.3.3-r10",
-      "built": false,
+      "built": true,
+      "target": "ath79/nand",
+      "devices": {
+        "recovery": "cambiumnetworks_e400-recovery",
+        "installer": "cambiumnetworks_gambit-installer",
+        "persistent": "cambiumnetworks_gambit-persistent"
+      },
       "models": [
         {
           "model": "E400",
           "sku": 6,
           "recovery": {
-            "status": "no-build"
+            "config": "uimage",
+            "status": "validated"
+          },
+          "installer": {
+            "config": "uimage",
+            "status": "untested"
           },
           "persistent": {
-            "status": "no-build"
+            "config": "uimage",
+            "status": "untested",
+            "note": "4 MiB raw kernel plus 44 MiB UBI per bank; first install writes the inactive bank and preserves the running OEM bank; shared cambium-ab guard rearms healthy OpenWrt"
           },
           "sysupgrade": {
-            "status": "no-build",
-            "note": "no OpenWrt build yet"
+            "status": "untested",
+            "note": "Shared A/B upgrade and rollback after explicit conversion of the preserved OEM bank; not yet validated on hardware"
           }
         },
         {
