@@ -819,7 +819,7 @@ gambit_stage_ram() {
 	rm -f "$check"
 	setenv_checked gambit_oem_slot "$active"
 	arm "setenv bootcmd $stock; saveenv; nboot 0x83000000 0 $off"
-	[ "$flavour" = recovery ] || say 'After RAM boot, run install again with the same source and --trial --backed-up --yes.'
+	[ "$flavour" = recovery ] || say 'After RAM boot, run install again with the same source and --backed-up --yes.'
 }
 
 install_gambit_installer() {
