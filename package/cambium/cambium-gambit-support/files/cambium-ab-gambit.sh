@@ -12,7 +12,7 @@ ab_gambit_board() {
 	[ "$1" = cambiumnetworks,e400 ] || return 1
 	AB_NAME=Gambit AB_MODEL=E400 AB_SKU=00000006 AB_ENV=gambit
 	AB_FIT=uimage AB_IMAGE_DIR=sysupgrade-cambiumnetworks_gambit-persistent
-	AB_ENV_PART=u-boot-env AB_MARKER=0 AB_QUALIFIED=0
+	AB_ENV_PART=u-boot-env AB_MARKER=0 AB_QUALIFIED=1
 	AB_BANK_SIZE=02c00000 AB_BANK_LEBS=328 AB_SLOT1_OFFSET=0x3000000
 	AB_STOCK_BOOTCMD='nboot 0x81000000 0 0x00000000'
 	oem=$(ab_getenv gambit_oem_slot)
