@@ -270,10 +270,10 @@ gate() { # gate ROOT IMAGE_NAME LABEL
 gate_extra=
 [ "$family" = thor ] && gate_extra="kmod-ath10k-ct ath10k-firmware-qca9887-ct"
 mkdir -p "$work/manifests"
-	sysupgrade=$(image "*cambiumnetworks_$family-persistent-squashfs-sysupgrade.bin")
-	tar -xOf "$sysupgrade" "$(tar -tf "$sysupgrade" | grep '/root$' | head -n 1)" > "$work/persistent-root" ||
-		fail "cannot read the root filesystem of ${sysupgrade##*/}"
-	gate "$work/persistent-root" "${sysupgrade##*/}" "$name persistent sysupgrade.bin"
+sysupgrade=$(image "*cambiumnetworks_$family-persistent-squashfs-sysupgrade.bin")
+tar -xOf "$sysupgrade" "$(tar -tf "$sysupgrade" | grep '/root$' | head -n 1)" > "$work/persistent-root" ||
+	fail "cannot read the root filesystem of ${sysupgrade##*/}"
+gate "$work/persistent-root" "${sysupgrade##*/}" "$name persistent sysupgrade.bin"
 if [ "$family" = sage ]; then
 	rootfs=$(image '*cambiumnetworks_sage-persistent-squashfs-rootfs.ubifs')
 	gate "$rootfs" "${rootfs##*/}" "Sage persistent rootfs.ubifs"
@@ -336,8 +336,8 @@ fi
 # cambium/families.json names a configuration the built FITs lack.
 old_ifs=$IFS; IFS='
 '
-	python3 cambium/scripts/manifest.py cambium/families.json "$family" "$output/images" \
-		files/etc/cambium-openwrt-release $fits
+python3 cambium/scripts/manifest.py cambium/families.json "$family" "$output/images" \
+	files/etc/cambium-openwrt-release $fits
 IFS=$old_ifs
 (cd "$output/images" && sha256sum -- * > SHA256SUMS)
 printf '%s\n' "$build_id" > "$output/BUILD_ID"

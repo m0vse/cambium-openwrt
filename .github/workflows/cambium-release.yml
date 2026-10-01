@@ -33,7 +33,7 @@ on:
       families:
         description: Families to build (space separated)
         type: string
-        default: sage thor cheetah jaguar
+        default: sage thor cheetah jaguar gambit
       tag:
         description: For promote, the release tag (release-X.Y.Z-N)
         type: string
@@ -142,7 +142,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.branch.outputs.version }}
           FORCE: ${{ inputs.force }}
-          FAMILIES: ${{ inputs.families || 'sage thor cheetah jaguar' }}
+          FAMILIES: ${{ inputs.families || 'sage thor cheetah jaguar gambit' }}
         run: |
           head=$(git rev-parse HEAD)
           # As for snapshots, a build of this commit counts only for the
@@ -154,8 +154,16 @@ jobs:
           done)
           missing=
           for family in $FAMILIES; do
-            printf '%s\n' "$assets" | grep -q "cambiumnetworks_$family-persistent" ||
-              missing="$missing $family"
+            # Gambit counts only with its whole bundle (see the snapshot workflow).
+            case "$family" in
+            gambit) want="cambiumnetworks_e400-recovery-initramfs cambiumnetworks_gambit-installer-initramfs
+              cambiumnetworks_gambit-persistent-squashfs-kernel cambiumnetworks_gambit-persistent-squashfs-rootfs
+              cambiumnetworks_gambit-persistent-squashfs-sysupgrade" ;;
+            *) want=cambiumnetworks_$family-persistent ;;
+            esac
+            for built in $want; do
+              printf '%s\n' "$assets" | grep -q "$built" || { missing="$missing $family"; break; }
+            done
           done
           if [ "$FORCE" = true ] || [ -n "$missing" ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
