@@ -152,6 +152,11 @@ jobs:
       - name: Test the release branch and feed tooling
         run: sh cambium/tests/cambium-release.sh
 
+      - name: Test the Gambit NAND ECC and factory MAC checks
+        run: |
+          python3 cambium/tests/gambit-ecc.py
+          python3 cambium/tests/gambit-mac.py
+
       - name: Render the changelogs
         run: |
           python3 cambium/scripts/changelog.py html cambium/changelog cambium/site/index.html > /dev/null
@@ -212,13 +217,17 @@ jobs:
           done)
           missing=
           for family in $FAMILIES; do
-            # Gambit has only the E400 RAM image so far.
+            # Gambit counts only with its whole bundle, so an older
+            # recovery-only snapshot cannot suppress a build.
             case "$family" in
-            gambit) built=cambiumnetworks_e400-recovery ;;
-            *) built=cambiumnetworks_$family-persistent ;;
+            gambit) want="cambiumnetworks_e400-recovery-initramfs cambiumnetworks_gambit-installer-initramfs
+              cambiumnetworks_gambit-persistent-squashfs-kernel cambiumnetworks_gambit-persistent-squashfs-rootfs
+              cambiumnetworks_gambit-persistent-squashfs-sysupgrade" ;;
+            *) want=cambiumnetworks_$family-persistent ;;
             esac
-            printf '%s\n' "$assets" | grep -q "$built" ||
-              missing="$missing $family"
+            for built in $want; do
+              printf '%s\n' "$assets" | grep -q "$built" || { missing="$missing $family"; break; }
+            done
           done
           if [ "$REBASED" = true ] || [ "$FORCE" = true ] || [ -n "$missing" ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
