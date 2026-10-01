@@ -80,11 +80,14 @@ EOF
 tool ubidetach <<'EOF'
 #!/bin/sh
 . "$(dirname "$0")/_sim"
+[ ! -f "$S/detach_stays" ] || exit 0
 for d in "$S"/sys/ubi/ubi[0-9]*; do
 	case "${d##*/}" in *_*) continue ;; esac
 	[ "$(cat "$d/mtd_num")" = "$2" ] || continue
 	k=${d##*/}; rm -rf "$S/sys/ubi/$k" "$S/sys/ubi/$k"_*; rm -f "$S/dev/$k" "$S/dev/$k"_*
-	echo "detach mtd$2" >> "$S/calls"; exit 0
+	echo "detach mtd$2" >> "$S/calls"
+	[ ! -f "$S/detach_false_error" ] || { echo 'error 22 (Invalid argument)' >&2; exit 255; }
+	exit 0
 done
 exit 1
 EOF
@@ -298,6 +301,8 @@ export CAMBIUM_FUNCTIONS=$S/functions.sh CAMBIUM_SYSTEM_FUNCTIONS=$S/system.sh
 export CAMBIUM_BDF_FW_DIR=$S/fw CAMBIUM_BDF_WORK=$S/bdwork CAMBIUM_BDF_STATUS=$S/bdstatus
 export AB_BOARD_DATA=$S/bin/board-data AB_WORK=$S/work
 export AB_GUARD_TRIES=2 AB_GUARD_PAUSE=0
+export AB_HEALTH_DIR=$S/health
+mkdir -p "$AB_HEALTH_DIR"
 
 # --- simulated AP ---------------------------------------------------------------
 BDF=lib/firmware/IPQ6018/WIFI_FW/bdwlan.b13.stock
@@ -684,6 +689,20 @@ done
 
 # OpenWiFi must allocate certificates before a restored backup formats UBIFS.
 converted_ap
+ubiattach -m 1
+touch "$S/detach_false_error"
+active_before=$(bank_hash 0)
+check "detach error with absent sysfs device permits inactive-bank upgrade" 0 dispatch platform_do_upgrade "$S/good.bin"
+assert "false detach error leaves active bank intact" [ "$(bank_hash 0)" = "$active_before" ]
+rm -f "$S/detach_false_error"
+converted_ap
+ubiattach -m 1
+touch "$S/detach_stays"
+check "detach success with device still present refuses formatting" 1 dispatch platform_do_upgrade "$S/good.bin"
+assert "still-attached target is never formatted" never_wrote 'format|mkvol|update'
+rm -f "$S/detach_stays"
+
+converted_ap
 touch "$S/certificate-preinit"
 export AB_CERTIFICATE_PREINIT=$S/certificate-preinit
 active_before=$(bank_hash 0)
@@ -774,6 +793,9 @@ assert "unhealthy trial recorded" [ "$(env_get jaguar_ab_state)" = rolled-back ]
 assert "unhealthy trial records the failed predicate" [ "$(env_get jaguar_ab_last_failure)" = \
 	'slot 1 failed: management interface br-lan has no IPv4 address' ]
 assert "unhealthy trial rebooted" grep -q reboot "$S/calls"
+assert "failed trial retains the management predicate" grep -q 'failure=management interface br-lan has no IPv4 address' "$S/health/network-boot.health"
+assert "health snapshot is bounded" sh -c '[ "$(wc -c < "$1")" -le 12288 ]' sh "$S/health/network-boot.health"
+assert "health snapshot is private" [ "$(stat -c %a "$S/health/network-boot.health")" = 600 ]
 assert "unhealthy trial leaves slot 0 the default" [ "$(env_get bootcmd):$(env_get jaguar_ab_confirmed)" = 'run jaguar_stable0:0' ]
 
 converted_ap; dispatch platform_do_upgrade "$S/good.bin" >/dev/null 2>&1
