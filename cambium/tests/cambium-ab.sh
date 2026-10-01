@@ -234,22 +234,37 @@ tool ip <<'EOF'
 [ -f "$S/net_ok" ] || exit 0
 # Only br-lan and the interfaces present under $S/net have an address.
 dev=$(echo "$*" | sed -n 's/.* dev \([^ ]*\).*/\1/p')
+[ -n "$dev" ] || dev=$(cat "$S/default_dev" 2>/dev/null || echo br-lan)
 [ "$dev" = br-lan ] || [ -d "$S/net/$dev" ] || exit 0
 case "$*" in
 *address*) echo '    inet 192.0.2.10/24 brd 192.0.2.255 scope global br-lan' ;;
-*route*) echo 'default via 192.0.2.1 dev br-lan' ;;
+*route*) [ ! -f "$S/no_default" ] && echo "default via 192.0.2.1 dev $dev" ;;
 esac
 EOF
 command -v sha256sum >/dev/null 2>&1 || tool sha256sum <<'EOF'
 #!/bin/sh
 exec shasum -a 256 "$@"
 EOF
-# uci: network.lan.device from $S/lan_device, when a test sets one.
+# uci: enough network configuration for management-interface guard tests.
 tool uci <<'EOF'
 #!/bin/sh
 . "$(dirname "$0")/_sim"
-[ "$*" = "-q get network.lan.device" ] && [ -f "$S/lan_device" ] || exit 1
-cat "$S/lan_device"
+case "$*" in
+"-q show network")
+	[ -f "$S/management_section" ] || exit 1
+	section=$(cat "$S/management_section")
+	echo "network.$section=interface"
+	;;
+"-q get network.lan.device")
+	[ -f "$S/lan_device" ] || exit 1
+	cat "$S/lan_device"
+	;;
+"-q get network."*.device)
+	[ -f "$S/management_device" ] || exit 1
+	cat "$S/management_device"
+	;;
+*) exit 1 ;;
+esac
 EOF
 cat > "$S/functions.sh" <<'EOF'
 find_mtd_index() {
@@ -317,7 +332,8 @@ set_sku() { printf "\\000\\000\\000\\$1" > "$S/dt/cambium-platform/board-sku"; }
 new_ap() {
 	local board=${1:-cambiumnetworks,xv2-2t1} active=${2:-0} other=${3:-oem} i
 	rm -rf "$S/sys" "$S/dev" "$S/flash" "$S/dt" "$S/fw" "$S/bdwork"* "$S/work" "$S/oem_root" "$S/net" "$S/ieee80211" "$S/module"
-	rm -f "$S/calls" "$S/opcount" "$S/fail_at" "$S/corrupt" "$S/bank_lebs" "$S/bdstatus" "$S/net_ok" "$S/lan_device"
+	rm -f "$S/calls" "$S/opcount" "$S/fail_at" "$S/corrupt" "$S/bank_lebs" "$S/bdstatus" "$S/net_ok" "$S/lan_device" \
+		"$S/default_dev" "$S/no_default" "$S/management_section" "$S/management_device"
 	mkdir -p "$S/sys/ubi" "$S/dev" "$S/flash" "$S/dt/cambium-platform" "$S/fw"
 	touch "$S/calls"
 	echo "$board" > "$S/board"
@@ -952,6 +968,21 @@ new_ap $T; healthy_ap; thor_radios 3; mkdir -p "$S/net/br-lan.1"
 echo br-lan > "$S/lan_device"; : > "$S/calls"
 check "a network left on br-lan is checked on br-lan" 0 guard
 assert "br-lan configuration re-arms OpenWrt" never_wrote reboot
+# OpenWiFi management networks are rendered as upstream sections.  Before
+# DHCP has installed a route, the guard must still name/check that tagged
+# management device rather than an unrelated raw Ethernet fallback.
+new_ap $T; healthy_ap; thor_radios 3; touch "$S/no_default"
+echo up0v101 > "$S/management_section"; echo up0v101 > "$S/management_device"; : > "$S/calls"
+check "missing configured management VLAN is unhealthy" 0 guard
+assert "missing management VLAN returns to stock firmware" grep -q reboot "$S/calls"
+new_ap $T; healthy_ap; thor_radios 3; touch "$S/no_default"; mkdir -p "$S/net/up0v101"
+echo up0v101 > "$S/management_section"; echo up0v101 > "$S/management_device"; : > "$S/calls"
+check "configured management VLAN is checked before its route exists" 0 guard
+assert "configured management VLAN without a route remains unhealthy" grep -q reboot "$S/calls"
+new_ap $T; healthy_ap; thor_radios 3; mkdir -p "$S/net/up0v101"
+echo up0v101 > "$S/default_dev"; : > "$S/calls"
+check "default route identifies management without readable UCI" 0 guard
+assert "routed management interface re-arms OpenWrt" never_wrote reboot
 # A validated single-bank install: OpenWrt is the committed default.
 new_ap $T; healthy_ap; thor_radios 3
 sed -i.bak 's/^bootcmd=.*/bootcmd=aq_load_fw; nand device 0; ubi part rootfs; bootm 0x60000000#config@hk02/' "$S/env"; : > "$S/calls"
@@ -1002,7 +1033,8 @@ new_sage_ap() {
 	local board=${1:-cambium,e410} active=${2:-0} kind=${3:-adopted} other i v
 	other=$((1 - active))
 	rm -rf "$S/sys" "$S/dev" "$S/flash" "$S/dt" "$S/fw" "$S/work" "$S/net" "$S/ieee80211" "$S/newroot"
-	rm -f "$S/calls" "$S/opcount" "$S/fail_at" "$S/corrupt" "$S/bdstatus" "$S/net_ok" "$S/lan_device"
+	rm -f "$S/calls" "$S/opcount" "$S/fail_at" "$S/corrupt" "$S/bdstatus" "$S/net_ok" "$S/lan_device" \
+		"$S/default_dev" "$S/no_default" "$S/management_section" "$S/management_device"
 	mkdir -p "$S/sys/ubi/ubi0" "$S/dev" "$S/flash/mtd2" "$S/dt/cambium-platform" "$S/fw" "$S/net" "$S/ieee80211"
 	touch "$S/calls"
 	echo "$board" > "$S/board"
