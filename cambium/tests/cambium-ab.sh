@@ -742,6 +742,8 @@ converted_ap; dispatch platform_do_upgrade "$S/good.bin" >/dev/null 2>&1
 uboot_trial; boot_slot 1; run_board_data >/dev/null 2>&1; : > "$S/calls"
 check "unhealthy trial (no DHCP) rolls back" 0 guard
 assert "unhealthy trial recorded" [ "$(env_get jaguar_ab_state)" = rolled-back ]
+assert "unhealthy trial records the failed predicate" [ "$(env_get jaguar_ab_last_failure)" = \
+	'slot 1 failed: management interface br-lan has no IPv4 address' ]
 assert "unhealthy trial rebooted" grep -q reboot "$S/calls"
 assert "unhealthy trial leaves slot 0 the default" [ "$(env_get bootcmd):$(env_get jaguar_ab_confirmed)" = 'run jaguar_stable0:0' ]
 
