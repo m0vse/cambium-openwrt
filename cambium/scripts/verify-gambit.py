@@ -130,6 +130,15 @@ def main():
         require(("read-only" in parts[label]) == protected,
                 "wrong partition protection: " + label)
     verify_factory_mac(nodes)
+    controllers = [properties for properties in nodes.values()
+                   if b"qca,ar934x-nand" in properties.get("compatible", b"").split(b"\0")]
+    require(len(controllers) == 1, "NAND controller missing or ambiguous")
+    nand = controllers[0]
+    require(nand.get("nand-ecc-mode") == b"soft\0" and
+            nand.get("nand-ecc-algo") == b"hamming\0" and
+            nand.get("nand-ecc-step-size") == struct.pack(">I", 256) and
+            nand.get("nand-ecc-strength") == struct.pack(">I", 1),
+            "NAND must use OEM-compatible 256-byte/1-bit software Hamming ECC")
     print(f"Gambit {flavour}: uImage CRCs, LZMA, E400 DT and partition protection OK "
           f"({len(image)} bytes; expands to {len(payload)} bytes)")
 
