@@ -780,6 +780,8 @@ ap_gambit_installer() {
 	for n in 0 1 2 3 4 5 6 7 8 9; do
 		mkdir -p "$RT/sys/class/mtd/mtd$n"
 		echo 0x800 > "$RT/sys/class/mtd/mtd$n/flags"
+		echo 1 > "$RT/sys/class/mtd/mtd$n/ecc_strength"
+		echo 256 > "$RT/sys/class/mtd/mtd$n/ecc_step_size"
 	done
 	for n in 0 1 2 3 6; do echo 0xc00 > "$RT/sys/class/mtd/mtd$n/flags"; done
 	echo 0 > "$RT/sys/class/mtd/mtd0/offset"
@@ -802,6 +804,10 @@ for oem in 0 1; do
 	assert "Gambit RAM installer wrote UBI rootfs$target" cmp -s "$W/flash/mtd$ri/1.data" "$W/gambit-image/sysupgrade-cambiumnetworks_gambit-persistent/root"
 	assert "Gambit RAM installer preserved OEM bank $oem" [ "$(cat "$RT/dev/mtd$((2 * oem))")/$(cat "$RT/dev/mtd$((2 * oem + 1))")" = "OEM-kernel$oem/OEM-rootfs$oem" ]
 	assert "Gambit RAM installer armed the inactive bank $target" grep -q "^bootcmd=.*ubi.mtd=rootfs$target" "$W/env"
+	ap_gambit_installer "$oem"
+	echo 4 > "$RT/sys/class/mtd/mtd$ki/ecc_strength"
+	check "Gambit refuses the old hardware-ECC RAM installer (OEM bank $oem)" 1 inst_gambit --from "$W/rel" --trial --backed-up --yes --no-reboot install
+	assert "Gambit incompatible ECC cannot erase or write NAND" [ -z "$(grep -E 'erase|nandwrite|ubiformat' "$W/calls")" ]
 done
 
 echo "$pass passed, $fail failed"
