@@ -1,8 +1,12 @@
 #!/bin/sh
 
-. /lib/functions/system.sh
+R=${CAMBIUM_ROOT:-}
+. "${CAMBIUM_SYSTEM_FUNCTIONS:-/lib/functions/system.sh}"
 
 [ "$(board_name)" = "cambiumnetworks,e400" ] || exit 0
+# Persistent images already get the shared AP defaults. Never replace a
+# restored static/OpenWISP network or custom hostname during sysupgrade.
+grep -q 'ubi.mtd=rootfs[01]' "$R/proc/cmdline" && exit 0
 
 # Recovery is an upstream DHCP client and must not offer DHCP or RA on the
 # attached network.
@@ -20,11 +24,7 @@ uci -q set dhcp.lan.dhcpv6='disabled'
 uci -q set dhcp.lan.ra='disabled'
 uci -q commit dhcp
 
-if grep -q 'ubi.mtd=rootfs[01]' /proc/cmdline; then
-	uci -q set system.@system[0].hostname='e400'
-else
-	uci -q set system.@system[0].hostname='gambit-recovery'
-fi
+uci -q set system.@system[0].hostname='gambit-recovery'
 uci -q commit system
 
 exit 0
