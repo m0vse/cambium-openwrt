@@ -14,7 +14,7 @@ procedure, and lists the current snapshots and their package feeds.
 
 | Family | Target | Devices built | Support package |
 | --- | --- | --- | --- |
-| Gambit (E400, E500, E501S, E502S) | `ath79` (MIPS) | no build yet | — |
+| Gambit (E400; other models not built) | `ath79/nand` (MIPS) | `cambiumnetworks_e400-recovery`, `cambiumnetworks_gambit-installer`, `cambiumnetworks_gambit-persistent` | `cambium-gambit-support` |
 | Sage | `ipq40xx/generic` | `cambiumnetworks_sage-persistent`, `cambiumnetworks_sage-recovery` | `cambium-sage-support` |
 | Lila (E425W, E505) | `ath79` (MIPS) | no build yet | — |
 | Thor | `qualcommax/ipq807x` | `cambiumnetworks_thor-persistent`, `cambiumnetworks_thor-recovery` | `cambium-thor-support` |
@@ -40,6 +40,16 @@ OEM slot nor ART is ever written; the importer refuses writable partitions,
 except once on an A/B image (below), whose OEM bank must be writable.
 
 ## A/B firmware banks (`cambium-ab`)
+
+Gambit E400 uses legacy uImages rather than FITs: a 4 MiB raw NAND kernel
+and 44 MiB UBI root/overlay partition in each 48 MiB bank. Its module uses
+the same trial, health guard, conversion and upgrade tools as other families.
+The OEM installer identifies the running bank and stages a RAM installer in
+the opposite bank; the RAM installer writes only that inactive bank and
+records the preserved OEM bank for rollback. Nothing assumes bank 0 or bank 1
+is always inactive. Load uImages at `0x83000000` to avoid overlap during LZMA
+decompression. Persistent install and A/B remain hardware trials (`--trial`);
+only E400 recovery is validated. Other Gambit models remain `no-build`.
 
 Every family is moving to the same A/B design: two OpenWrt firmware banks,
 `sysupgrade` writing the inactive one, a one-shot trial boot and automatic

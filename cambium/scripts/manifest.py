@@ -40,7 +40,7 @@ def role(name, devices):
         ("persistent-transition", re.escape(devices.get("persistent", "\0")) + r"-.*sysupgrade-ubifs\.bin$"),
         ("persistent-sysupgrade", re.escape(devices.get("persistent", "\0")) + r"-.*sysupgrade\.bin$"),
         ("persistent-factory", re.escape(devices.get("persistent", "\0")) + r"-.*factory\.ubi$"),
-        ("persistent-kernel", re.escape(devices.get("persistent", "\0")) + r"-.*kernel\.itb$"),
+        ("persistent-kernel", re.escape(devices.get("persistent", "\0")) + r"-.*kernel\.(itb|bin)$"),
         ("persistent-rootfs", re.escape(devices.get("persistent", "\0")) + r"-.*rootfs\.(ubifs|squashfs)$"),
     ]
     for r, pattern in rules:

@@ -1,7 +1,7 @@
 #!/bin/sh
 # cambium-install.sh: RAM-boot or install Cambium OpenWrt from the access
 # point's stock firmware root shell, for every built family (Sage, Thor,
-# Jaguar, Cheetah). It encodes the procedures on
+# Jaguar, Cheetah, Gambit E400). It encodes the procedures on
 # https://m0vse.github.io/cambium-openwrt/#install.
 #
 #   sh cambium-install.sh [options] ram       RAM-boot the recovery image
@@ -263,10 +263,18 @@ layout_sage() {
 }
 
 check_stock_bootcmd() {
-	local cur want=bootipq
+	local cur want=bootipq slot addr
 	[ "$FAMILY" = thor ] && want='aq_load_fw&&bootipq'
+	if [ "$FAMILY" = gambit ]; then
+		slot=$(gambit_oem_slot)
+		case "$slot" in 0) want='nboot 0x81000000 0 0x00000000' ;; 1) want='nboot 0x81000000 0 0x03000000' ;; *) die 'cannot determine the running OEM Gambit bank' ;; esac
+	fi
 	need fw_printenv fw_setenv
 	cur=$(getenv bootcmd) || die "cannot read the U-Boot environment (fw_printenv failed)"
+	if [ "$FAMILY" = gambit ] && [ "$cur" = 'nboot 0x81000000 0 ${load_addr}' ]; then
+		addr=$(getenv load_addr)
+		case "$slot:$addr" in 0:0x00000000|0:0x0|1:0x03000000|1:0x3000000) return 0 ;; esac
+	fi
 	[ "$cur" = "$want" ] || die "bootcmd is '$cur', not the stock '$want': a one-shot or install is already armed. Reboot once (a one-shot restores itself) and run this again"
 }
 
@@ -275,7 +283,8 @@ check_stock_bootcmd() {
 # backup NAME SOURCE...: raw copies of what this run may write, plus the
 # U-Boot environment and ART, into ${BACKUP_DIR:-$WORK/backup}.
 backup() {
-	local b=${BACKUP_DIR:-$WORK/backup} f n i
+	local b=${BACKUP_DIR:-$WORK/backup} f n i protected='0:APPSBLENV 0:ART'
+	[ "$FAMILY" != gambit ] || protected='u-boot-env ART'
 	if [ -n "$backed_up" ]; then
 		say "--backed-up: you have copied the backups off the access point"
 		return 0
@@ -287,7 +296,7 @@ backup() {
 		say "backing up $f"
 		step "back up $f" dd if="$f" of="$b/$n.bin" bs=131072
 	done
-	for n in 0:APPSBLENV 0:ART; do
+	for n in $protected; do
 		i=$(mtd_idx "$n")
 		[ -n "$i" ] || die "no $n partition in /proc/mtd to back up"
 		[ -s "$b/${n#0:}.bin" ] || step "back up $n" dd if="$R/dev/mtd${i}ro" of="$b/${n#0:}.bin"
@@ -452,7 +461,7 @@ verify_factory() {
 
 # arm BOOTCMD: arm a one-shot (changing_bootcmd first, as this U-Boot needs).
 arm() {
-	if [ "$FAMILY" != sage ]; then
+	if [ "$FAMILY" != sage ] && [ "$FAMILY" != gambit ]; then
 		setenv_checked changing_bootcmd 1
 	fi
 	setenv_checked bootcmd "$1"
@@ -485,6 +494,10 @@ cmd_ram() {
 	identify "$flavour"
 	check_stock_bootcmd
 	case "$FAMILY" in
+	gambit)
+		[ -z "$ptest" ] || die '--persistent-test is for Jaguar'
+		gambit_stage_ram recovery
+		;;
 	sage)
 		[ -n "$ptest" ] && die "--persistent-test is for Jaguar"
 		[ -z "$backed_up" ] || die "Sage RAM recovery's off-AP backup must be hash-verified; --backed-up is not sufficient"
@@ -727,8 +740,11 @@ cmd_install() {
 	load_release
 	if on_openwrt; then
 		identify installer
-		[ "$FAMILY" = thor ] || die "run install from the stock firmware; on OpenWrt only the Thor installer uses it"
-		install_thor_installer
+		case "$FAMILY" in
+		thor) install_thor_installer ;;
+		gambit) install_gambit_installer ;;
+		*) die 'run install from the stock firmware or the family RAM installer' ;;
+		esac
 		finish
 		return
 	fi
@@ -736,6 +752,7 @@ cmd_install() {
 	[ -n "$ptest" ] && die "--persistent-test belongs to ram"
 	check_stock_bootcmd
 	case "$FAMILY" in
+	gambit) gambit_stage_ram installer ;;
 	jaguar) install_jaguar ;;
 	cheetah) install_cheetah ;;
 	sage) install_sage_ab ;;
@@ -743,6 +760,100 @@ cmd_install() {
 	*) die "no install procedure for family $FAMILY" ;;
 	esac
 	finish
+}
+
+# Determine OEM's running bank from its root argument. In the RAM installer,
+# use the marker recorded and read back before the guarded RAM boot.
+gambit_oem_slot() {
+	local slot idx found=
+	if on_openwrt; then
+		getenv gambit_oem_slot
+		return
+	fi
+	for slot in 0 1; do
+		idx=$(mtd_idx rootfs$slot)
+		[ -n "$idx" ] || return 1
+		if grep -q "root=/dev/mtdblock$idx\([[:space:]]\|$\)" "$R/proc/cmdline"; then
+			[ -z "$found" ] || return 1
+			found=$slot
+		fi
+	done
+	[ -n "$found" ] || return 1
+	echo "$found"
+}
+
+# Gambit OEM U-Boot cannot boot UBI kernels. Stage RAM in the inactive OEM
+# rootfs, then let the RAM installer write its 4 MiB kernel / 44 MiB UBI pair.
+gambit_stage_ram() {
+	local flavour=$1 image idx active target bytes padded check want got off stock slot
+	need nanddump nandwrite flash_erase
+	active=$(gambit_oem_slot)
+	case "$active" in 0|1) ;; *) die 'cannot identify the running OEM Gambit bank' ;; esac
+	target=$((1 - active)); idx=$(mtd_idx rootfs$target)
+	for slot in 0 1; do
+		[ "$(mtd_size linux$slot):$(mtd_size rootfs$slot)" = 00300000:02d00000 ] || die 'unexpected OEM Gambit bank geometry'
+		bank_offset "$(mtd_idx linux$slot)" $((slot * 0x3000000)) linux$slot
+		bank_offset "$(mtd_idx rootfs$slot)" $((slot * 0x3000000 + 0x300000)) rootfs$slot
+	done
+	off=$(printf '0x%08x' $((target * 0x3000000 + 0x300000)))
+	stock=$(printf 'nboot 0x81000000 0 0x%08x' $((active * 0x3000000)))
+	[ "$flavour" = recovery ] || identify installer
+	backup "$R/dev/mtd$(mtd_idx linux$target)ro" "$R/dev/mtd${idx}ro"
+	if [ "$flavour" = recovery ]; then
+		image=$(get_image cambiumnetworks_e400-recovery-initramfs-kernel.bin) || exit 1
+	else
+		image=$(get_image cambiumnetworks_gambit-installer-initramfs-kernel.bin) || exit 1
+	fi
+	bytes=$(wc -c < "$image")
+	[ "$bytes" -gt 64 ] && [ "$bytes" -le $((0x2b00000)) ] || die 'RAM image is empty or too large'
+	[ "$(hexenc "$image" | head -c 8)" = 27051956 ] || die 'RAM image is not a uImage'
+	want=$(sha256sum "$image" | cut -d' ' -f1)
+	dry_run_stop "erase inactive OEM rootfs$target, stage the RAM image and boot it once"
+	step "erase inactive rootfs$target" flash_erase "$R/dev/mtd$idx" 0 0
+	step 'stage Gambit RAM image' nandwrite -p "$R/dev/mtd$idx" "$image"
+	padded=$(( (bytes + 2047) / 2048 * 2048 ))
+	check=$WORK/gambit-ram-readback
+	step 'read back Gambit RAM image' nanddump -q --omitoob --bb=skipbad -l "$padded" -f "$check" "$R/dev/mtd$idx"
+	got=$(head -c "$bytes" "$check" | sha256sum | cut -d' ' -f1)
+	[ "$got" = "$want" ] || die 'Gambit RAM image readback mismatch'
+	rm -f "$check"
+	setenv_checked gambit_oem_slot "$active"
+	arm "setenv bootcmd $stock; saveenv; nboot 0x83000000 0 $off"
+	[ "$flavour" = recovery ] || say 'After RAM boot, run install again with the same source and --trial --backed-up --yes.'
+}
+
+install_gambit_installer() {
+	local core module writer image board batch oem idx
+	[ "$(cat "$R/tmp/sysinfo/board_name")" = cambiumnetworks,e400 ] || die 'not an E400 installer'
+	grep -q 'ubi.mtd=' "$R/proc/cmdline" && die 'this is persistent OpenWrt: use sysupgrade, not install'
+	check_stock_bootcmd
+	oem=$(gambit_oem_slot)
+	case "$oem" in 0|1) ;; *) die 'missing recorded OEM Gambit bank: stage the installer from OEM first' ;; esac
+	# Never infer that this RAM boot proves the off-device OEM backups.
+	[ -n "$backed_up" ] || die 'Gambit requires verified off-device OEM bank and environment backups; pass --backed-up once checked'
+	core=$(get_image cambium-ab.sh) || exit 1
+	module=$(get_image cambium-ab-gambit.sh) || exit 1
+	writer=$(get_image cambium-ab-upgrade.sh) || exit 1
+	CAMBIUM_AB_MODULES=$WORK CAMBIUM_AB_LIB=$core
+	. "$core"
+	. "$module"
+	. "$writer"
+	ab_board cambiumnetworks,e400 && [ "$(ab_dt_sku)" = "$AB_SKU" ] &&
+		ab_gambit_layout || die 'the E400 SKU or 4+44 MiB installer layout does not match'
+	AB_ACTIVE=$oem AB_TARGET=$((1 - oem)) AB_TARGET_PART=rootfs$((1 - oem))
+	eval "AB_TARGET_MTD=\$AB_MTD$AB_TARGET"
+	image=$(get_image cambiumnetworks_gambit-persistent-squashfs-sysupgrade.bin) || exit 1
+	ab_image_extract "$image" || die 'invalid persistent image'
+	eval "idx=\$AB_KERNEL_MTD$AB_TARGET"
+	ab_mtd_writable "$idx" && ab_mtd_writable "$AB_TARGET_MTD" || die 'boot the writable Gambit RAM installer first'
+	# A marker accidentally left by an earlier conversion must never make the
+	# boot guard treat the preserved OEM bank as an OpenWrt bank.
+	[ -z "$(ab_getenv gambit_ab_version)" ] || die 'Gambit already has A/B metadata; use its upgrade/recovery path'
+	dry_run_stop "write and verify only linux$AB_TARGET/rootfs$AB_TARGET and arm their guarded first boot"
+	ab_gambit_write_target || die "Gambit inactive-bank write or readback failed; OEM bank $oem is unchanged"
+	sync
+	ab_setenv bootcmd "$(ab_gambit_guarded_command "$AB_TARGET")" || die 'cannot arm guarded persistent boot'
+	say "Persistent inactive bank $AB_TARGET verified and armed. The shared health guard will rearm it; failed boots return to OEM bank $oem."
 }
 
 # Installed OpenWrt that still has the stock firmware in its other slot:
@@ -755,6 +866,10 @@ cmd_stock() {
 	need fw_printenv fw_setenv
 	board=$(cat "$R/tmp/sysinfo/board_name" 2>/dev/null)
 	case "$board" in
+	cambiumnetworks,e400)
+		env=gambit fallback=$(getenv gambit_oem_slot)
+		case "$fallback" in 0|1) want=$(printf 'nboot 0x81000000 0 0x%08x' $((fallback * 0x3000000))) ;; *) die 'no recorded Gambit OEM fallback bank' ;; esac
+		;;
 	cambiumnetworks,xv3-8) env=thor want='aq_load_fw&&bootipq' ;;
 	cambiumnetworks,xv2-2*|cambiumnetworks,xe3-4*) env=jaguar want=bootipq ;;
 	cambiumnetworks,xv2-21x|cambiumnetworks,xv2-22h|cambiumnetworks,xv2-23t) env=cheetah want=bootipq ;;
@@ -781,8 +896,10 @@ cmd_stock() {
 	dry_run_stop "make the stock firmware the default boot"
 	# The default bootcmd first: U-Boot accepts it with or without the marker.
 	setenv_checked bootcmd "$want"
-	step "fw_setenv changing_bootcmd" fw_setenv changing_bootcmd
-	[ -z "$(getenv changing_bootcmd)" ] || die "changing_bootcmd did not clear"
+	if [ "$env" != gambit ]; then
+		step "fw_setenv changing_bootcmd" fw_setenv changing_bootcmd
+		[ -z "$(getenv changing_bootcmd)" ] || die "changing_bootcmd did not clear"
+	fi
 	say "the stock firmware is the default boot again; this OpenWrt stays in its slot until it is overwritten."
 	say "from the stock firmware: sh cambium-install.sh --from ... install"
 	finish

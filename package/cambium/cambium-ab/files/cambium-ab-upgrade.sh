@@ -62,10 +62,14 @@ ab_image_extract() {
 	AB_KERNEL=$AB_WORK/$AB_IMAGE_DIR/kernel
 	AB_ROOT=$AB_WORK/$AB_IMAGE_DIR/root
 	magic=$(hexdump -n 4 -v -e '4/1 "%02x"' "$AB_KERNEL")
+	if ab_hook check_kernel; then
+		"ab_${AB_FAMILY}_check_kernel" "$AB_KERNEL" || return 1
+	else
 	[ "$magic" = d00dfeed ] || ab_fail "kernel is not a FIT image" || return 1
 	# A FIT node name follows the FDT_BEGIN_NODE token, which ends in 0x01.
 	tr '\000' '\n' < "$AB_KERNEL" | grep -q "^$(printf '\001')$AB_FIT\$" ||
 		ab_fail "FIT lacks $AB_FIT for $AB_MODEL" || return 1
+	fi
 	if [ "$AB_ROOT_MAGIC" = hsqs ]; then
 		[ "$(head -c 4 "$AB_ROOT")" = hsqs ] || ab_fail "root is not SquashFS" || return 1
 	else
