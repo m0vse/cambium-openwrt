@@ -288,6 +288,7 @@ ln -s "$jaguar_module_dir/cambium-ab-jaguar.sh" "$S/modules/"
 ln -s "$top/package/cambium/cambium-cheetah-support/files/cambium-ab-cheetah.sh" "$S/modules/"
 ln -s "$top/package/cambium/cambium-thor-support/files/cambium-ab-thor.sh" "$S/modules/"
 ln -s "$top/package/cambium/cambium-sage-support/files/cambium-ab-sage.sh" "$S/modules/"
+ln -s "$top/package/cambium/cambium-gambit-support/files/cambium-ab-gambit.sh" "$S/modules/"
 export CAMBIUM_SAGE_LIB=$top/target/linux/ipq40xx/base-files/lib/functions/cambium-sage.sh
 export AB_NEWROOT=$S/newroot
 export CAMBIUM_AB_LIB=$ab_pkg/cambium-ab.sh CAMBIUM_AB_MODULES=$S/modules
@@ -1214,6 +1215,153 @@ new_sage_ap $E 0 adopted; echo mtd2/3 > "$S/corrupt"
 check "a Sage readback mismatch fails" 1 dispatch40xx platform_do_upgrade "$S/sage.bin"
 assert "readback failure: pair 0 stays the default" [ "$(env_get bootcmd):$(env_get sage_ab_state)" = 'run sage_stable0:write-failed' ]
 assert "readback failure is recorded" [ -n "$(env_get sage_ab_last_failure)" ]
+
+# Gambit keeps its kernels outside UBI. Exercise the real module through the
+# same writer, platform dispatcher and health guard as the other families.
+tool flash_erase <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+fail_point flash_erase
+: > "$1"
+echo "erase ${1##*/}" >> "$S/calls"
+EOF
+tool nandwrite <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+[ "$1" = -p ] && shift
+fail_point nandwrite
+cp "$2" "$1" || exit 1
+echo "nandwrite ${1##*/}" >> "$S/calls"
+EOF
+tool nanddump <<'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_sim"
+out= length= dev=
+while [ $# -gt 0 ]; do
+	case "$1" in -f) out=$2; shift ;; -l) length=$2; shift ;; -*) ;; *) dev=$1 ;; esac
+	shift
+done
+head -c "$length" "$dev" > "$out" || exit 1
+[ ! -f "$S/corrupt-raw" ] || printf X | dd of="$out" bs=1 seek=64 conv=notrunc 2>/dev/null
+echo "nanddump ${dev##*/}" >> "$S/calls"
+EOF
+new_gambit_ap() {
+	local active=${1:-1} idx=$((2 * ${1:-1} + 1)) n
+	new_ap cambiumnetworks,e400
+	set_sku 006
+	printf '%s\n' 'mtd0: 00400000 00020000 "linux0"' 'mtd1: 02c00000 00020000 "rootfs0"' \
+		'mtd2: 00400000 00020000 "linux1"' 'mtd3: 02c00000 00020000 "rootfs1"' \
+		'mtd4: 02000000 00020000 "nvram"' 'mtd5: 00040000 00010000 "u-boot"' \
+		'mtd6: 00010000 00010000 "u-boot-env"' 'mtd7: 00790000 00010000 "CrashLog"' \
+		'mtd8: 00010000 00010000 "mfginfo"' 'mtd9: 00010000 00010000 "ART"' > "$S/proc_mtd"
+	for n in 0 1 2 3 4 5 6 7 8 9; do
+		mkdir -p "$S/sys/mtd/mtd$n"
+		echo 0x800 > "$S/sys/mtd/mtd$n/flags"
+	done
+	for n in 0 1 2 3 6; do echo 0xc00 > "$S/sys/mtd/mtd$n/flags"; done
+	echo 328 > "$S/bank_lebs"
+	rm -rf "$S/sys/ubi" "$S/flash"; mkdir -p "$S/sys/ubi/ubi0" "$S/flash"
+	make_bank "$idx" unused hsqs-running-root
+	echo "$idx" > "$S/sys/ubi/ubi0/mtd_num"
+	(. "$S/bin/_sim"; refresh ubi0 "$idx")
+	printf 'ubi.mtd=rootfs%s root=/dev/ubiblock0_1\n' "$active" > "$S/cmdline"
+	printf '%s\n' '/dev/ubiblock0_1 /rom squashfs ro 0 0' \
+		'ubi0:rootfs_data /overlay ubifs rw 0 0' 'overlayfs:/overlay / overlay rw 0 0' > "$S/mounts"
+	printf 'bootcmd=nboot 0x81000000 0 0x%08x\ngambit_oem_slot=%s\n' $(((1 - active) * 0x3000000)) "$((1 - active))" > "$S/env"
+	printf OEM-kernel0 > "$S/dev/mtd0"; printf OEM-rootfs0 > "$S/dev/mtd1"
+	: > "$S/calls"
+}
+dispatch79() {
+	(. "$S/system.sh"; . "$S/functions.sh"; . "$CAMBIUM_AB_UPGRADE_LIB"
+	 nand_restore_config() { echo "restore-config $CI_UBIPART $1" >> "$S/calls"; }
+	 . "$top/target/linux/ath79/nand/base-files/lib/upgrade/platform.sh"; "$@")
+}
+
+new_gambit_ap
+check 'E400 4+44 MiB identity, bank 1 active' 0 in_lib eval 'ab_identity && [ "$AB_ACTIVE:$AB_TARGET:$AB_ACTIVE_MTD:$AB_TARGET_MTD" = 1:0:3:1 ]'
+check 'E400 uses NOR environment by label' 0 in_lib eval 'unset AB_ENV_CONFIG; ab_board cambiumnetworks,e400; ab_env_config && grep -q "^/dev/mtd6 " "$AB_ENV_CONFIG"'
+cmd=$(in_lib eval 'ab_board cambiumnetworks,e400; ab_guarded_command 1')
+assert 'E400 restores OEM default before changing runtime bootargs' [ "$cmd" = 'setenv bootcmd nboot 0x81000000 0 0x00000000; saveenv; setenv bootargs console=ttyS0,115200n8 ubi.mtd=rootfs1 root=/dev/ubiblock0_1 rootfstype=squashfs init=/sbin/init panic=5 mem=128M; nboot 0x83000000 0 0x03000000' ]
+check 'E400 first install refuses bank 0' 1 in_lib eval 'ab_board cambiumnetworks,e400; ab_guarded_command 0'
+new_gambit_ap 0
+cmd0=$(in_lib eval 'ab_board cambiumnetworks,e400; ab_guarded_command 0')
+assert 'E400 inactive bank 0 restores OEM bank 1 before booting' [ "$cmd0" = 'setenv bootcmd nboot 0x81000000 0 0x03000000; saveenv; setenv bootargs console=ttyS0,115200n8 ubi.mtd=rootfs0 root=/dev/ubiblock0_1 rootfstype=squashfs init=/sbin/init panic=5 mem=128M; nboot 0x83000000 0 0x00000000' ]
+healthy_sage
+check 'E400 healthy inactive-bank-0 boot rearms shared guard' 0 guard
+assert 'E400 shared guard preserves OEM bank 1 fallback' [ "$(env_get bootcmd)" = "$cmd0" ]
+new_gambit_ap
+sed -i.bak '/^gambit_oem_slot=/d' "$S/env"
+check 'E400 missing OEM slot marker refuses guarded boot' 1 in_lib eval 'ab_board cambiumnetworks,e400; ab_guarded_command 1'
+new_gambit_ap
+echo 0xc00 > "$S/sys/mtd/mtd9/flags"
+check 'E400 writable ART refused' 1 in_lib ab_identity
+new_gambit_ap
+echo 'ubi.mtd=rootfs0 ubi.mtd=rootfs1' > "$S/cmdline"
+check 'E400 ambiguous slot refused' 1 in_lib ab_identity
+new_gambit_ap
+sed -i.bak 's/00400000/00300000/g' "$S/proc_mtd"
+check 'E400 old 3 MiB geometry refused' 1 in_lib ab_identity
+new_gambit_ap
+echo 1 > "$S/sys/ubi/ubi0/mtd_num"
+check 'E400 wrong UBI attachment refused' 1 in_lib ab_identity
+
+# Minimal legacy uImage: the shared gate checks type and exact payload size.
+dd if=/dev/zero of="$S/e400-kernel" bs=64 count=1 2>/dev/null
+printf '\047\005\031\126' | dd of="$S/e400-kernel" conv=notrunc 2>/dev/null
+printf '\000\000\000\003' | dd of="$S/e400-kernel" bs=1 seek=12 conv=notrunc 2>/dev/null
+printf '\005\005\002\003' | dd of="$S/e400-kernel" bs=1 seek=28 conv=notrunc 2>/dev/null
+printf new >> "$S/e400-kernel"
+make_image "$S/e400.bin" "$S/e400-kernel" '' sysupgrade-cambiumnetworks_gambit-persistent
+new_gambit_ap
+check 'E400 sysupgrade cannot overwrite preserved OEM before conversion' 1 dispatch79 platform_check_image "$S/e400.bin"
+healthy_sage
+check 'E400 healthy legacy boot rearms shared guard' 0 guard
+assert 'E400 guarded default selected' [ "$(env_get bootcmd)" = "$cmd" ]
+assert 'E400 needs no changing_bootcmd marker' [ -z "$(env_get changing_bootcmd)" ]
+assert 'E400 healthy boot clears the OEM boot counter' [ "$(env_get bootcount)" = 0 ]
+assert 'E400 guard leaves both OEM partitions intact' [ "$(cat "$S/dev/mtd0")/$(cat "$S/dev/mtd1")" = OEM-kernel0/OEM-rootfs0 ]
+
+new_gambit_ap
+printf '%s\n' 'gambit_ab_version=1' 'gambit_ab_confirmed=1' 'gambit_ab_state=confirmed' >> "$S/env"
+check 'E400 converted sysupgrade image accepted' 0 dispatch79 platform_check_image "$S/e400.bin"
+check 'E400 bank 1 to 0 uses shared upgrade writer' 0 dispatch79 platform_do_upgrade "$S/e400.bin"
+assert 'E400 raw target kernel written' cmp -s "$S/dev/mtd0" "$S/e400-kernel"
+assert 'E400 target rootfs uses UBI volume ID 1' [ "$(cat "$S/flash/mtd1/1.name")" = rootfs ]
+assert 'E400 target overlay uses UBI volume ID 2' [ "$(cat "$S/flash/mtd1/2.name")" = rootfs_data ]
+assert 'E400 source kernel and root partition were not erased' never_wrote 'erase mtd2|format mtd3|nandwrite mtd2'
+assert 'E400 shared trial restores confirmed bank first' [ "$(env_get bootcmd)" = 'setenv bootcmd run gambit_stable1; setenv image 1; setenv gambit_ab_state trial-started; saveenv; run gambit_boot0; run gambit_boot1' ]
+assert 'E400 bank-specific boot command uses raw NAND offset' grep -q '^gambit_boot0=.*ubi.mtd=rootfs0.*nboot 0x83000000 0 0x00000000$' "$S/env"
+check 'E400 refuses another upgrade before trial confirmation' 1 dispatch79 platform_check_image "$S/e400.bin"
+# Simulate the trial's first durable U-Boot step and a healthy bank 0 boot.
+sed -i.bak -e 's/^bootcmd=.*/bootcmd=run gambit_stable1/' -e 's/^gambit_ab_state=.*/gambit_ab_state=trial-started/' "$S/env"
+echo 'ubi.mtd=rootfs0 root=/dev/ubiblock0_1' > "$S/cmdline"
+echo 1 > "$S/sys/ubi/ubi0/mtd_num"
+(. "$S/bin/_sim"; refresh ubi0 1)
+healthy_sage
+check 'E400 shared guard confirms a healthy trial' 0 guard
+assert 'E400 trial bank 0 becomes the stable default' [ "$(env_get gambit_ab_confirmed):$(env_get bootcmd)" = '0:run gambit_stable0' ]
+
+new_gambit_ap
+printf '%s\n' 'gambit_ab_version=1' 'gambit_ab_confirmed=1' 'gambit_ab_state=trial-started' 'gambit_ab_target=0' >> "$S/env"
+check 'E400 failed trial returns to the confirmed bank' 1 guard
+assert 'E400 shared guard records rollback' [ "$(env_get gambit_ab_state)" = rolled-back ]
+
+new_gambit_ap
+printf '%s\n' 'gambit_ab_version=1' 'gambit_ab_confirmed=1' 'gambit_ab_state=confirmed' >> "$S/env"
+touch "$S/corrupt-raw"
+check 'E400 raw NAND readback corruption refuses the upgrade' 1 dispatch79 platform_do_upgrade "$S/e400.bin"
+assert 'E400 raw mismatch never arms a trial or formats rootfs' never_wrote 'format|setenv bootcmd'
+assert 'E400 raw mismatch records a write failure' [ "$(env_get gambit_ab_state)" = write-failed ]
+rm -f "$S/corrupt-raw"
+
+new_gambit_ap
+printf '%s\n' 'gambit_ab_version=1' 'gambit_ab_confirmed=1' 'gambit_ab_state=confirmed' >> "$S/env"
+echo 1 > "$S/fail_at"
+check 'E400 failed environment write stops before flash writes' 1 dispatch79 platform_do_upgrade "$S/e400.bin"
+assert 'E400 failed pre-write never erases kernel/root' never_wrote 'erase|format'
+new_gambit_ap
+check 'E400 oversized kernel refused' 1 in_lib eval 'ab_identity && ab_gambit_image_fits 4194304 1024'
+check 'E400 oversized root leaves overlay intact' 1 in_lib eval 'ab_identity && ab_gambit_image_fits 1024 44000000'
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]

@@ -1,0 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+#include "qca9558_cambiumnetworks_e400-installer.dts"
+
+/ {
+	chosen {
+		// With no DT bootargs, MIPS takes the bank-specific U-Boot arguments.
+		/delete-property/ bootargs;
+	};
+};
