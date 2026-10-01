@@ -681,6 +681,18 @@ for case in cambiumnetworks,xv2-2t1:0 cambiumnetworks,xv2-2t1:1 cambiumnetworks,
 	check "$board: a second upgrade waits for the trial" 1 dispatch platform_check_image "$S/good.bin"
 done
 
+# OpenWiFi must allocate certificates before a restored backup formats UBIFS.
+converted_ap
+touch "$S/certificate-preinit"
+export AB_CERTIFICATE_PREINIT=$S/certificate-preinit
+active_before=$(bank_hash 0)
+check "OpenWiFi upgrade reserves certificates before the overlay" 0 dispatch platform_do_upgrade "$S/good.bin"
+assert "OpenWiFi gets a 20-LEB certificate volume" [ "$(cat "$S/flash/mtd1/4.name" "$S/flash/mtd1/4.size" | tr '\n' ':')" = "certificates:$((20 * LEB)):" ]
+assert "certificate volume precedes rootfs_data allocation" sh -c \
+	"[ \$(grep -n 'mkvol mtd1 4 certificates' '$S/calls' | cut -d: -f1) -lt \$(grep -n 'mkvol mtd1 2 rootfs_data' '$S/calls' | cut -d: -f1) ]"
+assert "certificate allocation leaves the running bank untouched" [ "$(bank_hash 0)" = "$active_before" ]
+unset AB_CERTIFICATE_PREINIT
+
 # An image that fits the XV2-2T1's 96 MiB bank but not the XV2-2's 52 MiB one.
 { printf hsqs; head -c $((330 * LEB)) /dev/zero; } > "$S/root-mid"; make_image "$S/mid.bin" "" "$S/root-mid"
 converted_ap cambiumnetworks,xv2-2t1
