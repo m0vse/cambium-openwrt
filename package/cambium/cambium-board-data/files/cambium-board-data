@@ -117,7 +117,11 @@ oem_mtds() {
 cleanup() {
 	grep -q " $MNT " /proc/mounts 2>/dev/null && umount "$MNT"
 	[ -n "$BLOCK" ] && ubiblock --remove "/dev/$BLOCK_VOL" >/dev/null 2>&1
-	[ -n "$ATTACHED" ] && ubidetach -m "$ATTACHED" >/dev/null 2>&1
+	if [ -n "$ATTACHED" ]; then
+		ubidetach -m "$ATTACHED" >/dev/null 2>&1 || :
+		# Ignore a false-negative exit only after sysfs confirms detachment.
+		ubi_dev_for_mtd "$ATTACHED" >/dev/null && log "cleanup: mtd$ATTACHED remains attached"
+	fi
 	rmdir "$MNT" 2>/dev/null
 	BLOCK=; BLOCK_VOL=; ATTACHED=
 }
