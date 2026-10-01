@@ -134,7 +134,8 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
   <table>
     <thead><tr><th>Family</th><th>Stock firmware</th><th>Model</th><th>SKU</th><th>Recovery (RAM)</th><th>Persistent</th><th>Sysupgrade</th></tr></thead>
     <tbody>
-      <tr><td class="fam">Gambit<br><small>MIPS, Wi-Fi 5</small></td><td>4.2.3.3-r10</td><td>E400, E500, E501S, E502S</td><td>6, 7, 9, 12</td><td colspan="3"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
+      <tr><td class="fam" rowspan="2">Gambit<br><small>QCA9558, Wi-Fi 5</small></td><td rowspan="2">4.2.3.3-r10</td><td>E400</td><td>6</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> A/B build, raw uImage kernel</td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
+      <tr><td>E500, E501S, E502S</td><td>7, 9, 12</td><td colspan="3"><span class="pill none">no build yet</span> needs hardware (OpenWrt <code>ath79</code>)</td></tr>
       <tr><td class="fam" rowspan="7">Sage<br><small>IPQ4019, Wi-Fi 5</small></td><td rowspan="7">4.2.3.3-r10</td><td>E410</td><td>10</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
       <tr><td>E410B</td><td>21</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> own configuration, <code>config@17</code></td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
       <tr><td>E430H</td><td>15</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill none">refused</span> different NAND controller</td></tr>
@@ -704,6 +705,77 @@ sysupgrade /tmp/sysupgrade.bin                     # keeps settings; add -n to r
 cambium-ab-status                                  # a few minutes later: running = confirmed = the new slot</pre>
   </details>
 
+  <details id="gambit">
+  <summary><strong>Gambit</strong> &mdash; validated on the E400 (stock firmware 4.2.3.3). Not for the E500, E501S or E502S.</summary>
+  <p><a href="changelog.html#gambit">Gambit changelog</a>: what changed in each snapshot.</p>
+  <p>The E400 (QCA9558, SKU 6) has two 48&nbsp;MiB NAND banks at
+  <code>0</code> and <code>0x3000000</code>. OpenWrt lays each out as a
+  4&nbsp;MiB raw uImage kernel (<code>linuxN</code>) followed by a
+  44&nbsp;MiB UBI root filesystem with a writable overlay
+  (<code>rootfsN</code>), and uses the OEM's NAND ECC (software Hamming,
+  256-byte steps). U-Boot, the environment, manufacturing data, ART, crash
+  log and nvram are never written. This U-Boot cannot be interrupted, so
+  everything is done from the stock firmware's root shell with the
+  <a href="#installer">installer</a>. Validated on one E400: install, warm
+  and cold reboots, conversion, sysupgrade in both directions and an
+  automatic rollback.</p>
+
+  <h4>RAM boot</h4>
+  <p>Stages the recovery image in the inactive stock bank (backed up and
+  uploaded first) and boots it once; the next reboot returns to the stock
+  firmware:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram        # check run: layout, bank, image hashes; backs up and uploads; writes nothing
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes ram</pre>
+
+  <h4>Persistent install</h4>
+  <p>Two steps. From the stock firmware, <code>install</code> backs up the
+  inactive bank, stages the RAM installer there and boots it once:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 install                  # check run
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes install</pre>
+  <p>Check that the backups reached your computer. Then, in the RAM
+  installer (download the installer again), write the persistent image into
+  the same inactive bank and arm its guarded first boot. The running stock
+  bank is not touched; an unhealthy start returns to it:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --backed-up install      # check run
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --backed-up --yes install</pre>
+  <p>In OpenWrt, set a root password and check the guard:</p>
+<pre>passwd
+cambium-ab-status                       # family=gambit, mode=oem-fallback
+logread -e cambium-ab-guard             # "healthy; guarded OpenWrt boot of slot N rearmed"
+iw dev                                  # both radios</pre>
+
+  <h4>Convert to two OpenWrt banks (optional)</h4>
+  <p><strong>Conversion is optional.</strong> Until you convert, the stock
+  firmware stays in the other bank and <code>cambium-install.sh stock</code>
+  makes it the default again; upgrade by reinstalling instead of
+  <code>sysupgrade</code>. Conversion replaces the stock bank with a copy of
+  the running OpenWrt bank; afterwards only your off-device backup can bring
+  it back. From your computer, back up the whole 48&nbsp;MiB stock bank
+  (kernel then root filesystem, as the conversion hashes it):</p>
+<pre>N=$(ssh root@AP_IP 'fw_printenv -n gambit_oem_slot'); echo "stock bank: $N"
+K=$(ssh root@AP_IP "sed -n 's/^mtd\([0-9]*\):.*\"linux$N\"\$/\1/p' /proc/mtd")
+R=$(ssh root@AP_IP "sed -n 's/^mtd\([0-9]*\):.*\"rootfs$N\"\$/\1/p' /proc/mtd")
+ssh root@AP_IP "cat /dev/mtd$K /dev/mtd$R" &gt; e400-oem-bank$N.bin
+sha256sum e400-oem-bank$N.bin                     # keep the file safe; this is HASH</pre>
+  <p>Then, in OpenWrt:</p>
+<pre>cambium-ab-convert --oem-sha256 HASH --yes          # checks the live stock bank matches HASH before erasing it
+cambium-ab-status                                  # mode=ab
+reboot                                             # must come back on the same slot</pre>
+
+  <h4>A/B sysupgrade</h4>
+  <p>As on the other families: the inactive bank is written and read back,
+  a one-shot trial boots it, and the guard commits it once healthy or the
+  AP returns to the old bank:</p>
+<pre>wget -O /tmp/sysupgrade.bin http://COMPUTER_IP:8000/openwrt-ath79-nand-cambiumnetworks_gambit-persistent-squashfs-sysupgrade.bin
+sysupgrade -T /tmp/sysupgrade.bin
+sysupgrade /tmp/sysupgrade.bin                     # keeps settings; add -n to reset them
+cambium-ab-status                                  # a few minutes later: running = confirmed = the new slot</pre>
+  <p>Early boot logs <code>Cannot parse config file /etc/fw_env.config</code>
+  and <code>Failed to find NVMEM device</code> before the environment
+  configuration is created; this is harmless and not a calibration
+  problem.</p>
+  </details>
+
   <h3>After the first boot (all families)</h3>
   <p>Set a root password with <code>passwd</code>, then check
   <code>cat /tmp/cambium-board-data.status</code> (should be
@@ -722,6 +794,7 @@ cambium-ab-status                                  # a few minutes later: runnin
       <tr><td class="fam">Thor</td><td>XV3-8 <code>config@hk02</code> (A/B bank 1: <code>config@hk02-bank1</code>), XE5-8 <code>config@hk01.c6</code> (recovery only)</td></tr>
       <tr><td class="fam">Jaguar</td><td>XV2-2 <code>config@cp01-c1</code>, XV2-2T0 <code>config@cp01-c1-1</code>, XV2-2T1 <code>config@cp01-c1-2</code>, XE3-4 <code>config@cp01-c3-xv3-4</code>, XE3-4TN <code>config@cp01-c3-2</code></td></tr>
       <tr><td class="fam">Cheetah</td><td>XV2-21X <code>config@mp03.3-ocelot</code>, XV2-22H <code>config@mp03.3-cheetah</code>, XV2-23T <code>config@mp03.3-lynx</code></td></tr>
+      <tr><td class="fam">Gambit</td><td>E400: no FIT configuration; a raw uImage loaded at <code>0x83000000</code></td></tr>
     </tbody>
   </table>
   </div>
@@ -755,11 +828,12 @@ cambium-ab-status                                  # a few minutes later: runnin
     the XV2-2 and XV2-2T1: it writes the inactive bank, trial-boots it and
     rolls back automatically if the new bank fails its checks. See the
     <a href="#jaguar">Jaguar steps</a>.</li>
-    <li><strong>Thor</strong> (validated on the XV3-8) and <strong>Cheetah</strong>
-    (validated on the XV2-21X) have the same A/B <code>sysupgrade</code>
-    after conversion; see the <a href="#thor">Thor</a> and
-    <a href="#cheetah">Cheetah steps</a>.
-    Before conversion, a Thor, Jaguar or Cheetah is upgraded by reinstalling
+    <li><strong>Thor</strong> (validated on the XV3-8), <strong>Cheetah</strong>
+    (validated on the XV2-21X) and <strong>Gambit</strong> (validated on the
+    E400) have the same A/B <code>sysupgrade</code> after conversion; see the
+    <a href="#thor">Thor</a>, <a href="#cheetah">Cheetah</a> and
+    <a href="#gambit">Gambit steps</a>.
+    Before conversion, a Thor, Jaguar, Cheetah or Gambit is upgraded by reinstalling
     the persistent image from the stock firmware (<code>cambium-install.sh
     stock</code> returns to it). An XV3-8 still on the single-bank image
     sysupgrades in place to the new image, then reinstalls once to move to
