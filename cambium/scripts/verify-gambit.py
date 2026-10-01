@@ -55,6 +55,30 @@ def dt_properties(data):
     require(False, "device tree has no end token")
 
 
+def verify_factory_mac(nodes):
+    """Ethernet keeps OEM identity instead of borrowing a radio's ART MAC."""
+    ethernet = [properties for path, properties in nodes.items()
+                if path.endswith("/eth@19000000")]
+    require(len(ethernet) == 1, "Ethernet node is missing or ambiguous")
+    ethernet = ethernet[0]
+    require(ethernet.get("nvmem-cell-names") == b"mac-address\0",
+            "Ethernet has no factory MAC reference")
+    reference = ethernet.get("nvmem-cells", b"")
+    require(len(reference) == 8, "Ethernet MAC must use indexed factory cell")
+    phandle, index = struct.unpack(">II", reference)
+    require(index == 0, "Ethernet must use the unmodified OEM MAC")
+    cells = [(path, properties) for path, properties in nodes.items()
+             if properties.get("phandle") == struct.pack(">I", phandle)]
+    require(len(cells) == 1, "factory MAC cell reference is ambiguous")
+    path, cell = cells[0]
+    require(cell.get("compatible") == b"mac-base\0" and
+            cell.get("reg") == struct.pack(">II", 6, 12) and
+            cell.get("#nvmem-cell-cells") == struct.pack(">I", 1),
+            "factory MAC must decode twelve hexadecimal digits at offset 6")
+    parent = nodes.get(path.rsplit("/", 2)[0], {})
+    require(parent.get("label") == b"mfginfo\0", "Ethernet MAC is not from mfginfo")
+
+
 def main():
     require(len(sys.argv) == 3, __doc__)
     flavour, path = sys.argv[1:]
@@ -105,6 +129,7 @@ def main():
             "linux0", "rootfs0", "linux1", "rootfs1", "u-boot-env")
         require(("read-only" in parts[label]) == protected,
                 "wrong partition protection: " + label)
+    verify_factory_mac(nodes)
     print(f"Gambit {flavour}: uImage CRCs, LZMA, E400 DT and partition protection OK "
           f"({len(image)} bytes; expands to {len(payload)} bytes)")
 
