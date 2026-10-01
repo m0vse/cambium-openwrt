@@ -140,7 +140,8 @@ legacy_guard() {
 			log "U-Boot image is not the stock firmware's slot $((1 - slot)); leaving it alone"
 			return 1
 		}
-		ab_setenv changing_bootcmd 1 || return 1
+		! ab_hook healthy_boot || "ab_${AB_FAMILY}_healthy_boot" || return 1
+		[ "$AB_MARKER" != 1 ] || ab_setenv changing_bootcmd 1 || return 1
 		ab_setenv bootcmd "$bootcmd" || return 1
 		log "healthy; guarded OpenWrt boot of slot $slot rearmed"
 		return 0
@@ -158,6 +159,7 @@ legacy_guard() {
 
 commit_trial() {
 	local slot="$1" batch=/tmp/cambium-ab-guard.$$ rc=0
+	! ab_hook healthy_boot || "ab_${AB_FAMILY}_healthy_boot" || return 1
 	printf "${AB_ENV}_ab_confirmed %s\n${AB_ENV}_ab_state confirmed\nimage %s\n" "$slot" "$slot" > "$batch"
 	# A committed switch supersedes any earlier failure.
 	printf "${AB_ENV}_ab_target\n${AB_ENV}_ab_last_failure\n" >> "$batch"
@@ -205,6 +207,9 @@ ab_guard() {
 		log "slot $target is armed for a trial on the next boot"
 		;;
 	*)
+		if ab_hook healthy_boot && [ "$running" = "$confirmed" ]; then
+			wait_healthy ab && "ab_${AB_FAMILY}_healthy_boot" || return 1
+		fi
 		if [ "$running" != "$confirmed" ] && [ "$state" != fallback ]; then
 			local batch=/tmp/cambium-ab-guard.$$
 			printf "${AB_ENV}_ab_state fallback\n${AB_ENV}_ab_last_failure %s\n" \

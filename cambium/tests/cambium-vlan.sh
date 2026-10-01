@@ -75,6 +75,7 @@ cambium-jaguar-support/files/17_jaguar_bridge_section cambiumnetworks,xv2-2t1 la
 cambium-jaguar-support/files/17_jaguar_bridge_section cambiumnetworks,xv2-2t0 lan1,lan2 lan1:u*,lan2:u*
 cambium-jaguar-support/files/17_jaguar_bridge_section cambiumnetworks,xe3-4 lan1,lan2 lan1:u*,lan2:u*
 cambium-jaguar-support/files/17_jaguar_bridge_section cambiumnetworks,xe3-4tn lan1,lan2 lan1:u*,lan2:u*
+cambium-gambit-support/files/17_gambit_bridge_section cambiumnetworks,e400 eth0 eth0:u*
 EOL
 
 # Sage runs on its validated models (its board table decides).
@@ -99,7 +100,9 @@ expect "configured trunk untouched" '' "$(cmp -s "$W/uci" "$W/uci.before" || ech
 # while wg0 or any other value is kept.
 for script in cambium-thor-support/files/17_thor_bridge_section:cambiumnetworks,xv3-8 \
 	cambium-cheetah-support/files/17_cheetah_bridge_section:cambiumnetworks,xv2-21x \
-	cambium-jaguar-support/files/17_jaguar_bridge_section:cambiumnetworks,xv2-2t1 sage:cambiumnetworks,e410; do
+	cambium-jaguar-support/files/17_jaguar_bridge_section:cambiumnetworks,xv2-2t1 \
+	cambium-gambit-support/files/17_gambit_bridge_section:cambiumnetworks,e400 \
+	sage:cambiumnetworks,e410; do
 	for mgmt in br-lan wg0 br-lan.101; do
 		echo "${script#*:}" > "$W/board"
 		rm -f "$W/commits"

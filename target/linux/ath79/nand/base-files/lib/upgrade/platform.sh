@@ -4,14 +4,27 @@ PART_NAME=firmware
 
 REQUIRE_IMAGE_METADATA=1
 platform_check_image() {
+	if command -v ab_family >/dev/null && ab_family; then
+		cambium_ab_check_image "$1"
+		return
+	fi
+	[ "$(board_name)" != cambiumnetworks,e400 ] || {
+		echo 'This E400 image has no persistent A/B support; refusing to write flash'
+		return 1
+	}
 	return 0
 }
 
-RAMFS_COPY_BIN='fw_printenv fw_setenv nandwrite'
+RAMFS_COPY_BIN='fw_printenv fw_setenv nandwrite nanddump flash_erase head sha256sum tr'
 RAMFS_COPY_DATA='/etc/fw_env.config /var/lock/fw_printenv.lock'
 
 platform_do_upgrade() {
 	local board=$(board_name)
+	if command -v ab_family >/dev/null && ab_family; then
+		cambium_ab_do_upgrade "$1"
+		return
+	fi
+	[ "$board" != cambiumnetworks,e400 ] || return 1
 
 	case "$board" in
 	glinet,gl-ar300m-nand|\
