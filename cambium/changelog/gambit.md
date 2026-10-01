@@ -4,6 +4,11 @@ E400 (recovery validated; persistent/A-B hardware trials pending).
 
 ## Unreleased
 
+- Match OEM/U-Boot NAND ECC: use 1-bit software Hamming in 256-byte steps,
+  with 24 parity bytes at OOB offsets 40–63. The inherited hardware BCH
+  mode read its own writes but produced kernels unreadable by U-Boot.
+  Verify the mode in all three built device trees and provide a read-only
+  raw-backup parity checker.
 - Isolate the downloaded family module during RAM installation, so the
   upgrade writer is not recursively loaded by the core's module scan.
 - Read Ethernet's OEM MAC from the manufacturing-data hexadecimal cell,
