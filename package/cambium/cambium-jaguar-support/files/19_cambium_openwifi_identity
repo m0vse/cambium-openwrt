@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# OpenWiFi uses its compatible string as the model identity. Keep the
+# upstream OpenWrt board names for sysupgrade and A/B qualification, but
+# expose the established Cambium model names to uCentral when it is present.
+[ -d "${UCENTRAL_DIR:=/etc/ucentral}" ] || exit 0
+
+board=${CAMBIUM_BOARD_NAME:-}
+[ -n "$board" ] || {
+	. /lib/functions/system.sh
+	board=$(board_name)
+}
+
+case "$board" in
+	cambiumnetworks,xv2-2) compatible=cambium_xv2-2 ;;
+	cambiumnetworks,xv2-2t0) compatible=cambium_xv2-2t0 ;;
+	cambiumnetworks,xv2-2t1) compatible=cambium_xv2-2t1 ;;
+	cambiumnetworks,xe3-4) compatible=cambium_xe3-4 ;;
+	cambiumnetworks,xe3-4tn) compatible=cambium_xe3-4tn ;;
+	*) exit 0 ;;
+esac
+
+printf '%s\n' "$compatible" > "$UCENTRAL_DIR/compatible"
