@@ -638,6 +638,7 @@ default_do_upgrade() { generic default "$@"; }
 dispatch() { (. "$S/system.sh"; . "$S/functions.sh"; . "$CAMBIUM_AB_UPGRADE_LIB"
 	nand_restore_config() { echo "restore-config $CI_UBIPART $1" >> "$S/calls"; }
 	# File-level certificate crypto/mount tests live in cambium-ab-certificates.sh.
+	ab_certificate_validate_snapshot() { [ ! -f "$S/certificate_snapshot_fail" ]; }
 	ab_certificate_restore() {
 		echo 'restore-certificates' >> "$S/calls"
 		[ ! -f "$S/certificate_restore_fail" ]
@@ -726,6 +727,11 @@ touch "$S/certificate_restore_fail"
 check "certificate restore failure refuses to arm trial" 1 dispatch platform_do_upgrade "$S/good.bin"
 assert "failed certificate restore keeps stable boot default" [ "$(env_get bootcmd):$(env_get jaguar_ab_state)" = 'run jaguar_stable0:write-failed' ]
 rm "$S/certificate_restore_fail"
+converted_ap
+touch "$S/certificate_snapshot_fail"
+check "RAM snapshot validation fails before inactive bank writes" 1 dispatch platform_do_upgrade "$S/good.bin"
+assert "missing snapshot never formats or writes a bank" never_wrote 'format|mkvol|update'
+rm "$S/certificate_snapshot_fail"
 # Execute a fresh process using copies at the same paths/globs stage2 keeps.
 mkdir -p "$S/ramfs/lib/functions" "$S/ramfs/lib/upgrade"
 cp "$ab_pkg/cambium-ab.sh" "$S/ramfs/lib/functions/"

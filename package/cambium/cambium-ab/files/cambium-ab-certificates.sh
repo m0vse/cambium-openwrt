@@ -67,6 +67,8 @@ ab_certificate_export() {
 		[ -f "$file" ] && [ ! -L "$file" ] && cp "$file" "$work/tree/" || return 1
 	done
 	if [ -f "$work/tree/key.pem" ] || [ -f "$work/tree/cert.pem" ]; then
+		command -v openssl >/dev/null 2>&1 ||
+			{ ab_fail 'openssl is required to validate outgoing credentials'; return 1; }
 		[ -f "$work/tree/key.pem" ] && [ -f "$work/tree/cert.pem" ] ||
 			{ ab_fail 'incomplete bootstrap credential pair'; return 1; }
 		# Verify key match without exposing private material in output/logs.
@@ -95,8 +97,8 @@ ab_certificate_export() {
 	rm -rf "$work"
 }
 
-ab_certificate_restore() {
-	local hash expected binding work rc=0
+ab_certificate_validate_snapshot() {
+	local hash expected binding
 	[ "$(ab_certificate_lebs)" = 20 ] || return 0
 	[ "$AB_LAYOUT" = banks ] || return 0
 	ab_certificate_private_file "$AB_CERTIFICATE_ARCHIVE" &&
@@ -114,6 +116,13 @@ ab_certificate_restore() {
 		/^\// || /(^|\/)\.\.(\/|$)/ || /[^A-Za-z0-9_.\/-]/ { bad=1 }
 		END { exit bad }' || return 1
 	tar tvf "$AB_CERTIFICATE_ARCHIVE" | awk 'substr($0,1,1)!="-" && substr($0,1,1)!="d" { bad=1 } END { exit bad }' || return 1
+}
+
+ab_certificate_restore() {
+	local work rc=0
+	[ "$(ab_certificate_lebs)" = 20 ] || return 0
+	[ "$AB_LAYOUT" = banks ] || return 0
+	ab_certificate_validate_snapshot || return 1
 	[ "$(cat "${AB_UBI_SYS:-/sys/class/ubi}/$AB_TARGET_UBI/mtd_num")" = "$AB_TARGET_MTD" ] &&
 		[ "$AB_TARGET_MTD" != "$AB_ACTIVE_MTD" ] || return 1
 	umask 077
