@@ -153,10 +153,11 @@ jobs:
       - name: Test the release branch and feed tooling
         run: sh cambium/tests/cambium-release.sh
 
-      - name: Test the Gambit NAND ECC and factory MAC checks
+      - name: Test the Gambit NAND ECC, factory MAC and LED checks
         run: |
           python3 cambium/tests/gambit-ecc.py
           python3 cambium/tests/gambit-mac.py
+          python3 cambium/tests/gambit-leds.py
 
       - name: Render the changelogs
         run: |
