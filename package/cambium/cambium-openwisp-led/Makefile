@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cambium-openwisp-led
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Phil Taylor <phil@m0vse.uk>
 
@@ -18,7 +18,8 @@ endef
 define Package/cambium-openwisp-led/description
   Lights the status LED of a Cambium access point blue while its OpenWISP
   controller answers the device's checksum request, and green otherwise.
-  Works on every Cambium family (Sage, Thor, Jaguar and Cheetah).
+  On green/amber boards (E400), shows green while managed and amber otherwise.
+  Works on every Cambium family (Sage, Thor, Jaguar, Cheetah and Gambit).
 endef
 
 define Build/Compile
