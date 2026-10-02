@@ -229,10 +229,10 @@ change; the next snapshot's release notes include those entries, and the
 site renders all of them as `changelog.html`. After a snapshot is
 published, rename `Unreleased` to its build ID (see `changelog/README.md`).
 
-## Daily snapshots
+## Weekly snapshots
 
-`.github/workflows/cambium-snapshot.yml` runs daily at 19:17 UTC (20:17
-BST). GitHub may start scheduled runs hours late or skip them, so an evening
+`.github/workflows/cambium-snapshot.yml` runs every Monday at 19:17 UTC
+(20:17 BST). GitHub may start scheduled runs hours late or skip them, so an evening
 start still finishes by the morning; if none ran, start it by hand (Run
 workflow, with sync ticked). A run builds when the rebase changed the
 branch, when forced, or when a family is missing from the current commit's
