@@ -216,6 +216,13 @@ cambium_ab_do_upgrade() {
 	ab_upgrade_preflight || return 1
 	ab_image_extract "$1" || return 1
 
+	# stage2 must prove the private snapshot survived the RAM copy BEFORE
+	# recording writes or erasing any inactive-bank data.
+	if [ "$(ab_certificate_lebs)" = 20 ] && [ "$AB_LAYOUT" = banks ]; then
+		type ab_certificate_validate_snapshot >/dev/null 2>&1 && ab_certificate_validate_snapshot ||
+			{ ab_fail 'RAM-stage certificate snapshot validation failed; no bank was written'; return 1; }
+	fi
+
 	# Record the write before touching the bank. bootcmd still boots the
 	# running bank first, so an interrupted write never loses it.
 	printf "${AB_ENV}_ab_state writing\n${AB_ENV}_ab_target %s\n" "$AB_TARGET" > "$batch"
