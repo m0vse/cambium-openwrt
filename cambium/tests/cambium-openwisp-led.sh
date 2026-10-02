@@ -1,7 +1,8 @@
 #!/bin/sh
 # Tests for cambium-openwisp-led, the OpenWISP status LED shared by every
 # Cambium family: blue while the controller answers, green otherwise, on
-# either LED naming scheme (blue:status or jaguar:status:blue).
+# either LED naming scheme (blue:status or jaguar:status:blue). E400 uses
+# green while managed and amber otherwise, without altering network LEDs.
 #
 # Usage: cambium/tests/cambium-openwisp-led.sh   (exit status 0 when all pass)
 
@@ -49,6 +50,14 @@ chmod +x "$W/bin/"*
 export PATH="$W/bin:$PATH" SIM=$W CAMBIUM_OPENWISP_LEDS=$W/leds \
 	CAMBIUM_OPENWISP_LED_STATE=$W/managed CAMBIUM_OPENWISP_LED_ONCE=1
 
+run_led() {
+	if [ "${CAMBIUM_TEST_BUSYBOX:-0}" = 1 ]; then
+		busybox sh "$script" "$@"
+	else
+		sh "$script" "$@"
+	fi
+}
+
 # leds NAME... : a fresh /sys/class/leds with those LEDs, all lit by a trigger.
 leds() {
 	rm -rf "$W/leds" "$W/managed"
@@ -64,7 +73,7 @@ leds() {
 expect() {
 	local got want
 	echo "$2" > "$W/answer"
-	sh "$script" >/dev/null 2>&1
+	run_led >/dev/null 2>&1
 	got="$(cat "$W/leds/$3/trigger" "$W/leds/$3/brightness" "$W/leds/$4/trigger" "$W/leds/$4/brightness" 2>/dev/null | tr '\n' ' ')$([ -e "$W/managed" ] && echo managed)"
 	want="none $5 none $6 $7"
 	if [ "$got" = "$want" ]; then
@@ -82,12 +91,42 @@ for pair in 'blue:status green:status' 'jaguar:status:blue jaguar:status:green';
 	leds "$1" "$2"; expect "$1 not managed" unmanaged "$1" "$2" 0 1 ''
 done
 
+# E400 substitutes green/amber; blue/green still takes precedence if all exist.
+leds green:status amber:status green:lan amber:lan
+expect "E400 managed" managed green:status amber:status 1 0 managed
+expect "E400 lost controller" unmanaged green:status amber:status 0 1 ''
+expect "E400 managed again" managed green:status amber:status 1 0 managed
+run_led --unmanaged
+if [ "$(cat "$W/leds/green:status/brightness" "$W/leds/amber:status/brightness" | tr '\n' ' ')" = '0 1 ' ] && [ ! -e "$W/managed" ]; then
+	pass=$((pass + 1))
+else
+	fail=$((fail + 1)); echo "FAIL: E400 service stop did not restore amber"
+fi
+if [ "$(cat "$W/leds/green:lan/trigger" "$W/leds/amber:lan/trigger" | tr '\n' ' ')" = 'heartbeat heartbeat ' ]; then
+	pass=$((pass + 1))
+else
+	fail=$((fail + 1)); echo "FAIL: status service changed network LEDs"
+fi
+leds blue:status green:status amber:status
+expect "blue takes precedence" managed blue:status green:status 1 0 managed
+if [ "$(cat "$W/leds/amber:status/trigger")" = heartbeat ]; then
+	pass=$((pass + 1))
+else
+	fail=$((fail + 1)); echo "FAIL: blue/green board's amber LED was changed"
+fi
+run_led --unmanaged
+if [ "$(cat "$W/leds/blue:status/brightness" "$W/leds/green:status/brightness" | tr '\n' ' ')" = '0 1 ' ]; then
+	pass=$((pass + 1))
+else
+	fail=$((fail + 1)); echo "FAIL: blue/green service stop changed colours"
+fi
+
 # A board without the blue and green status LEDs keeps its LEDs as they
 # are, but the managed state is still recorded: Sage's upgrade commit waits
 # for it (a Sage image without the LED driver never committed).
 leds green:status white:power
 echo managed > "$W/answer"
-sh "$script" >/dev/null 2>&1
+run_led >/dev/null 2>&1
 if [ "$(cat "$W/leds/green:status/trigger" "$W/leds/green:status/brightness" | tr '\n' ' ')" = 'heartbeat 1 ' ]; then
 	pass=$((pass + 1))
 else
@@ -96,7 +135,7 @@ else
 fi
 if [ -e "$W/managed" ]; then pass=$((pass + 1)); else fail=$((fail + 1)); echo "FAIL: no LEDs: the managed state was not recorded"; fi
 rm -rf "$W/leds"; mkdir -p "$W/leds"; echo unmanaged > "$W/answer"; touch "$W/managed"
-sh "$script" >/dev/null 2>&1
+run_led >/dev/null 2>&1
 if [ ! -e "$W/managed" ]; then pass=$((pass + 1)); else fail=$((fail + 1)); echo "FAIL: no LEDs: a lost controller still counted as managed"; fi
 
 # The init script starts the shared service on every family.
@@ -108,7 +147,7 @@ else
 fi
 
 # Every family's support package pulls the shared LED package in.
-for fam in sage thor jaguar cheetah; do
+for fam in sage thor jaguar cheetah gambit; do
 	if grep -q '+cambium-openwisp-led' "$top/package/cambium/cambium-$fam-support/Makefile"; then
 		pass=$((pass + 1))
 	else
