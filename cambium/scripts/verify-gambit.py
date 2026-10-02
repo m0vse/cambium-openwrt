@@ -79,6 +79,40 @@ def verify_factory_mac(nodes):
     require(parent.get("label") == b"mfginfo\0", "Ethernet MAC is not from mfginfo")
 
 
+def verify_leds(nodes):
+    """Hardware-verified LED channels, including the unusual amber polarity."""
+    expected = {"green:status": (19, 1), "amber:status": (22, 0),
+                "green:lan": (20, 1), "amber:lan": (18, 1)}
+    led_nodes = {properties.get("label", b"").rstrip(b"\0").decode(): (path, properties)
+                 for path, properties in nodes.items() if path.startswith("/leds/")}
+    require(set(led_nodes) == set(expected), "wrong E400 LED channels")
+    controllers = set()
+    for label, (pin, polarity) in expected.items():
+        _, properties = led_nodes[label]
+        gpios = properties.get("gpios", b"")
+        require(len(gpios) == 12, "invalid LED GPIO: " + label)
+        controller, actual_pin, actual_polarity = struct.unpack(">III", gpios)
+        controllers.add(controller)
+        require((actual_pin, actual_polarity) == (pin, polarity),
+                "wrong LED GPIO/polarity: " + label)
+        require(properties.get("default-state") == b"off\0",
+                "LED must start off: " + label)
+    require(len(controllers) == 1, "LED GPIO controllers differ")
+    controller = next(iter(controllers))
+    gpio = [properties for properties in nodes.values()
+            if properties.get("phandle") == struct.pack(">I", controller)]
+    require(len(gpio) == 1 and "gpio-controller" in gpio[0] and
+            b"qca,ar9340-gpio" in gpio[0].get("compatible", b"").split(b"\0"),
+            "LEDs must use the SoC GPIO controller")
+    for alias, label in (("led-boot", "green:status"),
+                         ("led-running", "green:status"),
+                         ("led-failsafe", "amber:status"),
+                         ("led-upgrade", "amber:status")):
+        path = led_nodes[label][0]
+        require(nodes.get("/aliases", {}).get(alias) == path.encode() + b"\0",
+                "wrong LED lifecycle alias: " + alias)
+
+
 def main():
     require(len(sys.argv) == 3, __doc__)
     flavour, path = sys.argv[1:]
@@ -130,6 +164,7 @@ def main():
         require(("read-only" in parts[label]) == protected,
                 "wrong partition protection: " + label)
     verify_factory_mac(nodes)
+    verify_leds(nodes)
     controllers = [properties for properties in nodes.values()
                    if b"qca,ar934x-nand" in properties.get("compatible", b"").split(b"\0")]
     require(len(controllers) == 1, "NAND controller missing or ambiguous")
@@ -139,7 +174,7 @@ def main():
             nand.get("nand-ecc-step-size") == struct.pack(">I", 256) and
             nand.get("nand-ecc-strength") == struct.pack(">I", 1),
             "NAND must use OEM-compatible 256-byte/1-bit software Hamming ECC")
-    print(f"Gambit {flavour}: uImage CRCs, LZMA, E400 DT and partition protection OK "
+    print(f"Gambit {flavour}: uImage CRCs, LZMA, E400 DT (MAC/LED/ECC) and partition protection OK "
           f"({len(image)} bytes; expands to {len(payload)} bytes)")
 
 
