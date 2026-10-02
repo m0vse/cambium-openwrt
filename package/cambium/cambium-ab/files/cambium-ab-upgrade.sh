@@ -7,6 +7,8 @@
 # /lib/functions/cambium-ab.sh.
 
 . "${CAMBIUM_AB_LIB:-/lib/functions/cambium-ab.sh}"
+[ ! -f "${CAMBIUM_AB_CERTIFICATE_LIB:-/lib/upgrade/cambium-ab-certificates.sh}" ] || \
+	. "${CAMBIUM_AB_CERTIFICATE_LIB:-/lib/upgrade/cambium-ab-certificates.sh}"
 
 # The image directory (AB_IMAGE_DIR) and the bank's usable LEBs
 # (AB_BANK_LEBS) come from the family module's board table.
@@ -223,6 +225,10 @@ cambium_ab_do_upgrade() {
 	echo "cambium-ab: writing slot $AB_TARGET ($AB_TARGET_PART) from slot $AB_ACTIVE"
 	if ab_hook write_target; then
 		"ab_${AB_FAMILY}_write_target" || return 1
+		if [ "$(ab_certificate_lebs)" = 20 ]; then
+			type ab_certificate_restore >/dev/null 2>&1 && ab_certificate_restore ||
+				{ ab_record_failure write-failed 'cannot restore the certificate store'; return 1; }
+		fi
 		sync
 		ab_arm_trial ||
 			{ ab_record_failure write-failed "cannot arm the trial of slot $AB_TARGET"; return 1; }
@@ -239,6 +245,10 @@ cambium_ab_do_upgrade() {
 		{ AB_STEP_ERROR=; ab_record_failure write-failed "slot $AB_TARGET readback mismatch"; return 1; }
 	[ "$AB_VAULT" != 1 ] || ab_copy_vault ||
 		{ ab_record_failure write-failed "cannot copy the device-data vault"; return 1; }
+	if [ "$(ab_certificate_lebs)" = 20 ]; then
+		type ab_certificate_restore >/dev/null 2>&1 && ab_certificate_restore ||
+			{ ab_record_failure write-failed 'cannot restore the certificate store'; return 1; }
+	fi
 
 	if [ -n "${UPGRADE_BACKUP:-}" ]; then
 		CI_UBIPART=$AB_TARGET_PART nand_restore_config "$UPGRADE_BACKUP" ||
