@@ -1,7 +1,7 @@
 # Keeping the Cambium changes out of OpenWrt's core
 
 OpenWrt is unlikely to accept most of this fork's changes, so every change to
-an upstream file is something the daily rebase can conflict on, for good.
+an upstream file is something the weekly rebase can conflict on, for good.
 This note lists what can move into our own packages, what has to stay in the
 tree (and how to make it touch upstream files as little as possible), and
 what Sage needs to become an ordinary family like Thor, Jaguar and Cheetah.
