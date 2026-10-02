@@ -637,6 +637,11 @@ default_do_upgrade() { generic default "$@"; }
 # platform_do_upgrade runs in sysupgrade stage 2, without hotplug.
 dispatch() { (. "$S/system.sh"; . "$S/functions.sh"; . "$CAMBIUM_AB_UPGRADE_LIB"
 	nand_restore_config() { echo "restore-config $CI_UBIPART $1" >> "$S/calls"; }
+	# File-level certificate crypto/mount tests live in cambium-ab-certificates.sh.
+	ab_certificate_restore() {
+		echo 'restore-certificates' >> "$S/calls"
+		[ ! -f "$S/certificate_restore_fail" ]
+	}
 	[ "$1" = platform_do_upgrade ] && touch "$S/no_hotplug"
 	"$@"; rc=$?; rm -f "$S/no_hotplug"; exit $rc); }
 
@@ -715,6 +720,12 @@ assert "OpenWiFi gets a 20-LEB certificate volume" [ "$(cat "$S/flash/mtd1/4.nam
 assert "certificate volume precedes rootfs_data allocation" sh -c \
 	"[ \$(grep -n 'mkvol mtd1 4 certificates' '$S/calls' | cut -d: -f1) -lt \$(grep -n 'mkvol mtd1 2 rootfs_data' '$S/calls' | cut -d: -f1) ]"
 assert "certificate allocation leaves the running bank untouched" [ "$(bank_hash 0)" = "$active_before" ]
+assert "certificate contents restored before trial" grep -q restore-certificates "$S/calls"
+converted_ap
+touch "$S/certificate_restore_fail"
+check "certificate restore failure refuses to arm trial" 1 dispatch platform_do_upgrade "$S/good.bin"
+assert "failed certificate restore keeps stable boot default" [ "$(env_get bootcmd):$(env_get jaguar_ab_state)" = 'run jaguar_stable0:write-failed' ]
+rm "$S/certificate_restore_fail"
 # Execute a fresh process using copies at the same paths/globs stage2 keeps.
 mkdir -p "$S/ramfs/lib/functions" "$S/ramfs/lib/upgrade"
 cp "$ab_pkg/cambium-ab.sh" "$S/ramfs/lib/functions/"
