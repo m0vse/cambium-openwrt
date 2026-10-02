@@ -3,8 +3,9 @@
 # while the controller answers this device's checksum request, green
 # otherwise. Families name the LEDs differently (blue:status / green:status
 # on Sage, Thor and Cheetah; jaguar:status:blue / jaguar:status:green on
-# Jaguar); boards without a blue and green status LED keep their LEDs as they
-# are. The managed state file is kept up to date either way: Sage's upgrade
+# Jaguar). Without blue, a green/amber pair shows green while managed and
+# amber otherwise (E400). Boards without either complete pair keep their LEDs
+# as they are. The managed state file is kept up to date either way: Sage's upgrade
 # commit waits for it on OpenWISP-managed access points.
 set -u
 
@@ -23,19 +24,35 @@ find_led() {
 }
 blue_led=$(find_led 'blue:status jaguar:status:blue') || blue_led=
 green_led=$(find_led 'green:status jaguar:status:green') || green_led=
+amber_led=$(find_led 'amber:status') || amber_led=
+managed_led= unmanaged_led=
+if [ -n "$blue_led" ] && [ -n "$green_led" ]; then
+	managed_led=$blue_led
+	unmanaged_led=$green_led
+elif [ -n "$green_led" ] && [ -n "$amber_led" ]; then
+	managed_led=$green_led
+	unmanaged_led=$amber_led
+fi
 
 set_managed() {
-	[ -n "$blue_led" ] && [ -n "$green_led" ] || return 0
-	printf '%s\n' none >"$blue_led/trigger"
-	printf '%s\n' none >"$green_led/trigger"
+	[ -n "$managed_led" ] && [ -n "$unmanaged_led" ] || return 0
+	printf '%s\n' none >"$managed_led/trigger"
+	printf '%s\n' none >"$unmanaged_led/trigger"
 	if [ "$1" = 1 ]; then
-		printf '%s\n' 0 >"$green_led/brightness"
-		printf '%s\n' 1 >"$blue_led/brightness"
+		printf '%s\n' 0 >"$unmanaged_led/brightness"
+		printf '%s\n' 1 >"$managed_led/brightness"
 	else
-		printf '%s\n' 0 >"$blue_led/brightness"
-		printf '%s\n' 1 >"$green_led/brightness"
+		printf '%s\n' 0 >"$managed_led/brightness"
+		printf '%s\n' 1 >"$unmanaged_led/brightness"
 	fi
 }
+
+# Use the same colour selection when the init service stops.
+if [ "${1:-}" = --unmanaged ]; then
+	set_managed 0
+	rm -f "$state"
+	exit 0
+fi
 
 managed() {
 	local url uuid key management_interface management_ip work config headers status
