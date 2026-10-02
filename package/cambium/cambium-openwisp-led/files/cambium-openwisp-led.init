@@ -11,20 +11,9 @@ start_service() {
 	procd_close_instance
 }
 
-# Back to plain green (not managed) when the service stops.
+# Back to the board's unmanaged colour when the service stops.
 stop_service() {
-	local led
-	for led in /sys/class/leds/blue:status /sys/class/leds/jaguar:status:blue; do
-		[ -d "$led" ] || continue
-		printf '%s\n' none >"$led/trigger"
-		printf '%s\n' 0 >"$led/brightness"
-	done
-	for led in /sys/class/leds/green:status /sys/class/leds/jaguar:status:green; do
-		[ -d "$led" ] || continue
-		printf '%s\n' none >"$led/trigger"
-		printf '%s\n' 1 >"$led/brightness"
-	done
-	rm -f /tmp/cambium-openwisp-managed
+	/usr/sbin/cambium-openwisp-led --unmanaged
 }
 
 service_triggers() {
