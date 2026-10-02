@@ -241,7 +241,13 @@ dev=$(echo "$*" | sed -n 's/.* dev \([^ ]*\).*/\1/p')
 [ "$dev" = br-lan ] || [ -d "$S/net/$dev" ] || exit 0
 case "$*" in
 *address*) echo '    inet 192.0.2.10/24 brd 192.0.2.255 scope global br-lan' ;;
-*route*) [ ! -f "$S/no_default" ] && echo "default via 192.0.2.1 dev $dev" ;;
+*route*)
+	table=$(echo "$*" | sed -n 's/.* table \([^ ]*\).*/\1/p')
+	if [ -n "$table" ]; then
+		[ "$table" = "$(cat "$S/route_table" 2>/dev/null)" ] && echo "default via 192.0.2.1 dev $dev"
+	else
+		[ ! -f "$S/no_default" ] && echo "default via 192.0.2.1 dev $dev"
+	fi ;;
 esac
 EOF
 command -v sha256sum >/dev/null 2>&1 || tool sha256sum <<'EOF'
@@ -265,6 +271,9 @@ case "$*" in
 "-q get network."*.device)
 	[ -f "$S/management_device" ] || exit 1
 	cat "$S/management_device"
+	;;
+"-q get network."*.ip4table)
+	cat "$S/management_table" 2>/dev/null
 	;;
 *) exit 1 ;;
 esac
@@ -339,7 +348,8 @@ new_ap() {
 	local board=${1:-cambiumnetworks,xv2-2t1} active=${2:-0} other=${3:-oem} i
 	rm -rf "$S/sys" "$S/dev" "$S/flash" "$S/dt" "$S/fw" "$S/bdwork"* "$S/work" "$S/oem_root" "$S/net" "$S/ieee80211" "$S/module"
 	rm -f "$S/calls" "$S/opcount" "$S/fail_at" "$S/corrupt" "$S/bank_lebs" "$S/bdstatus" "$S/net_ok" "$S/lan_device" \
-		"$S/default_dev" "$S/no_default" "$S/management_section" "$S/management_device"
+		"$S/default_dev" "$S/no_default" "$S/management_section" "$S/management_device" \
+		"$S/management_table" "$S/route_table"
 	mkdir -p "$S/sys/ubi" "$S/dev" "$S/flash" "$S/dt/cambium-platform" "$S/fw"
 	touch "$S/calls"
 	echo "$board" > "$S/board"
@@ -1050,6 +1060,23 @@ new_ap $T; healthy_ap; thor_radios 3; touch "$S/no_default"; mkdir -p "$S/net/up
 echo up0v101 > "$S/management_section"; echo up0v101 > "$S/management_device"; : > "$S/calls"
 check "configured management VLAN is checked before its route exists" 0 guard
 assert "configured management VLAN without a route remains unhealthy" grep -q reboot "$S/calls"
+new_ap $T; healthy_ap; thor_radios 3; touch "$S/no_default"; mkdir -p "$S/net/up0v101"
+echo up0v101 > "$S/management_section"; echo up0v101 > "$S/management_device"
+echo 101 > "$S/management_table"; echo 101 > "$S/route_table"; : > "$S/calls"
+check "tagged management default in its configured table is healthy" 0 guard
+assert "tagged-table management re-arms OpenWrt" never_wrote reboot
+new_ap $T; healthy_ap; thor_radios 3; mkdir -p "$S/net/up0v101"
+echo up0v101 > "$S/management_section"; echo up0v101 > "$S/management_device"
+echo 101 > "$S/management_table"; echo 102 > "$S/route_table"; : > "$S/calls"
+check "unrelated main and other-table defaults do not satisfy management" 0 guard
+assert "missing configured-table default returns to stock firmware" grep -q reboot "$S/calls"
+for invalid_table in '-101' '101;reboot' '101 table 102' '../101'; do
+	new_ap $T; healthy_ap; thor_radios 3; mkdir -p "$S/net/up0v101"
+	echo up0v101 > "$S/management_section"; echo up0v101 > "$S/management_device"
+	printf '%s\n' "$invalid_table" > "$S/management_table"; : > "$S/calls"
+	check "invalid management table $invalid_table is refused" 0 guard
+	assert "invalid table $invalid_table returns to stock firmware" grep -q reboot "$S/calls"
+done
 new_ap $T; healthy_ap; thor_radios 3; mkdir -p "$S/net/up0v101"
 echo up0v101 > "$S/default_dev"; : > "$S/calls"
 check "default route identifies management without readable UCI" 0 guard
