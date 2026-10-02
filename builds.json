@@ -1,0 +1,7 @@
+{
+  "updated": "2026-10-02T01:13:39Z",
+  "builds": [
+    {"build_id": "2026.10.01.0", "kind": "snapshot", "families": ["cheetah", "gambit", "jaguar", "sage", "thor"]},
+    {"build_id": "2026.09.30.0", "kind": "snapshot", "families": ["cheetah", "jaguar", "sage", "thor"]}
+  ]
+}
