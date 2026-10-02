@@ -703,15 +703,34 @@ assert "still-attached target is never formatted" never_wrote 'format|mkvol|upda
 rm -f "$S/detach_stays"
 
 converted_ap
-touch "$S/certificate-preinit"
-export AB_CERTIFICATE_PREINIT=$S/certificate-preinit
+# The OpenWiFi integration declares policy in its board module. No preinit
+# marker exists, including when this outgoing writer migrates an old image.
+rm "$S/modules/cambium-ab-jaguar.sh"
+sed '/AB_VAULT=1/a\
+\tAB_CERTIFICATE_LEBS=20
+' "$jaguar_module_dir/cambium-ab-jaguar.sh" > "$S/modules/cambium-ab-jaguar.sh"
 active_before=$(bank_hash 0)
 check "OpenWiFi upgrade reserves certificates before the overlay" 0 dispatch platform_do_upgrade "$S/good.bin"
 assert "OpenWiFi gets a 20-LEB certificate volume" [ "$(cat "$S/flash/mtd1/4.name" "$S/flash/mtd1/4.size" | tr '\n' ':')" = "certificates:$((20 * LEB)):" ]
 assert "certificate volume precedes rootfs_data allocation" sh -c \
 	"[ \$(grep -n 'mkvol mtd1 4 certificates' '$S/calls' | cut -d: -f1) -lt \$(grep -n 'mkvol mtd1 2 rootfs_data' '$S/calls' | cut -d: -f1) ]"
 assert "certificate allocation leaves the running bank untouched" [ "$(bank_hash 0)" = "$active_before" ]
-unset AB_CERTIFICATE_PREINIT
+# Execute a fresh process using copies at the same paths/globs stage2 keeps.
+mkdir -p "$S/ramfs/lib/functions" "$S/ramfs/lib/upgrade"
+cp "$ab_pkg/cambium-ab.sh" "$S/ramfs/lib/functions/"
+cp "$S/modules/"*.sh "$S/ramfs/lib/functions/"
+cp "$CAMBIUM_AB_UPGRADE_LIB" "$S/ramfs/lib/upgrade/cambium-ab.sh"
+assert "actual stage2 copies family policy modules" grep -F '/lib/functions/*.sh' "$top/package/base-files/files/lib/upgrade/stage2"
+check "fresh RAM-stage policy without preinit marker is 20 LEBs" 0 env \
+    CAMBIUM_AB_MODULES="$S/ramfs/lib/functions" CAMBIUM_AB_LIB="$S/ramfs/lib/functions/cambium-ab.sh" \
+    sh -c '. "$1"; ab_board cambiumnetworks,xv2-2t1 && [ "$(ab_certificate_lebs)" = 20 ]' \
+    sh "$S/ramfs/lib/upgrade/cambium-ab.sh"
+check "invalid certificate policy refuses before formatting" 1 in_lib eval 'AB_CERTIFICATE_LEBS=21; ab_prepare_bank 100 100'
+check "negative certificate policy rejected" 1 in_lib eval 'AB_CERTIFICATE_LEBS=-1; ab_certificate_lebs'
+check "shell expression certificate policy rejected" 1 in_lib eval 'AB_CERTIFICATE_LEBS="20+0"; ab_certificate_lebs'
+rm "$S/modules/cambium-ab-jaguar.sh"
+ln -s "$jaguar_module_dir/cambium-ab-jaguar.sh" "$S/modules/"
+check "generic OpenWrt module still reserves zero" 0 in_lib eval 'ab_board cambiumnetworks,xv2-2t1 && [ "$(ab_certificate_lebs)" = 0 ]'
 
 # An image that fits the XV2-2T1's 96 MiB bank but not the XV2-2's 52 MiB one.
 { printf hsqs; head -c $((330 * LEB)) /dev/zero; } > "$S/root-mid"; make_image "$S/mid.bin" "" "$S/root-mid"
