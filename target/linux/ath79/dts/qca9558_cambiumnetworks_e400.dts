@@ -11,6 +11,38 @@
 
 	aliases {
 		label-mac-device = &eth0;
+		led-boot = &led_power_green;
+		led-failsafe = &led_power_amber;
+		led-running = &led_power_green;
+		led-upgrade = &led_power_amber;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led_power_green: power-green {
+			label = "green:status";
+			gpios = <&gpio 19 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led_power_amber: power-amber {
+			label = "amber:status";
+			gpios = <&gpio 22 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		network-green {
+			label = "green:lan";
+			gpios = <&gpio 20 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		network-amber {
+			label = "amber:lan";
+			gpios = <&gpio 18 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
 	};
 
 	cambium-platform {

@@ -573,7 +573,7 @@ define Device/cambiumnetworks_e400-recovery
   DEVICE_VARIANT := RAM-only recovery
   DEVICE_DTS := qca9558_cambiumnetworks_e400
   DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca988x-ct \
-	cambium-gambit-support ethtool iw-full mtd pciutils
+	cambium-gambit-support kmod-leds-gpio ethtool iw-full mtd pciutils
   IMAGES :=
 endef
 TARGET_DEVICES += cambiumnetworks_e400-recovery
