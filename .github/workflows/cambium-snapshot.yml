@@ -1,13 +1,14 @@
 name: Cambium snapshot
 
-# Daily: rebase the Cambium commits onto upstream OpenWrt main, build every
+# Weekly (Monday evening): rebase the Cambium commits onto upstream OpenWrt main, build every
 # Cambium family, then publish a GitHub release and the matching package feed.
 
 on:
   schedule:
-    # One evening run (19:17 UTC: 20:17 BST, 19:17 GMT). GitHub may start
-    # scheduled runs hours late, so an evening start still finishes overnight.
-    - cron: '17 19 * * *'
+    # One run a week, on Monday evening (19:17 UTC: 20:17 BST, 19:17 GMT).
+    # GitHub may start scheduled runs hours late, so an evening start still
+    # finishes overnight. Run it by hand for an extra snapshot.
+    - cron: '17 19 * * 1'
   workflow_dispatch:
     inputs:
       sync:
@@ -89,7 +90,7 @@ jobs:
           UPSTREAM: ${{ steps.sync.outputs.upstream }}
         run: |
           title="Upstream sync conflict: $SUBJECT"
-          body="The daily rebase onto upstream OpenWrt \`${UPSTREAM}\` stopped at
+          body="The weekly rebase onto upstream OpenWrt \`${UPSTREAM}\` stopped at
           Cambium commit \`${COMMIT}\` (${SUBJECT}).
 
           Conflicting files: \`${FILES}\`
