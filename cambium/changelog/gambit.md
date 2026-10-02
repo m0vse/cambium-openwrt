@@ -4,6 +4,12 @@ E400 (validated: recovery, installer, persistent and A/B sysupgrade); E500, E501
 
 ## Unreleased
 
+- Add hardware-verified E400 power and network LED GPIOs and polarities.
+  Network green indicates Ethernet link/activity; network amber stays off.
+  Power indicates boot/failsafe/upgrade, then the shared OpenWISP service
+  shows green when its controller check succeeds and amber otherwise.
+  Existing blue/green families retain their colours. Include the GPIO LED
+  driver in recovery and installer images as well as persistent images.
 - The E400 (SKU 6) is validated for the RAM installer, persistent install
   and A/B sysupgrade, on one unit: the first install wrote only the inactive
   bank; warm reboot and cold power-cycle passed; the preserved OEM bank was
