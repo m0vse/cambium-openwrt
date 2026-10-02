@@ -14,7 +14,8 @@ ab_certificate_binding() {
 
 ab_certificate_private_file() {
 	[ -f "$1" ] && [ ! -L "$1" ] &&
-		[ "$(stat -c '%u:%a' "$1")" = "${AB_CERTIFICATE_OWNER:-0}:600" ]
+		LC_ALL=C ls -ldn "$1" | awk -v owner="${AB_CERTIFICATE_OWNER:-0}" \
+			'$1=="-rw-------" && $3==owner { good=1 } END { exit !good }'
 }
 
 ab_certificate_tree_safe() {
@@ -92,7 +93,7 @@ ab_certificate_export() {
 	mv -f "$work/archive" "$AB_CERTIFICATE_ARCHIVE" &&
 		mv -f "$work/descriptor" "$AB_CERTIFICATE_DESCRIPTOR" || return 1
 	RAMFS_COPY_DATA="${RAMFS_COPY_DATA:-} $AB_CERTIFICATE_ARCHIVE $AB_CERTIFICATE_DESCRIPTOR"
-	RAMFS_COPY_BIN="${RAMFS_COPY_BIN:-} stat cmp mktemp sha256sum"
+	RAMFS_COPY_BIN="${RAMFS_COPY_BIN:-} cmp mktemp sha256sum"
 	# Temporary source copies intentionally remain private on error for diagnosis.
 	rm -rf "$work"
 }
