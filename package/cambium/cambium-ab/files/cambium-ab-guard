@@ -28,27 +28,23 @@ do_reboot() {
 # a writable overlay, wired DHCP with a default route, the family's required
 # radios and, on A/B for a family that keeps one, a valid device-data vault.
 # OpenWISP is deliberately not required.
-# The management interface to check.  OpenWiFi's renderer names upstream
-# interface sections up*, so resolve their configured device (including a
-# tagged VLAN).  network.lan is retained for stock OpenWrt configurations.
+# Resolve the configured LAN first, then other addressed UCI interfaces.
+# No controller-specific section names are assumed; tagged VLANs are valid.
 # If neither is readable, use the current default route before falling back to
 # the family's AB_LAN candidates.
 lan_interface() {
 	local lan section
-	for section in $(uci -q show network 2>/dev/null |
+	for section in lan $(uci -q show network 2>/dev/null |
 		sed -n 's/^network\.\([^.=]*\)=interface$/\1/p'); do
-		case "$section" in up*) ;; *) continue ;; esac
-		# up_none is the unaddressed parent bridge, not management DHCP.
+		# Unaddressed parent bridges are not management DHCP interfaces.
 		[ "$(uci -q get "network.$section.proto" 2>/dev/null)" = none ] && continue
 		[ "$(uci -q get "network.$section.disabled" 2>/dev/null)" = 1 ] && continue
-		lan=$(uci -q get "network.$section.device" 2>/dev/null)
-		[ -n "$lan" ] || lan=$(uci -q get "network.$section.ifname" 2>/dev/null)
-		[ -n "$lan" ] || lan=$section
+		lan=$(uci -q get "network.$section.device" 2>/dev/null) || :
+		[ -n "$lan" ] || lan=$(uci -q get "network.$section.ifname" 2>/dev/null) || :
+		[ -n "$lan" ] || continue
 		echo "$lan"
 		return
 	done
-	lan=$(uci -q get network.lan.device 2>/dev/null)
-	[ -n "$lan" ] && { echo "$lan"; return; }
 	lan=$(ip -4 route show default 2>/dev/null | awk '
 		$1 == "default" { for (i = 1; i < NF; i++) if ($i == "dev") { print $(i + 1); exit } }
 	')
@@ -57,6 +53,27 @@ lan_interface() {
 		[ -d "${AB_SYS_NET:-/sys/class/net}/$lan" ] && break
 	done
 	echo "$lan"
+}
+
+# Resolve the selected device's UCI routing table, regardless of section name.
+lan_route_table() {
+	local device=$1 section configured table
+	for section in lan $(uci -q show network 2>/dev/null |
+		sed -n 's/^network\.\([^.=]*\)=interface$/\1/p'); do
+		[ "$(uci -q get "network.$section.proto" 2>/dev/null)" = none ] && continue
+		[ "$(uci -q get "network.$section.disabled" 2>/dev/null)" = 1 ] && continue
+		configured=$(uci -q get "network.$section.device" 2>/dev/null) || :
+		[ -n "$configured" ] || configured=$(uci -q get "network.$section.ifname" 2>/dev/null) || :
+		[ "$configured" = "$device" ] || continue
+		table=$(uci -q get "network.$section.ip4table" 2>/dev/null) || :
+		case "$table" in
+		'') echo main ;;
+		[!A-Za-z0-9]*|*[!A-Za-z0-9_-]*) return 1 ;;
+		*) echo "$table" ;;
+		esac
+		return
+	done
+	echo main
 }
 
 # The Wi-Fi phys that count towards AB_RADIOS: all of them, or only those of
@@ -84,7 +101,7 @@ unhealthy() {
 }
 
 healthy() {
-	local lan radios vault
+	local lan radios vault table
 	AB_HEALTH_FAILURE=
 	ab_identity >/dev/null 2>&1 || { unhealthy 'A/B identity check failed'; return 1; }
 	if ab_hook root_healthy; then
@@ -98,7 +115,13 @@ healthy() {
 	[ -n "$lan" ] || { unhealthy 'no configured management interface'; return 1; }
 	ip -4 address show dev "$lan" 2>/dev/null | grep -q 'inet ' ||
 		{ unhealthy "management interface $lan has no IPv4 address"; return 1; }
-	ip -4 route show default dev "$lan" 2>/dev/null | grep -q '^default ' ||
+	table=$(lan_route_table "$lan") ||
+		{ unhealthy "management interface $lan has an invalid routing table"; return 1; }
+	if [ "$table" = main ]; then
+		ip -4 route show default dev "$lan" 2>/dev/null
+	else
+		ip -4 route show table "$table" default dev "$lan" 2>/dev/null
+	fi | grep -q '^default ' ||
 		{ unhealthy "management interface $lan has no default route"; return 1; }
 	radios=$(radios_up)
 	[ "$radios" -ge "$AB_RADIOS" ] ||
@@ -125,9 +148,9 @@ wait_healthy() {
 # bounded private snapshot survives rollback; never save UCI/JSON credentials
 # or full process arguments. Diagnostic failure must not prevent rollback.
 save_network_health() (
-	local dir=${AB_HEALTH_DIR:-/etc/ucentral} lan bridge prop pid
-	[ -d "$dir" ] || return 0
+	local dir=${AB_HEALTH_DIR:-/etc/cambium-ab} lan bridge prop
 	umask 077
+	mkdir -p "$dir" || return 1
 	lan=$(lan_interface)
 	{
 		printf 'failure=%s\nmanagement=%s\n' "$AB_HEALTH_FAILURE" "$lan"
@@ -137,7 +160,9 @@ save_network_health() (
 		ip link show 2>&1
 		ip -4 addr show 2>&1
 		ip -4 route show 2>&1
-		for bridge in up down; do
+		for bridge in "${AB_SYS_NET:-/sys/class/net}"/*; do
+			[ -d "$bridge/bridge" ] || continue
+			bridge=${bridge##*/}
 			for prop in vlan_filtering default_pvid; do
 				printf '%s.%s=' "$bridge" "$prop"
 				cat "${AB_SYS_NET:-/sys/class/net}/$bridge/bridge/$prop" 2>/dev/null || echo unavailable
