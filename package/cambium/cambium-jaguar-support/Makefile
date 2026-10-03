@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cambium-jaguar-support
-PKG_RELEASE:=8
+PKG_RELEASE:=9
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Phil Taylor <phil@m0vse.uk>
 
@@ -28,7 +28,6 @@ define Package/cambium-jaguar-support/install
 	$(INSTALL_DIR) $(1)/lib/functions $(1)/etc/uci-defaults
 	$(INSTALL_DATA) ./files/cambium-ab-jaguar.sh $(1)/lib/functions/cambium-ab-jaguar.sh
 	$(INSTALL_BIN) ./files/17_jaguar_bridge_section $(1)/etc/uci-defaults/
-	$(INSTALL_BIN) ./files/19_cambium_openwifi_identity $(1)/etc/uci-defaults/
 endef
 
 $(eval $(call BuildPackage,cambium-jaguar-support))
