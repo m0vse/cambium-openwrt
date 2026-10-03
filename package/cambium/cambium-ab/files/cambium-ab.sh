@@ -56,9 +56,6 @@ ab_board() {
 		AB_QUALIFIED=0 AB_VAULT=0 AB_STOCK_BOOTCMD=bootipq AB_LAN=br-lan AB_RADIOS=0 AB_RADIO_DEVICE=
 		AB_LAYOUT=banks AB_MARKER=1 AB_ROOT_MAGIC=hsqs AB_HEALTH_TRIES=60
 		AB_ENV_PART=0:APPSBLENV
-		# OpenWiFi-specific modules opt into the certificate-volume ABI.
-		# Modules survive stage2's /lib/functions/*.sh copy; preinit does not.
-		AB_CERTIFICATE_LEBS=0
 		if "ab_${family}_board" "$1"; then
 			AB_FAMILY=$family
 			return 0

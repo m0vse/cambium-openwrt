@@ -59,32 +59,6 @@ lan_interface() {
 	echo "$lan"
 }
 
-# Tagged OpenWiFi management may have its default route in ip4table, not
-# main. Match the selected device back to its UCI section; never accept an
-# unrelated default route merely because it exists in another table.
-lan_route_table() {
-	local device=$1 section configured table
-	for section in $(uci -q show network 2>/dev/null |
-		sed -n 's/^network\.\([^.=]*\)=interface$/\1/p'); do
-		case "$section" in up*|lan) ;; *) continue ;; esac
-		[ "$(uci -q get "network.$section.proto" 2>/dev/null)" = none ] && continue
-		[ "$(uci -q get "network.$section.disabled" 2>/dev/null)" = 1 ] && continue
-		configured=$(uci -q get "network.$section.device" 2>/dev/null)
-		[ -n "$configured" ] || configured=$(uci -q get "network.$section.ifname" 2>/dev/null)
-		[ -n "$configured" ] || configured=$section
-		[ "$configured" = "$device" ] || continue
-		table=$(uci -q get "network.$section.ip4table" 2>/dev/null)
-		case "$table" in
-		'') echo main ;;
-		[!A-Za-z0-9]*) return 1 ;;
-		*[!A-Za-z0-9_-]*) return 1 ;;
-		*) echo "$table" ;;
-		esac
-		return
-	done
-	echo main
-}
-
 # The Wi-Fi phys that count towards AB_RADIOS: all of them, or only those of
 # the device AB_RADIO_DEVICE names (the end of its /sys/devices path), so a
 # radio that is not a serving radio (the XV3-8's scanner) cannot stand in
@@ -110,7 +84,7 @@ unhealthy() {
 }
 
 healthy() {
-	local lan radios vault table
+	local lan radios vault
 	AB_HEALTH_FAILURE=
 	ab_identity >/dev/null 2>&1 || { unhealthy 'A/B identity check failed'; return 1; }
 	if ab_hook root_healthy; then
@@ -124,14 +98,8 @@ healthy() {
 	[ -n "$lan" ] || { unhealthy 'no configured management interface'; return 1; }
 	ip -4 address show dev "$lan" 2>/dev/null | grep -q 'inet ' ||
 		{ unhealthy "management interface $lan has no IPv4 address"; return 1; }
-	table=$(lan_route_table "$lan") ||
-		{ unhealthy "management interface $lan has an invalid routing table"; return 1; }
-	if [ "$table" = main ]; then
-		ip -4 route show default dev "$lan" 2>/dev/null
-	else
-		ip -4 route show table "$table" default dev "$lan" 2>/dev/null
-	fi | grep -q '^default ' ||
-		{ unhealthy "management interface $lan has no default route in table $table"; return 1; }
+	ip -4 route show default dev "$lan" 2>/dev/null | grep -q '^default ' ||
+		{ unhealthy "management interface $lan has no default route"; return 1; }
 	radios=$(radios_up)
 	[ "$radios" -ge "$AB_RADIOS" ] ||
 		{ unhealthy "only $radios of $AB_RADIOS required radios are present"; return 1; }
