@@ -23,7 +23,7 @@ SKU. Hardware status per model:
 | Jaguar (IPQ6018) | 7.2-r1 | XV2-2T1 | validated | validated (A/B build) | A/B, validated |
 | | | XV2-2 (128 MiB NAND, 52 MiB slots) | validated | validated (A/B build) | A/B, validated |
 | | | XV2-2T0, XE3-4TN | untested | untested: RAM boot only | A/B, untested |
-| | | XE3-4 | untested | validated (A/B build); 6 GHz not validated | A/B, validated; **must not** be used on an XE3-4 running upstream OpenWrt |
+| | | XE3-4 | validated | validated (A/B build); 6 GHz not validated | A/B, validated; **must not** be used on an XE3-4 running upstream OpenWrt |
 | Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | validated (A/B build) | A/B, validated |
 | | | XV2-22H, XV2-23T | untested | untested: RAM boot only | A/B, untested |
 | Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X, X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
