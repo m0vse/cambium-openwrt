@@ -284,6 +284,7 @@ hostapd_common_add_bss_config() {
 	config_add_boolean wds uapsd hidden utf8_ssid ppsk
 
 	config_add_int maxassoc max_inactivity
+	config_add_int fils_discovery_min_interval fils_discovery_max_interval unsol_bcast_probe_resp_interval
 	config_add_boolean disassoc_low_ack isolate short_preamble skip_inactivity_poll
 
 	config_add_int \
@@ -548,6 +549,16 @@ append_acct_server() {
 	[ -n "$acct_secret" ] && append bss_conf "acct_server_shared_secret=$acct_secret" "$N"
 }
 
+hostapd_set_6ghz_discovery() {
+	local option value
+	[ "$band" = "6g" ] || return 0
+	for option in fils_discovery_min_interval fils_discovery_max_interval unsol_bcast_probe_resp_interval; do
+		json_get_var value "$option"
+		[ -n "$value" ] && append bss_conf "$option=$value" "$N"
+	done
+	return 0
+}
+
 hostapd_set_bss_options() {
 	local var="$1"
 	local phy="$2"
@@ -557,6 +568,7 @@ hostapd_set_bss_options() {
 
 	local bss_conf bss_md5sum ft_key rxkhs
 	local wep_rekey wpa_group_rekey wpa_pair_rekey wpa_master_rekey wpa_key_mgmt
+	hostapd_set_6ghz_discovery
 
 	json_get_vars \
 		wep_rekey wpa_group_rekey wpa_pair_rekey wpa_master_rekey wpa_strict_rekey \
