@@ -35,6 +35,7 @@ drv_mac80211_init_device_config() {
 	config_add_int rxantenna txantenna txpower min_tx_power
 	config_add_int num_global_macaddr multiple_bssid
 	config_add_boolean noscan ht_coex acs_exclude_dfs background_radar
+	config_add_boolean acs_exclude_6ghz_non_psc
 	config_add_array ht_capab
 	config_add_array channels
 	config_add_array scan_list
@@ -143,6 +144,11 @@ mac80211_hostapd_setup_base() {
 	[ "$auto_channel" -gt 0 ] && json_get_vars acs_exclude_dfs
 	[ -n "$acs_exclude_dfs" ] && [ "$acs_exclude_dfs" -gt 0 ] &&
 		append base_cfg "acs_exclude_dfs=1" "$N"
+	if [ "$auto_channel" -gt 0 ] && [ "$band" = "6g" ]; then
+		json_get_vars acs_exclude_6ghz_non_psc
+		[ -n "$acs_exclude_6ghz_non_psc" ] &&
+			append base_cfg "acs_exclude_6ghz_non_psc=$acs_exclude_6ghz_non_psc" "$N"
+	fi
 
 	json_get_vars noscan ht_coex min_tx_power:0 tx_burst
 	json_get_values ht_capab_list ht_capab
