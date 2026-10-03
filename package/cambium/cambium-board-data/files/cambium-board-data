@@ -64,6 +64,52 @@ board_files() {
 	esac
 }
 
+# ath11k prefers a matching API-2 entry over board.bin. The upstream XE3-4
+# entry limits the PCI radio's boot capability to 5920 MHz; this unit's own
+# OEM Puma BDF also advertises 6 GHz. Wrap the already validated/imported
+# OEM data without editing it, rather than bypassing driver/regulatory checks.
+# The key is the XE3-4 PCI identity used by its stock device-tree variant.
+bdf_le32() {
+	local value="$1"
+	printf '%b' "\\0$(printf '%03o' $((value & 255)))\\0$(printf '%03o' $(((value >> 8) & 255)))\\0$(printf '%03o' $(((value >> 16) & 255)))\\0$(printf '%03o' $(((value >> 24) & 255)))"
+}
+
+xe34_pci_api2() {
+	[ "$(board_name)" = cambiumnetworks,xe3-4 ] || return 0
+	local dir="$FW_DIR/ath11k/QCN9074/hw1.0" source target tmp key size key_size padded body
+	source="$dir/board.bin"
+	target="$dir/board-2.bin"
+	tmp="$target.tmp.$$"
+	[ ! -d "$target" ] || return 1
+	key='bus=pci,qmi-chip-id=0,qmi-board-id=255,variant=CambiumNetworks-XE34'
+	[ -f "$source" ] && size=$(wc -c < "$source") && [ "$size" -eq 131072 ] || {
+		log "XE3-4 PCI API-2 generation requires the complete imported OEM Puma BDF"
+		return 1
+	}
+	key_size=${#key}
+	padded=$(((key_size + 3) & ~3))
+	body=$((8 + padded + 8 + size))
+	# QCA-ATH11K-BOARD, terminating NUL, and zero alignment padding; outer
+	# BOARD IE containing NAME and DATA IEs. No calibration bytes are edited.
+	{
+		printf 'QCA-ATH11K-BOARD\000\000\000\000'
+		bdf_le32 0 && bdf_le32 "$body" &&
+		bdf_le32 0 && bdf_le32 "$key_size" && printf '%s' "$key" &&
+		dd if=/dev/zero bs=1 count=$((padded - key_size)) 2>/dev/null &&
+		bdf_le32 1 && bdf_le32 "$size" && cat "$source"
+	} > "$tmp" || { rm -f "$tmp"; return 1; }
+	[ "$(wc -c < "$tmp")" -eq $((20 + 8 + body)) ] || {
+		rm -f "$tmp"
+		return 1
+	}
+	if cmp -s "$tmp" "$target"; then
+		rm -f "$tmp"
+		return 0
+	fi
+	chmod 0644 "$tmp" && mv "$tmp" "$target" || { rm -f "$tmp"; return 1; }
+	log "installed XE3-4 PCI API-2 entry from imported OEM Puma BDF (sha256 $(sha256 "$source"))"
+}
+
 missing_files() {
 	local src size dst
 	board_files | while read -r src size dst; do
@@ -367,11 +413,12 @@ main() {
 		return
 	fi
 	if vault_locate; then
-		vault_main
+		vault_main || return
 	else
 		[ -n "$(board_files)" ] || return 0
-		legacy_main
+		legacy_main || return
 	fi
+	xe34_pci_api2
 }
 
 main "$@"
