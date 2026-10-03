@@ -12,8 +12,10 @@ SKU. Hardware status per model:
 
 | Family | Stock firmware | Model | Recovery (RAM) | Persistent | Sysupgrade |
 | --- | --- | --- | --- | --- | --- |
-| Gambit (QCA9558, Wi-Fi 5) | 4.2.3.3-r10 | E400 | validated | validated (A/B build, raw uImage kernel) | A/B, validated |
-| | | E500, E501S, E502S | no build yet | no build yet | no build yet |
+| Gambit (Wi-Fi 5, MIPS) | 4.2.3.3-r10 | E400 | validated | validated (A/B build, raw uImage kernel) | A/B, validated |
+| | | E500 | no build yet | no build yet | no build yet: needs hardware |
+| | | E501S | no build yet | no build yet | no build yet: needs hardware |
+| | | E502S | no build yet | no build yet | no build yet: needs hardware |
 | Sage (IPQ4019) | 4.2.3.3-r10 | E410, E410B | validated | validated | A/B, validated (shared A/B code) |
 | | | E510 | untested | untested | A/B, untested (same layout as the E410) |
 | | | E430H, E430W, E600, E700 | untested | untested | refused: layout not yet captured |
