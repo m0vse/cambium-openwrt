@@ -568,7 +568,6 @@ hostapd_set_bss_options() {
 
 	local bss_conf bss_md5sum ft_key rxkhs
 	local wep_rekey wpa_group_rekey wpa_pair_rekey wpa_master_rekey wpa_key_mgmt
-	hostapd_set_6ghz_discovery
 
 	json_get_vars \
 		wep_rekey wpa_group_rekey wpa_pair_rekey wpa_master_rekey wpa_strict_rekey \
@@ -614,6 +613,7 @@ hostapd_set_bss_options() {
 	/usr/sbin/hostapd -vfils || fils=0
 
 	append bss_conf "ctrl_interface=/var/run/hostapd"
+	hostapd_set_6ghz_discovery
 	if [ "$isolate" -gt 0 ]; then
 		append bss_conf "ap_isolate=$isolate" "$N"
 	fi
