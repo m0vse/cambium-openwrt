@@ -74,8 +74,7 @@ class DiscoveryTests(unittest.TestCase):
     def test_shell_syntax_and_package_release(self):
         for path in [PKG/'files/lib/netifd/hostapd.sh', PKG/'files/lib/netifd/wireless/mac80211.sh']:
             subprocess.run(SHELL+['-n',str(path)],check=True)
-        self.assertIn('PKG_RELEASE:=3\n', (PKG/'Makefile').read_text())
+        self.assertIn('PKG_RELEASE:=4\n', (PKG/'Makefile').read_text())
 
 if __name__ == '__main__':
     unittest.main()
-
