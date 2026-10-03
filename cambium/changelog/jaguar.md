@@ -4,6 +4,7 @@ XV2-2, XV2-2T1, XE3-4 (validated); XV2-2T0, XE3-4TN (RAM boot only).
 
 ## Unreleased
 
+- The XE3-4 RAM recovery image is validated too (no image change).
 - The XE3-4 (SKU 32) is validated for persistent install and A/B
   sysupgrade: both banks booted, switched both ways and upgraded from bank
   1 to bank 0, with the device-data vault, Ethernet, DHCP and VLAN 1
