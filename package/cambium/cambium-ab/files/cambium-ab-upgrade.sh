@@ -23,13 +23,6 @@ ab_vault_lebs() {
 	if [ "$AB_VAULT" = 1 ]; then echo "$AB_VAULT_LEBS"; else echo 0; fi
 }
 
-# OpenWiFi's preinit certificate store needs 20 LEBs. Reserve it before
-# rootfs_data consumes the bank and before configuration restoration formats
-# UBIFS. Shrinking that formatted filesystem on first boot corrupts it.
-ab_certificate_lebs() {
-	if [ -f "${AB_CERTIFICATE_PREINIT:-/lib/preinit/75_certificates}" ]; then echo 20; else echo 0; fi
-}
-
 ab_fail() {
 	echo "A/B sysupgrade: $*" >&2
 	return 1
@@ -83,7 +76,7 @@ ab_image_extract() {
 		return 0
 	fi
 	[ $(( $(ab_lebs "$AB_KERNEL_SIZE") + $(ab_lebs "$AB_ROOT_SIZE") + \
-		$(ab_vault_lebs) + $(ab_certificate_lebs) + AB_MIN_DATA_LEBS )) -le "$AB_BANK_LEBS" ] ||
+		$(ab_vault_lebs) + AB_MIN_DATA_LEBS )) -le "$AB_BANK_LEBS" ] ||
 		ab_fail "image does not fit this $AB_MODEL bank ($AB_BANK_LEBS LEBs) with the vault and overlay" || return 1
 }
 
@@ -163,11 +156,6 @@ ab_prepare_bank() {
 		ab_step "ubimkvol $ubi vault" ubimkvol "$dev/$ubi" -n 3 -N cambium_device_data \
 			-s $((AB_VAULT_LEBS * AB_LEB)) &&
 			ab_step "mknod ${ubi}_3" ab_ubi_node "${ubi}_3" || return 1
-	fi
-	if [ "$(ab_certificate_lebs)" -gt 0 ]; then
-		ab_step "ubimkvol $ubi certificates" ubimkvol "$dev/$ubi" -n 4 -N certificates \
-			-s $((20 * AB_LEB)) &&
-			ab_step "mknod ${ubi}_4" ab_ubi_node "${ubi}_4" || return 1
 	fi
 	ab_step "ubimkvol $ubi rootfs_data" ubimkvol "$dev/$ubi" -n 2 -N rootfs_data -m &&
 		ab_step "mknod ${ubi}_2" ab_ubi_node "${ubi}_2" || return 1
