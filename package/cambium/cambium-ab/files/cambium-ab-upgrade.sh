@@ -7,15 +7,12 @@
 # /lib/functions/cambium-ab.sh.
 
 . "${CAMBIUM_AB_LIB:-/lib/functions/cambium-ab.sh}"
-[ ! -f "${CAMBIUM_AB_CERTIFICATE_LIB:-/lib/upgrade/cambium-ab-certificates.sh}" ] || \
-	. "${CAMBIUM_AB_CERTIFICATE_LIB:-/lib/upgrade/cambium-ab-certificates.sh}"
 
 # The image directory (AB_IMAGE_DIR) and the bank's usable LEBs
 # (AB_BANK_LEBS) come from the family module's board table.
 AB_VAULT_LEBS=8
 # Smallest writable overlay a new bank may get (8 MiB).
 AB_MIN_DATA_LEBS=67
-AB_CERTIFICATE_POLICY_VERSION=1
 
 ab_lebs() {
 	echo $(( ($1 + AB_LEB - 1) / AB_LEB ))
@@ -30,10 +27,7 @@ ab_vault_lebs() {
 # rootfs_data consumes the bank and before configuration restoration formats
 # UBIFS. Shrinking that formatted filesystem on first boot corrupts it.
 ab_certificate_lebs() {
-	case "${AB_CERTIFICATE_LEBS:-0}" in
-	0|20) echo "${AB_CERTIFICATE_LEBS:-0}" ;;
-	*) ab_fail "invalid certificate-volume policy: expected 0 or 20 LEBs"; return 1 ;;
-	esac
+	if [ -f "${AB_CERTIFICATE_PREINIT:-/lib/preinit/75_certificates}" ]; then echo 20; else echo 0; fi
 }
 
 ab_fail() {
@@ -97,7 +91,6 @@ ab_image_extract() {
 ab_upgrade_preflight() {
 	local state
 	ab_identity || return 1
-	ab_certificate_lebs >/dev/null || return 1
 	# A pair-layout family (Sage) has no conversion step: writing the other
 	# slot replaces whatever it held, as its first upgrade always has.
 	[ "$AB_LAYOUT" = pair ] || ab_converted ||
@@ -144,8 +137,6 @@ ab_verify_volume() {
 # if the family keeps one, and rootfs_data (2) from the remaining space. Sets AB_TARGET_UBI.
 ab_prepare_bank() {
 	local kernel_size="$1" root_size="$2" dev=${AB_DEV:-/dev} data ubi
-	local certificate_lebs
-	certificate_lebs=$(ab_certificate_lebs) || return 1
 	if ab_ubi_for_mtd "$AB_TARGET_MTD" >/dev/null; then
 		# Some ubidetach versions report EINVAL after a successful detach.
 		# Never format an attached bank, even if the command reported success.
@@ -173,9 +164,9 @@ ab_prepare_bank() {
 			-s $((AB_VAULT_LEBS * AB_LEB)) &&
 			ab_step "mknod ${ubi}_3" ab_ubi_node "${ubi}_3" || return 1
 	fi
-	if [ "$certificate_lebs" -gt 0 ]; then
+	if [ "$(ab_certificate_lebs)" -gt 0 ]; then
 		ab_step "ubimkvol $ubi certificates" ubimkvol "$dev/$ubi" -n 4 -N certificates \
-			-s $((certificate_lebs * AB_LEB)) &&
+			-s $((20 * AB_LEB)) &&
 			ab_step "mknod ${ubi}_4" ab_ubi_node "${ubi}_4" || return 1
 	fi
 	ab_step "ubimkvol $ubi rootfs_data" ubimkvol "$dev/$ubi" -n 2 -N rootfs_data -m &&
@@ -216,13 +207,6 @@ cambium_ab_do_upgrade() {
 	ab_upgrade_preflight || return 1
 	ab_image_extract "$1" || return 1
 
-	# stage2 must prove the private snapshot survived the RAM copy BEFORE
-	# recording writes or erasing any inactive-bank data.
-	if [ "$(ab_certificate_lebs)" = 20 ] && [ "$AB_LAYOUT" = banks ]; then
-		type ab_certificate_validate_snapshot >/dev/null 2>&1 && ab_certificate_validate_snapshot ||
-			{ ab_fail 'RAM-stage certificate snapshot validation failed; no bank was written'; return 1; }
-	fi
-
 	# Record the write before touching the bank. bootcmd still boots the
 	# running bank first, so an interrupted write never loses it.
 	printf "${AB_ENV}_ab_state writing\n${AB_ENV}_ab_target %s\n" "$AB_TARGET" > "$batch"
@@ -232,10 +216,6 @@ cambium_ab_do_upgrade() {
 	echo "cambium-ab: writing slot $AB_TARGET ($AB_TARGET_PART) from slot $AB_ACTIVE"
 	if ab_hook write_target; then
 		"ab_${AB_FAMILY}_write_target" || return 1
-		if [ "$(ab_certificate_lebs)" = 20 ]; then
-			type ab_certificate_restore >/dev/null 2>&1 && ab_certificate_restore ||
-				{ ab_record_failure write-failed 'cannot restore the certificate store'; return 1; }
-		fi
 		sync
 		ab_arm_trial ||
 			{ ab_record_failure write-failed "cannot arm the trial of slot $AB_TARGET"; return 1; }
@@ -252,10 +232,6 @@ cambium_ab_do_upgrade() {
 		{ AB_STEP_ERROR=; ab_record_failure write-failed "slot $AB_TARGET readback mismatch"; return 1; }
 	[ "$AB_VAULT" != 1 ] || ab_copy_vault ||
 		{ ab_record_failure write-failed "cannot copy the device-data vault"; return 1; }
-	if [ "$(ab_certificate_lebs)" = 20 ]; then
-		type ab_certificate_restore >/dev/null 2>&1 && ab_certificate_restore ||
-			{ ab_record_failure write-failed 'cannot restore the certificate store'; return 1; }
-	fi
 
 	if [ -n "${UPGRADE_BACKUP:-}" ]; then
 		CI_UBIPART=$AB_TARGET_PART nand_restore_config "$UPGRADE_BACKUP" ||
