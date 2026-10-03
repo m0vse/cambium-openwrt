@@ -114,7 +114,7 @@ ab_gambit_image_fits() {
 	fi
 	[ "$1" -le $((0x400000 - bad * 0x20000)) ] ||
 		ab_fail 'kernel exceeds the 4 MiB partition with bad-block reserve' || return 1
-	[ $(( $(ab_lebs "$2") + $(ab_certificate_lebs) + AB_MIN_DATA_LEBS )) -le "$AB_BANK_LEBS" ] ||
+	[ $(( $(ab_lebs "$2") + AB_MIN_DATA_LEBS )) -le "$AB_BANK_LEBS" ] ||
 		ab_fail 'rootfs exceeds the 44 MiB bank with its writable overlay' || return 1
 }
 
@@ -154,9 +154,6 @@ ab_gambit_write_target_inner() {
 		ab_step 'create rootfs node' ab_ubi_node "${ubi}_1" &&
 		ab_step 'write rootfs' ubiupdatevol "$dev/${ubi}_1" "$AB_ROOT" &&
 		ab_verify_volume "$dev/${ubi}_1" "$AB_ROOT" "$AB_ROOT_SIZE" || return 1
-	if [ "$(ab_certificate_lebs)" -gt 0 ]; then
-		ab_step 'create certificates' ubimkvol "$dev/$ubi" -n 4 -N certificates -s $((20 * AB_LEB)) || return 1
-	fi
 	ab_step 'create overlay' ubimkvol "$dev/$ubi" -n 2 -N rootfs_data -m &&
 		ab_step 'create overlay node' ab_ubi_node "${ubi}_2" || return 1
 	[ "$(cat "${AB_UBI_SYS:-/sys/class/ubi}/${ubi}_2/data_bytes")" -ge $((AB_MIN_DATA_LEBS * AB_LEB)) ] || return 1
