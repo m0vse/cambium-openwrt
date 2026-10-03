@@ -6,15 +6,6 @@ REQUIRE_IMAGE_METADATA=1
 RAMFS_COPY_BIN='fw_printenv fw_setenv head seq sha256sum tr'
 RAMFS_COPY_DATA='/etc/fw_env.config /var/lock/fw_printenv.lock'
 
-platform_pre_upgrade() {
-	if command -v ab_family >/dev/null && ab_family; then
-		ab_certificate_export || {
-			echo 'A/B upgrade: certificate snapshot failed; no bank was written' >&2
-			exit 1
-		}
-	fi
-}
-
 remove_oem_ubi_volume() {
 	local oem_volume_name="$1"
 	local oem_ubivol
