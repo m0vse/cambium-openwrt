@@ -370,7 +370,8 @@
           "sku": 32,
           "recovery": {
             "config": "config@cp01-c3-xv3-4",
-            "status": "untested"
+            "status": "validated",
+            "note": "RAM boot from the stock firmware; the persistent tree is built on this recovery tree"
           },
           "persistent": {
             "config": "config@cp01-c3-xv3-4",
