@@ -2,6 +2,8 @@
 # Controller-neutral OEM inspection and essential recovery capture only.
 # No firmware/environment writer or boot selector is invoked here.
 set -eu
+LC_ALL=C
+export LC_ALL
 umask 077
 
 die() { echo "cambium-oem-sage-prepare: $*" >&2; exit 1; }
