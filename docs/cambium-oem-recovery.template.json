@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "purpose": "shared-oem-factory-reset-recovery",
+  "status": "unqualified",
+  "model": "EXACT-MODEL",
+  "sku_hex": "00000000",
+  "hardware_revision": "CAPTURED-REVISION",
+  "region_compatibility": [],
+  "oem_release": "VERIFIED-APPLICABLE-RELEASE",
+  "source": {
+    "kind": "authenticated-vendor-image-or-reviewed-reference-capture",
+    "release_evidence": "PRIVATE-QUALIFICATION-RECORD-REFERENCE",
+    "container_sha256": null,
+    "device_unique_material_excluded": false
+  },
+  "shared_payloads": [
+    {"role": "kernel", "file": "oem-kernel.bin", "size": null, "sha256": null, "format": null},
+    {"role": "rootfs", "file": "oem-rootfs.bin", "size": null, "sha256": null, "format": null}
+  ],
+  "uboot_defaults": {
+    "status": "unqualified",
+    "defaults_template_sha256": null,
+    "source_release_and_board_evidence": null,
+    "restore_normal_oem_boot_command_arguments_and_bank": true,
+    "remove_only_reviewed_migration_overrides": [],
+    "preserve_per_device_mac_serial_and_factory_fields": [],
+    "donor_whole_environment_restore_permitted": false,
+    "blind_env_default_all_permitted": false,
+    "transaction_readback_and_rollback_evidence": null
+  },
+  "restore_contract": {
+    "factory_reset": true,
+    "inactive_bank_only": true,
+    "preserve_bootloader_calibration_manufacturing": true,
+    "runtime_tool_and_version": null,
+    "partition_labels_offsets_geometry": [],
+    "write_readback_and_firstboot_qualification": null,
+    "external_recovery_route": null
+  },
+  "per_ap_assets": {
+    "manifest_reference": "PRIVATE-AP-RECOVERY-MANIFEST",
+    "shared_firmware_reference_by_digest": true,
+    "unique_calibration_identity_boot_metadata_only": true,
+    "whole_firmware_backup_required": false
+  }
+}
