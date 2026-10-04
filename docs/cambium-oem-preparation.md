@@ -159,6 +159,47 @@ format/FIT configuration/rootfs semantics, live inactive capacity, OEM tools,
 protected targets and rollback have to pass before any installation. Signature
 verification does not prove a bootable or model-compatible FIT by itself.
 
+## Standalone Sage source inspection
+
+`scripts/cambium-oem-sage-storage-check.sh` checks the reviewed OEM release
+and that `/root` resides on the active writable UBIFS root without a covering
+mount. It does not create a directory or authorize a writer. The destination
+installer chooses its private state path and authenticates its runtime separately.
+
+`scripts/cambium-oem-sage-context.sh` emits seven tab-separated fields: canonical
+factory label MAC, family, exact model, active bank, pending target, pending
+transaction digest and pending image digest. The last three are empty when no
+transaction exists. It reads the reviewed manufacturing TLV directly, validates
+pending state as a complete transaction, and does not load converted-stock
+libraries. Both helpers support read-only `check` and `inspect-capture ROOT`.
+Fixture tests cover these interfaces; OEM runtime and hardware acceptance remain
+required before production admission.
+
+## Inactive Sage pair staging implementation
+
+`scripts/lib/cambium-sage-pair-write.sh` implements the controller-neutral
+inactive-pair staging primitive for authenticated FIT plus SquashFS/UBIFS
+payloads. It verifies fixed IDs, running bank/attachment, geometry, mounts,
+inactive-only capacity, payload length/magic, root and kernel readback and
+unchanged protected volume geometry. Restoration may reclaim only the inactive
+67-LEB overlay; SquashFS staging recreates that bank's overlay. It never writes
+the environment, selects a boot, reboots or touches bootloader code. No production
+entrypoint loads it and no model becomes qualified by its presence.
+
+The qualified caller must additionally establish exact manufacturing identity,
+OEM version/tools, authenticated frozen payloads, FIT/UBIFS semantics, private
+critical recovery, guarded selection/defaults and incoming identity handoff.
+The library's admission state is a caller precondition, not an authentication
+mechanism or force option. It is not a complete installer or factory reset.
+Shared NVRAM reset/OEM first-boot behavior and reviewed OEM environment defaults
+remain separate prerequisites.
+
+`scripts/tests/test_cambium_sage_pair_write.py` executes the actual shell library
+with isolated replacement UBI commands. Both banks, mutation/sync failures,
+corrupt readback and pre-write refusals retain active-bank/key/factory sentinels
+and never report completion after failure. These fixtures do not prove physical
+NAND power-loss recovery or bootloader behavior.
+
 ## Shared OEM recovery firmware
 
 Maintain one private, verified recovery firmware set per exact model and
