@@ -1,0 +1,4 @@
+# Copy a completed row into cambium-oem-models.tsv after reviewing the stock
+# model definition. Keep unknown OEM layout fields '-' until captured.
+# SKU(hex) family model layout bank_bytes_hex image_compatible critical_assets evidence_status production_status
+00000000	FAMILY	NEW-MODEL	-	-	cambiumnetworks,new-model	-	uncaptured	unsupported
