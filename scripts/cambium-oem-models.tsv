@@ -1,0 +1,19 @@
+# schema=1; SKU(hex) family model layout bank_bytes_hex image_compatible critical_assets evidence_status production_status
+# Tabs separate fields. '-' means unknown, never inherit another model's value.
+00000006	gambit	E400	raw-yaffs	00300000+02d00000	cambiumnetworks,e400	ART,mfginfo,u-boot-env,MRAM-unresolved	layout-only	unqualified
+0000000a	sage	E410	ubi-pair	08000000	cambiumnetworks,e410	0:ART,mfginfo,0:APPSBLENV	layout-only	unqualified
+0000000b	sage	E600	-	-	cambiumnetworks,e600	-	uncaptured	unsupported
+0000000d	sage	E430W	-	-	cambiumnetworks,e430w	-	uncaptured	unsupported
+0000000e	sage	E700	-	-	cambiumnetworks,e700	-	uncaptured	unsupported
+0000000f	sage	E430H	-	-	cambiumnetworks,e430h	-	uncaptured	unsupported
+00000010	sage	E510	-	-	cambiumnetworks,e510	-	uncaptured	unsupported
+00000013	thor	XV3-8	ubi-bank	06000000	cambiumnetworks,xv3-8	0:ART,mfginfo,0:APPSBLENV,BOOTCONFIG-pair,0:ETHPHYFW,OEM-BDF	layout-only	unqualified
+00000014	jaguar	XV2-2	ubi-bank	03400000	cambiumnetworks,xv2-2	0:ART,mfginfo,0:APPSBLENV,OEM-BDF	layout-only	unqualified
+00000015	sage	E410B	ubi-pair	08000000	cambiumnetworks,e410b	0:ART,mfginfo,0:APPSBLENV	layout-only	unqualified
+00000016	jaguar	XV2-2T0	-	-	cambiumnetworks,xv2-2t0	-	uncaptured	unsupported
+0000001f	jaguar	XV2-2T1	ubi-bank	06000000	cambiumnetworks,xv2-2t1	0:ART,mfginfo,0:APPSBLENV,OEM-BDF	layout-only	unqualified
+00000020	jaguar	XE3-4	ubi-bank	06000000	cambiumnetworks,xe3-4	0:ART,mfginfo,0:APPSBLENV,OEM-Puma-QCN9074-BDF	layout-only	unqualified
+00000021	jaguar	XE3-4TN	-	-	cambiumnetworks,xe3-4tn	-	uncaptured	unsupported
+00000022	cheetah	XV2-22H	-	-	cambiumnetworks,xv2-22h	-	uncaptured	unsupported
+00000023	cheetah	XV2-21X	ubi-bank	06000000	cambiumnetworks,xv2-21x	0:ART,mfginfo,0:APPSBLENV,OEM-bdwlan.b24,OEM-bdwlan.b60	layout-only	unqualified
+00000024	cheetah	XV2-23T	-	-	cambiumnetworks,xv2-23t	-	uncaptured	unsupported
