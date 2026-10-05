@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 /dts-v1/;
 
-#include "qcom-ipq4019-sage-dk07-recovery.dtsi"
+#include "qcom-ipq4019-sage-e600.dtsi"
 
 / {
 	model = "Cambium Networks E600";

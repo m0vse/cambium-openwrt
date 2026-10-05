@@ -61,7 +61,7 @@ for board in e410 e510 e410b; do
 		if fdtget "$dtb" /soc/spi@78b5000/nand@1/partitions/partition@0 read-only >/dev/null 2>&1; then exit 1; fi
 	fi
 done
-for board in e600 e430w e700 e430h; do
+for board in e430w e700 e430h; do
 	dtb=$work_dir/$board.dtb
 	fdtget -t r "$fit" "/images/fdt@$board" data > "$dtb"
 	if [ "$flavor" = recovery ]; then
@@ -79,7 +79,21 @@ for board in e600 e430w e700 e430h; do
 done
 
 test "$(fdtget -t x "$work_dir/e410.dtb" /memory reg)" = '80000000 10000000'
-test "$(fdtget -t x "$work_dir/e600.dtb" /memory reg)" = '80000000 20000000'
+dtb=$work_dir/e600.dtb
+fdtget -t r "$fit" /images/fdt@e600 data > "$dtb"
+test "$(fdtget -t x "$dtb" /memory reg)" = '80000000 10000000'
+test "$(fdtget -t s "$dtb" /soc/nand-controller@79b0000 status)" = okay
+test "$(fdtget -t x "$dtb" /soc/nand-controller@79b0000/nand@0/partitions/partition@0 reg)" = '0 8000000'
+fdtget "$dtb" /soc/nand-controller@79b0000/nand@0/partitions/partition@0 read-only >/dev/null
+for partition in 0 40000 60000 c0000 d0000 e0000 f0000 170000 180000 190000 1a0000; do
+	fdtget "$dtb" "/soc/spi@78b5000/flash@0/partitions/partition@$partition" read-only >/dev/null
+done
+test "$(fdtget -t s "$dtb" /soc/pci@40000000 status)" = okay
+test "$(fdtget -t x "$dtb" /soc/pci@40000000 perst-gpios | awk '{print $2}')" = 26
+test "$(fdtget -t s "$dtb" /soc/pci@40000000/pcie@0/wifi@0,0 nvmem-cell-names)" = pre-calibration
+test "$(fdtget -t x "$dtb" /soc/spi@78b5000/flash@0/partitions/partition@170000/nvmem-layout/precal@9000 reg)" = '9000 2f20'
+test "$(fdtget -t s "$dtb" /soc/wifi@a800000 status)" = disabled
+test "$(fdtget -t s "$dtb" /soc/mmc@7824900 status)" = disabled
 test "$(fdtget -t x "$work_dir/e510.dtb" /soc/spi@78b5000 cs-gpios | awk '{print $5}')" = 4
 test "$(fdtget -t x "$work_dir/e600.dtb" /soc/pinctrl@1000000/phy-reset gpios | awk '{print $1}')" = 29
 test "$(fdtget -t x "$work_dir/e430w.dtb" /soc/pinctrl@1000000/phy-reset gpios | awk '{print $1}')" = 31

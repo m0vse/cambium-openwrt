@@ -1529,6 +1529,7 @@ define Device/cambiumnetworks_sage-recovery
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	IMAGES :=
+	DEVICE_PACKAGES := ath10k-firmware-qca9984-ct
 endef
 TARGET_DEVICES += cambiumnetworks_sage-recovery
 
@@ -1563,6 +1564,6 @@ define Device/cambiumnetworks_sage-persistent
 	IMAGE/sysupgrade-ubifs.bin := e410-rootfs-ubifs | check-size 46128k | sysupgrade-tar rootfs=$$$$@ | append-metadata
 	IMAGE/rootfs.squashfs := append-rootfs | check-size 37820k
 	IMAGE/sysupgrade.bin := append-rootfs | check-size 37820k | sysupgrade-tar rootfs=$$$$@ | append-metadata
-	DEVICE_PACKAGES := cambium-sage-support
+	DEVICE_PACKAGES := cambium-sage-support ath10k-firmware-qca9984-ct
 endef
 TARGET_DEVICES += cambiumnetworks_sage-persistent
