@@ -88,9 +88,9 @@ fdtget "$dtb" /soc/nand-controller@79b0000/nand@0/partitions/partition@0 read-on
 for partition in 0 40000 60000 c0000 d0000 e0000 f0000 170000 180000 190000 1a0000; do
 	fdtget "$dtb" "/soc/spi@78b5000/flash@0/partitions/partition@$partition" read-only >/dev/null
 done
-test "$(fdtget -t s "$dtb" /soc/pci@40000000 status)" = okay
-test "$(fdtget -t x "$dtb" /soc/pci@40000000 perst-gpios | awk '{print $2}')" = 26
-test "$(fdtget -t s "$dtb" /soc/pci@40000000/pcie@0/wifi@0,0 nvmem-cell-names)" = pre-calibration
+test "$(fdtget -t s "$dtb" /soc/pcie@40000000 status)" = okay
+test "$(fdtget -t x "$dtb" /soc/pcie@40000000 perst-gpios | awk '{print $2}')" = 26
+test "$(fdtget -t s "$dtb" /soc/pcie@40000000/pcie@0/wifi@0,0 nvmem-cell-names)" = pre-calibration
 test "$(fdtget -t x "$dtb" /soc/spi@78b5000/flash@0/partitions/partition@170000/nvmem-layout/precal@9000 reg)" = '9000 2f20'
 test "$(fdtget -t s "$dtb" /soc/wifi@a800000 status)" = disabled
 test "$(fdtget -t s "$dtb" /soc/mmc@7824900 status)" = disabled
