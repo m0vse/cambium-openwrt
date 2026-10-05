@@ -4,6 +4,7 @@ E410, E410B, E510 (validated layout); E430H, E430W, E600, E700 (RAM boot only).
 
 ## Unreleased
 
+- E600 initial hardware trial: use the captured 256 MiB RAM size, PCIe QCA9984 5 GHz radio (ART calibration at 0x9000), factory Ethernet MAC and 128 MiB parallel NAND layout. Disable the unused integrated 5 GHz radio and DVK SD interface. All E600 flash partitions remain read-only and persistent installation remains unqualified; other Sage model trees are unchanged.
 - No firmware change. The E410B's `config@17` (in the images since 2026.09.28.1) is now marked validated for RAM boot and persistent install, so the installer accepts an E410B without `CAMBIUM_HARDWARE_TRIAL=1`.
 
 ## 2026.09.28.1
