@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+
+#include "qcom-ipq4019-sage-dk07.dtsi"
+
+/* E600 SKU 11: captured OEM AP-DK07.1-C1 tree and factory ART. */
+/ {
+	memory {
+		reg = <0x80000000 0x10000000>;
+	};
+};
+
+/* The DVK's SD pinmux overlaps the Sage status LEDs. */
+&sdhci {
+	status = "disabled";
+};
+
+&blsp1_spi1 {
+	flash@0 {
+		partitions {
+			/delete-node/ partition@180000;
+			/delete-node/ partition@1c0000;
+
+			partition@170000 {
+				nvmem-layout {
+					e600_precal_5g: precal@9000 {
+						reg = <0x9000 0x2f20>;
+					};
+				};
+			};
+
+			partition@180000 {
+				label = "mfginfo";
+				reg = <0x180000 0x10000>;
+				read-only;
+			};
+			partition@190000 {
+				label = "crashLog";
+				reg = <0x190000 0x10000>;
+				read-only;
+			};
+			partition@1a0000 {
+				label = "config";
+				reg = <0x1a0000 0x10000>;
+				read-only;
+			};
+		};
+	};
+};
+
+/* Expose NAND for diagnostics, but keep it read-only until qualification. */
+&nand {
+	status = "okay";
+
+	nand@0 {
+		reg = <0>;
+		nand-ecc-strength = <4>;
+		nand-ecc-step-size = <512>;
+		nand-bus-width = <8>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "fs";
+				reg = <0x0 0x8000000>;
+				read-only;
+			};
+		};
+	};
+};
+
+&pcie0 {
+	status = "okay";
+	/* GPIO 38 is the reset line in the captured OEM tree. */
+	perst-gpios = <&tlmm 38 GPIO_ACTIVE_LOW>;
+	/delete-property/ wake-gpios;
+};
+
+&pcie_bridge0 {
+	wifi@0,0 {
+		compatible = "qcom,ath10k";
+		reg = <0x00010000 0 0 0 0>;
+		nvmem-cell-names = "pre-calibration";
+		nvmem-cells = <&e600_precal_5g>;
+	};
+};
+
+/* E600 uses PCIe QCA9984 instead of the second integrated radio. */
+&wifi1 {
+	status = "disabled";
+};
+
+/* E600 ART offset zero is not a MAC; do not inherit the DVK's LAN cells. */
+&gmac {
+	/delete-property/ nvmem-cell-names;
+	/delete-property/ nvmem-cells;
+};
+
+&swport4 {
+	/delete-property/ nvmem-cell-names;
+	/delete-property/ nvmem-cells;
+};
