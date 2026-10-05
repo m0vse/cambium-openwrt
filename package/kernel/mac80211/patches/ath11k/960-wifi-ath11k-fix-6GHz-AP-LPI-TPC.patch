@@ -1,0 +1,74 @@
+From: Sebastian Gottschall <s.gottschall@dd-wrt.com>
+Subject: [PATCH] wifi: ath11k: fix txpower in AP mode for 6 GHz
+
+QCN9074 can report zero power after scanning in 6 GHz AP mode. Include
+ordinary APs in the existing EXT_TPC_REG_SUPPORT path and use the actual
+starting channel context, preserving firmware/regulatory-derived limits.
+
+AP TPC uses LPI, consistent with the driver's existing AP regulatory-rule
+path. This does not implement VLP or standard-power AP support, override
+regulatory limits or replace OEM board/calibration data. Configure LPI
+explicitly when validating the AP.
+
+Adapted from the unmerged upstream v3 proposal and the XE3-4-tested
+OpenWiFi change 81644c8d39812ace24c8cd9229f5e6a925b80732, for stock
+backports 7.2. This is not a released upstream fix; the stock kernel/module
+still requires physical validation.
+
+Fixes: 74ef2d05ede6 ("wifi: ath11k: use WMI_VDEV_SET_TPC_POWER_CMDID when EXT_TPC_REG_SUPPORT for 6 GHz")
+Link: https://lore.kernel.org/ath11k/20260514202750.3040404-1-s.gottschall@dd-wrt.com/
+Signed-off-by: Sebastian Gottschall <s.gottschall@dd-wrt.com>
+Signed-off-by: Phil Taylor <phil@m0vse.uk>
+---
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
+@@ -3497,13 +3497,13 @@
+ 	return 0;
+ }
+ 
+-static bool ath11k_mac_supports_station_tpc(struct ath11k *ar,
+-					    struct ath11k_vif *arvif,
+-					    const struct cfg80211_chan_def *chandef)
++static bool ath11k_mac_supports_tpc(struct ath11k *ar, struct ath11k_vif *arvif,
++				    const struct cfg80211_chan_def *chandef)
+ {
+ 	return ath11k_wmi_supports_6ghz_cc_ext(ar) &&
+ 		test_bit(WMI_TLV_SERVICE_EXT_TPC_REG_SUPPORT, ar->ab->wmi_ab.svc_map) &&
+-		arvif->vdev_type == WMI_VDEV_TYPE_STA &&
++		(arvif->vdev_type == WMI_VDEV_TYPE_STA ||
++		 arvif->vdev_type == WMI_VDEV_TYPE_AP) &&
+ 		arvif->vdev_subtype == WMI_VDEV_SUBTYPE_NONE &&
+ 		chandef->chan &&
+ 		chandef->chan->band == NL80211_BAND_6GHZ;
+@@ -7639,5 +7639,5 @@
+-	if (ath11k_mac_supports_station_tpc(ar, arvif, chandef)) {
+-		ath11k_mac_fill_reg_tpc_info(ar, arvif->vif, &arvif->chanctx);
++	if (ath11k_mac_supports_tpc(ar, arvif, chandef)) {
++		ath11k_mac_fill_reg_tpc_info(ar, arvif->vif, ctx);
+ 		ath11k_wmi_send_vdev_set_tpc_power(ar, arvif->vdev_id,
+ 						   &arvif->reg_tpc_info);
+ 	}
+@@ -8145,6 +8145,7 @@
+ 		psd_power, tx_power;
+ 	s8 eirp_power = 0;
+ 	u16 start_freq, center_freq;
++	u8 reg_6ghz_power_mode;
+ 
+ 	chan = ctx->def.chan;
+ 	start_freq = ath11k_mac_get_6ghz_start_frequency(&ctx->def);
+@@ -8300,8 +8301,14 @@
+ 	reg_tpc_info->num_pwr_levels = num_pwr_levels;
+ 	reg_tpc_info->is_psd_power = is_psd_power;
+ 	reg_tpc_info->eirp_power = eirp_power;
++	if (arvif->vdev_type == WMI_VDEV_TYPE_STA)
++		reg_6ghz_power_mode = bss_conf->power_type;
++	else
++		/* For now, LPI is the only supported AP power mode */
++		reg_6ghz_power_mode = IEEE80211_REG_LPI_AP;
++
+ 	reg_tpc_info->ap_power_type =
+-		ath11k_reg_ap_pwr_convert(vif->bss_conf.power_type);
++		ath11k_reg_ap_pwr_convert(reg_6ghz_power_mode);
+ }
+ 
+ static void ath11k_mac_parse_tx_pwr_env(struct ath11k *ar,
