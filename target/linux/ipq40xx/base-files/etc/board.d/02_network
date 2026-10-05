@@ -206,6 +206,11 @@ ipq40xx_setup_macs()
 	local label_mac=""
 
 	case "$board" in
+	cambiumnetworks,e600)
+		# Factory TLV field 1: twelve ASCII hex digits following its header.
+		lan_mac=$(mtd_get_mac_text mfginfo 0x6 12)
+		label_mac=$lan_mac
+		;;
 	avm,fritzbox-7530)
 		local tffsdev=$(find_mtd_chardev "nand-tffs")
 		wan_mac=$(/usr/bin/fritz_tffs_nand -b -d $tffsdev -n macdsl)
