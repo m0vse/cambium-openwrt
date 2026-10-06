@@ -225,7 +225,8 @@ for f in \
 	qualcommax-ipq807x-cambiumnetworks_thor-recovery-initramfs-uImage.itb \
 	qualcommax-ipq807x-cambiumnetworks_thor-installer-initramfs-uImage.itb \
 	qualcommax-ipq50xx-cambiumnetworks_cheetah-recovery-initramfs-uImage.itb \
-	qualcommax-ipq60xx-cambiumnetworks_jaguar-recovery-initramfs-uImage.itb; do
+	qualcommax-ipq60xx-cambiumnetworks_jaguar-recovery-initramfs-uImage.itb \
+	qualcommbe-ipq53xx-cambiumnetworks_miami-recovery-initramfs-uImage.itb; do
 	echo "image $f" > "$W/rel/$p-$f"
 done
 printf '\320\015\376\355sage-recovery' > "$W/rel/$p-ipq40xx-generic-cambiumnetworks_sage-recovery-initramfs-zImage.itb"
@@ -239,6 +240,9 @@ for f in "$W/rel/$p-qualcommax-ipq50xx-cambiumnetworks_cheetah-persistent-squash
 		printf '%s %s %s\n' "$v" "$(printf '%s-content' "$v" | wc -c | tr -d ' ')" "$(printf '%s-content' "$v" | sha256sum | cut -d' ' -f1)"
 	done > "$f.contents"
 done
+# Miami installs volume by volume from the persistent kernel and rootfs.
+printf '\320\015\376\355miami-kernel' > "$W/rel/$p-qualcommbe-ipq53xx-cambiumnetworks_miami-persistent-squashfs-kernel.itb"
+printf 'hsqsmiami-root' > "$W/rel/$p-qualcommbe-ipq53xx-cambiumnetworks_miami-persistent-squashfs-rootfs.squashfs"
 cp "$top/package/cambium/cambium-ab/files/cambium-ab.sh" "$W/rel/jaguar-cambium-ab.sh"
 cp "$top/package/cambium/cambium-ab/files/cambium-ab-upgrade.sh" "$W/rel/jaguar-cambium-ab-upgrade.sh"
 cp "$top/package/cambium/cambium-jaguar-support/files/cambium-ab-jaguar.sh" "$W/rel/jaguar-cambium-ab-jaguar.sh"
@@ -282,6 +286,7 @@ ap() {
 		for i in 5 7; do echo "nor$i" > "$RT/dev/mtd${i}ro"; done
 		return ;;
 	cheetah) off=1 ;;
+	miami) off=2 ;;
 	*) off=0 ;;
 	esac
 	# rootfs = mtd(1+off), rootfs_1 = mtd(2+off)
@@ -296,6 +301,8 @@ ap() {
 		echo 'mtd0: 00080000 00020000 "0:TRAINING"' >> "$RT/proc/mtd"
 		mkdir -p "$RT/sys/class/mtd/mtd0"; echo 0 > "$RT/sys/class/mtd/mtd0/offset"
 		echo 524288 > "$RT/sys/class/mtd/mtd$r0/offset"; echo 101187584 > "$RT/sys/class/mtd/mtd$r1/offset" ;;
+	miami)
+		echo 786432 > "$RT/sys/class/mtd/mtd$r0/offset"; echo 101449728 > "$RT/sys/class/mtd/mtd$r1/offset" ;;
 	*)
 		echo 0 > "$RT/sys/class/mtd/mtd$r0/offset"; printf '%d\n' "0x$bank" > "$RT/sys/class/mtd/mtd$r1/offset" ;;
 	esac
@@ -809,6 +816,76 @@ for oem in 0 1; do
 	check "Gambit refuses the old hardware-ECC RAM installer (OEM bank $oem)" 1 inst_gambit --from "$W/rel" --trial --backed-up --yes --no-reboot install
 	assert "Gambit incompatible ECC cannot erase or write NAND" [ -z "$(grep -E 'erase|nandwrite|ubiformat' "$W/calls")" ]
 done
+
+# --- Miami ----------------------------------------------------------------------------------
+# miami_one VOLUME OFFSET BOOTARGS CONFIG: the variables of the validated one-shot.
+miami_load() { echo "nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts mtdparts=nand0:0x6000000@$2(fs) && ubi part fs && setenv miami_trial ubi_ready && run miami_save && ubi read 0x60000000 $1 && setenv miami_trial fit_loaded && run miami_save && run miami_boot"; }
+miami_boot() { echo "setenv bootargs $1; bootm 0x60000000#$2; setenv bootargs \${miami_oem_bootargs}; setenv miami_trial bootm_returned; run miami_save"; }
+MIAMI_ARMED='run miami_start && run miami_load; run miami_fallback'
+miami_rec=$W/rel/$p-qualcommbe-ipq53xx-cambiumnetworks_miami-recovery-initramfs-uImage.itb
+ap miami X7-35X 44 0
+check "Miami dry run passes its checks" 0 inst --from "$W/rel" ram
+assert "Miami dry run writes nothing" nothing_written
+assert "Miami dry run backs up the inactive bank rootfs_1" [ -f "$RT/tmp/cambium-install/backup/mtd4ro.bin" ]
+check "Miami RAM boot (stock on rootfs)" 0 inst --from "$W/rel" --yes --backed-up ram
+assert "Miami RAM one-shot armed" [ "$(env_get bootcmd):$(env_get changing_bootcmd)" = "$MIAMI_ARMED:1" ]
+assert "Miami RAM load reads the staged FIT from rootfs_1" [ "$(env_get miami_load)" = "$(miami_load "openwrt $(printf '0x%x' "$(wc -c < "$miami_rec")")" 0x60c0000)" ]
+assert "Miami RAM boot uses the recovery configuration" [ "$(env_get miami_boot)" = "$(miami_boot console=ttyMSM0,115200n8 config@mi01.6-acadia)" ]
+assert "Miami stock start restores bootipq first" [ "$(env_get miami_start)" = 'setenv bootcmd bootipq; setenv changing_bootcmd; setenv miami_trial entered; saveenv' ]
+assert "Miami RAM staged only in rootfs_1" [ -z "$(grep -E '(mkvol|rmvol|update) mtd3' "$W/calls")" ]
+assert "Miami stock bank untouched" [ "$(cat "$W/flash/mtd3/0.data")" = oem-slot-mtd3 ]
+
+ap miami X7-35X 44 1
+check "Miami RAM boot (stock on rootfs_1)" 0 inst --from "$W/rel" --yes --backed-up ram
+assert "Miami stock on rootfs_1: staged in rootfs at 0xc0000" [ "$(env_get miami_load)" = "$(miami_load "openwrt $(printf '0x%x' "$(wc -c < "$miami_rec")")" 0xc0000)" ]
+ap miami X7-35X 44 0; sed -i.bak 's/^image=.*/image=1/' "$W/env"
+check "Miami refuses image= that is not the running bank" 1 inst --from "$W/rel" --yes --backed-up ram
+assert "Miami image refusal is named" said 'the stock firmware runs from rootfs but U-Boot image=1'
+ap miami X7-35X 44 0; echo 100663296 > "$RT/sys/class/mtd/mtd4/offset"
+check "Miami with rootfs_1 at another offset refused" 1 inst --from "$W/rel" --yes --backed-up ram
+assert "Miami offset refusal is named" said 'rootfs_1 starts at NAND offset 100663296, not 0x60c0000'
+assert "Miami layout refusals wrote nothing" nothing_written
+
+ap miami X7-35X 44 0
+check "Miami X7-35X install dry run" 0 inst --from "$W/rel" install
+assert "Miami install dry run writes nothing" nothing_written
+check "Miami X7-35X install (validated: no --trial)" 0 inst --from "$W/rel" --yes --backed-up install
+assert "Miami bank rebuilt in the cambium-ab layout" [ "$(cat "$W/flash/mtd4/0.name" "$W/flash/mtd4/1.name" "$W/flash/mtd4/2.name" "$W/flash/mtd4/3.name" | tr '\n' ' ')" = 'kernel rootfs rootfs_data cambium_device_data ' ]
+assert "Miami kernel and rootfs written" [ "$(cat "$W/flash/mtd4/1.data")" = hsqsmiami-root ]
+assert "Miami vault is 72 LEBs" [ "$(cat "$W/flash/mtd4/3.size")" = 9142272 ]
+assert "Miami install read the volumes back" said 'kernel volume written and read back'
+assert "Miami first boot armed" [ "$(env_get bootcmd):$(env_get changing_bootcmd)" = "$MIAMI_ARMED:1" ]
+assert "Miami first boot loads the kernel volume of rootfs_1" [ "$(env_get miami_load)" = "$(miami_load kernel 0x60c0000)" ]
+assert "Miami first boot uses bank 1's tree" [ "$(env_get miami_boot)" = "$(miami_boot 'console=ttyMSM0,115200n8 ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait' config@mi01.6-acadia-slot1)" ]
+miami_first_boot=$(board_name() { echo cambiumnetworks,x7-35x; }
+	ab_getenv() { sed -n "s/^$1=//p" "$W/env"; }
+	CAMBIUM_AB_MODULES=$top/package/cambium/cambium-miami-support/files . "$top/package/cambium/cambium-ab/files/cambium-ab.sh"
+	ab_getenv() { sed -n "s/^$1=//p" "$W/env"; }
+	ab_board cambiumnetworks,x7-35x && ab_guarded_command 1)
+assert "Miami guard re-arms exactly what the installer armed" [ "$miami_first_boot" = "$MIAMI_ARMED" ]
+assert "Miami install detached the bank before booting" grep -q '^detach mtd4' "$W/calls"
+assert "Miami install wrote only rootfs_1" [ -z "$(grep -E '(format|mkvol|rmvol|update) mtd3' "$W/calls")" ]
+
+# Reinstall over that install, keeping the settings.
+echo keep-these-settings > "$W/flash/mtd4/2.data"
+sed -i.bak -e 's/^bootcmd=.*/bootcmd=bootipq/' -e '/^changing_bootcmd=/d' "$W/env"
+printf '\320\015\376\355miami-kernel-2' > "$W/rel/$p-qualcommbe-ipq53xx-cambiumnetworks_miami-persistent-squashfs-kernel.itb"
+(cd "$W/rel" && sha256sum -- $(ls | grep -v -e SHA256SUMS -e test-only) > SHA256SUMS); cp "$W"/rel/* "$W/http/"
+: > "$W/calls"
+check "Miami --keep-settings reinstall" 0 inst --from "$W/rel" --yes --backed-up --keep-settings install
+assert "Miami --keep-settings kept rootfs_data" [ "$(cat "$W/flash/mtd4/2.data")" = keep-these-settings ]
+assert "Miami --keep-settings wrote the new kernel" [ "$(cat "$W/flash/mtd4/0.data")" = "$(printf '\320\015\376\355miami-kernel-2')" ]
+assert "Miami --keep-settings removed only kernel and rootfs" [ "$(grep '^rmvol' "$W/calls" | tr '\n' ';')" = 'rmvol mtd4 kernel;rmvol mtd4 rootfs;' ]
+ap miami X7-35X 44 0
+check "Miami --keep-settings over the stock firmware refused" 1 inst --from "$W/rel" --yes --backed-up --keep-settings install
+assert "Miami --keep-settings refusal is named" said 'holds no earlier OpenWrt install (no kernel volume)'
+assert "Miami refused --keep-settings changed no volume" [ -z "$(grep -E '^(mkvol|rmvol|update|setenv)' "$W/calls")" ]
+ap miami X7-35X 44 0; sed -i.bak 's/^bootcmd=.*/bootcmd=run miami_start \&\& run miami_load; run miami_fallback/' "$W/env"
+check "Miami install refused while OpenWrt is still the boot" 1 inst --from "$W/rel" --yes --backed-up install
+assert "the refusal says a boot is armed" said 'a one-shot or install is already armed'
+ap miami X7-55X 42 0
+check "X7-55X install refused (no build)" 1 inst --from "$W/rel" --yes --backed-up install
+assert "X7-55X refusal gives the reason" said 'not in the Miami family image yet'
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
