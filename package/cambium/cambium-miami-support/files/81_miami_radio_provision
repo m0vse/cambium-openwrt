@@ -1,0 +1,11 @@
+#!/bin/sh
+# Miami X7-35X: stage the radio files from this unit's own flash (vault or
+# read-only OEM bank, plus ART calibration), then release the radio hold set
+# by 05_miami_radio_hold. Runs after mount_root so the configured country
+# (overlay) selects the 5/6 GHz board file.
+
+miami_radio_provision() {
+	/usr/sbin/miami-board-data provision
+}
+
+boot_hook_add preinit_main miami_radio_provision
