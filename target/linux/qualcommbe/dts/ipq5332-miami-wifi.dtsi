@@ -1,0 +1,101 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/*
+ * Cambium Miami (IPQ5332): the integrated 2.4 GHz radio. IRQ and SMEM
+ * wiring as in the IPQ5332 Wi-Fi binding; memory regions as in the OEM
+ * layout. The Q6 firmware is staged at boot from the unit's own flash.
+ */
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+/ {
+	soc@0 {
+		miami_wifi0: wifi@c000000 {
+			compatible = "qcom,ipq5332-wifi";
+			reg = <0x0c000000 0x1000000>;
+			clocks = <&gcc GCC_XO_CLK>;
+			clock-names = "xo";
+			interrupts-extended = <&wcss_smp2p_in 8 IRQ_TYPE_NONE>,
+				<&wcss_smp2p_in 9 IRQ_TYPE_NONE>,
+				<&wcss_smp2p_in 12 IRQ_TYPE_NONE>,
+				<&wcss_smp2p_in 11 IRQ_TYPE_NONE>,
+				<&intc GIC_SPI 559 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 560 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 561 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 422 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 423 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 424 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 425 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 426 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 427 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 428 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 429 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 430 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 431 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 432 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 433 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 491 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 495 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 493 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 544 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 457 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 466 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 497 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 454 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 453 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 452 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 451 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 488 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 488 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 484 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 554 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 554 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 549 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 507 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 500 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 499 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 498 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 450 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 449 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 448 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 447 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 543 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 486 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 486 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 482 IRQ_TYPE_EDGE_RISING>,
+				<&intc GIC_SPI 419 IRQ_TYPE_EDGE_RISING>;
+			interrupt-names = "fatal", "ready", "spawn", "stop-ack",
+				"misc-pulse1", "misc-latch", "sw-exception",
+				"ce0", "ce1", "ce2", "ce3", "ce4", "ce5",
+				"ce6", "ce7", "ce8", "ce9", "ce10", "ce11",
+				"host2wbm-desc-feed", "host2reo-re-injection",
+				"host2reo-command", "host2rxdma-monitor-ring1",
+				"reo2ost-exception", "wbm2host-rx-release", "reo2host-status",
+				"reo2host-destination-ring4", "reo2host-destination-ring3",
+				"reo2host-destination-ring2", "reo2host-destination-ring1",
+				"rxdma2host-monitor-destination-mac3",
+				"rxdma2host-monitor-destination-mac2",
+				"rxdma2host-monitor-destination-mac1",
+				"host2rxdma-host-buf-ring-mac3", "host2rxdma-host-buf-ring-mac2",
+				"host2rxdma-host-buf-ring-mac1", "host2tcl-input-ring4",
+				"host2tcl-input-ring3", "host2tcl-input-ring2", "host2tcl-input-ring1",
+				"wbm2host-tx-completions-ring4", "wbm2host-tx-completions-ring3",
+				"wbm2host-tx-completions-ring2", "wbm2host-tx-completions-ring1",
+				"host2tx-monitor-ring1", "txmon2host-monitor-destination-mac3",
+				"txmon2host-monitor-destination-mac2",
+				"txmon2host-monitor-destination-mac1", "umac-reset";
+			memory-region = <&q6_region>, <&miami_m3_dump>,
+				<&miami_q6_caldb>, <&miami_mlo_mem>;
+			memory-region-names = "q6-region", "m3-dump", "q6-caldb", "mlo-global-mem";
+			qcom,rproc = <&q6v5_wcss>;
+			qcom,smem-states = <&wcss_smp2p_out 8>,
+				<&wcss_smp2p_out 9>, <&wcss_smp2p_out 10>;
+			qcom,smem-state-names = "shutdown", "stop", "spawn";
+			status = "okay";
+		};
+	};
+};
+
+&q6v5_wcss {
+	/* The OEM split Q6 image fits the 35 MiB WCSS region. */
+	firmware-name = "ath12k/IPQ5332/hw1.0/q6_fw0.mdt";
+	status = "okay";
+};
