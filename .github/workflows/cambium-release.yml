@@ -33,7 +33,7 @@ on:
       families:
         description: Families to build (space separated)
         type: string
-        default: sage thor cheetah jaguar gambit
+        default: sage thor cheetah jaguar gambit miami
       tag:
         description: For promote, the release tag (release-X.Y.Z-N)
         type: string
@@ -142,7 +142,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.branch.outputs.version }}
           FORCE: ${{ inputs.force }}
-          FAMILIES: ${{ inputs.families || 'sage thor cheetah jaguar gambit' }}
+          FAMILIES: ${{ inputs.families || 'sage thor cheetah jaguar gambit miami' }}
         run: |
           head=$(git rev-parse HEAD)
           # As for snapshots, a build of this commit counts only for the
