@@ -32,13 +32,17 @@ After this, upstream's `base-files`, the targets' `base-files` and
 
 - **Image recipes.** The device definitions appended to
   `target/linux/ipq40xx/image/generic.mk` and
-  `target/linux/qualcommax/image/ipq{50,60,807}xx.mk`, the family FIT recipe
+  `target/linux/qualcommax/image/ipq{50,60,807}xx.mk` and
+  `target/linux/qualcommbe/image/ipq53xx.mk` (Miami), the family FIT recipe
   in `include/image.mk` and `include/image-commands.mk`, and
   `scripts/cambium-family-its.sh`. They cannot be packages. Move each block
   into a new file of its own (for example
   `target/linux/qualcommax/image/cambium.mk`, `include/image-cambium.mk`)
   with one `include` line in the upstream file: one line to conflict with
-  instead of a block.
+  instead of a block. `CAMBIUM_VAULT_SIZE` (the Miami vault) is one more
+  device variable in `include/image.mk`.
+- **The qualcommbe/ipq53xx subtarget** (Til Kaiser's pending upstream
+  series) and its `base-files`; it goes away once upstream merges it.
 - **Device trees.** Around 45 new files in `target/linux/*/dts/`. Additions
   only; they never conflict.
 
@@ -49,6 +53,15 @@ After this, upstream's `base-files`, the targets' `base-files` and
 - `target/linux/generic/pending-6.18/950-net-phy-aquantia-add-aqr111c.patch`
   and `target/linux/qualcommax/patches-6.18/090{0,1,2,3}-ipq5018-mdio-*.patch`:
   generic enough to offer to the Linux kernel itself.
+
+- Miami: `target/linux/qualcommbe/patches-6.18/0379`-`0399` (IPQ5332 PPE
+  and CMN PLL backports, the X7-35X PHY reference clock, the WCSS secure
+  PIL series, QSDK split-image metadata, the X7-35X user-PD boot record)
+  and `package/kernel/mac80211/patches/ath12k/106`-`110`. The PPE fixes
+  (0383, 0385), the metadata fix (0399), 106 and 110 are generic enough to
+  offer upstream; the rest is X7-35X-specific. One-line core edits:
+  `kmod-qrtr-smd` allowed on qualcommbe (`netsupport.mk`) and ath12k's AHB
+  bus on ipq53xx (`mac80211/ath.mk`).
 
 Optional: `package/cambium/` could become a separate feed. It never
 conflicts, so this is tidiness only.
