@@ -407,6 +407,11 @@ legacy_main() {
 }
 
 main() {
+	# A family with its own board-data tool (its module sets AB_OWN_BOARD_DATA,
+	# e.g. Miami's miami-board-data) owns its vault: never fill or replace it.
+	if command -v ab_family >/dev/null 2>&1 && ab_family && [ "${AB_OWN_BOARD_DATA:-0}" = 1 ]; then
+		return 0
+	fi
 	mkdir -p "$WORK"
 	if [ "$1" = --check-vault ]; then
 		vault_locate && vault_read "$WORK/check" && vault_check "$WORK/check"
