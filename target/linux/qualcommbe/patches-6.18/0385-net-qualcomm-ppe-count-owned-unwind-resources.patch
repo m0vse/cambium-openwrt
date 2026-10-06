@@ -1,0 +1,110 @@
+From: Phil Taylor <phil@m0vse.uk>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: unwind only the port resources set up
+
+The port probe error path used one index both for the ports whose EDMA
+netdevice was registered and for the ports whose clocks were enabled, so
+an error part way through destroyed a port that was never set up and
+skipped clocks that were. Count the two separately and unwind each from
+its own count.
+
+Unregister the netdevice before destroying its phylink, so a port is not
+reachable while its phylink is torn down.
+
+Signed-off-by: Phil Taylor <phil@m0vse.uk>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
+@@ -1341,6 +1341,7 @@
+ 	struct device_node *ports_node, *port_node;
+ 	struct ppe_ports *ppe_ports;
+ 	int port, num, ret, i = 0;
++	int num_ports = 0, num_clocks = 0;
+ 	phy_interface_t phy_mode;
+ 
+ 	ports_node = of_get_child_by_name(ppe_dev->dev->of_node,
+@@ -1367,13 +1368,13 @@
+ 		ret = of_property_read_u32(port_node, "reg", &port);
+ 		if (ret) {
+ 			dev_err(ppe_dev->dev, "Failed to get port id\n");
+-			goto err_port_node;
++			goto err_port_setup;
+ 		}
+ 
+ 		ret = of_get_phy_mode(port_node, &phy_mode);
+ 		if (ret) {
+ 			dev_err(ppe_dev->dev, "Failed to get phy mode\n");
+-			goto err_port_node;
++			goto err_port_setup;
+ 		}
+ 
+ 		ppe_ports->port[i].ppe_dev = ppe_dev;
+@@ -1385,22 +1386,23 @@
+ 		ret = ppe_port_clock_init(&ppe_ports->port[i]);
+ 		if (ret) {
+ 			dev_err(ppe_dev->dev, "Failed to initialize port clocks\n");
+-			goto err_port_clk;
++			goto err_port_setup;
+ 		}
++		num_clocks++;
+ 
+ 		ret = ppe_port_mac_hw_init(&ppe_ports->port[i]);
+ 		if (ret) {
+ 			dev_err(ppe_dev->dev, "Failed to initialize MAC hardware\n");
+-			goto err_port_node;
++			goto err_port_setup;
+ 		}
+ 
+ 		ret = edma_port_setup(&ppe_ports->port[i]);
+ 		if (ret) {
+ 			dev_err(ppe_dev->dev, "QCOM EDMA port setup failed\n");
+-			i--;
+ 			goto err_port_setup;
+ 		}
+ 
++		num_ports++;
+ 		i++;
+ 	}
+ 
+@@ -1408,19 +1410,18 @@
+ 	return 0;
+ 
+ err_port_setup:
+-	/* Destroy edma ports created till now */
+-	while (i >= 0) {
+-		edma_port_destroy(&ppe_ports->port[i]);
+-		i--;
++	/* Only successful setups own a registered EDMA netdevice. */
++	while (num_ports > 0) {
++		num_ports--;
++		edma_port_destroy(&ppe_ports->port[num_ports]);
+ 	}
+ 
+-err_port_clk:
+-	while (i) {
+-		i--;
+-		ppe_port_clock_deinit(&ppe_ports->port[i]);
++	/* The failed setup's clocks may also have been initialized. */
++	while (num_clocks > 0) {
++		num_clocks--;
++		ppe_port_clock_deinit(&ppe_ports->port[num_clocks]);
+ 	}
+ 
+-err_port_node:
+ 	of_node_put(port_node);
+ err_ports_node:
+ 	of_node_put(ports_node);
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
+@@ -333,11 +333,11 @@
+ 	int port_id = port->port_id;
+ 	struct net_device *netdev = edma_ctx->netdev_arr[port_id - 1];
+ 
++	unregister_netdev(netdev);
++	ppe_port_phylink_destroy(port);
+ 	edma_port_deconfigure(netdev);
+ 	edma_port_stats_free(netdev);
+-	unregister_netdev(netdev);
+ 	free_netdev(netdev);
+-	ppe_port_phylink_destroy(port);
+ 	edma_ctx->netdev_arr[port_id - 1] = NULL;
+ }
