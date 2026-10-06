@@ -20,7 +20,7 @@ procedure, and lists the current snapshots and their package feeds.
 | Thor | `qualcommax/ipq807x` | `cambiumnetworks_thor-persistent`, `cambiumnetworks_thor-recovery` | `cambium-thor-support` |
 | Jaguar | `qualcommax/ipq60xx` | `cambiumnetworks_jaguar-persistent`, `cambiumnetworks_jaguar-recovery` | `cambium-jaguar-support` |
 | Cheetah | `qualcommax/ipq50xx` | `cambiumnetworks_cheetah-persistent`, `cambiumnetworks_cheetah-recovery` | `cambium-cheetah-support` |
-| Miami (X7-35X, X7-53X, X7-55X, X7-56X) | new IPQ5332 subtarget | no build yet | — |
+| Miami (X7-35X; X7-53X, X7-55X, X7-56X not built) | `qualcommbe/ipq53xx` | `cambiumnetworks_miami-persistent`, `cambiumnetworks_miami-recovery` | `cambium-miami-support` |
 
 Each family publishes one recovery and one persistent image. Thor's
 persistent image covers the XV3-8 only until the XE5-8 flash layout has been
@@ -31,6 +31,11 @@ built by the `cambium-family-fit` image command. The OEM U-Boot boots a
 named configuration (`config@5`, `config@hk02`, ...), so each configuration
 keeps the name used by Cambium's own family image. `verify/<family>/`
 checks every configuration against its board SKU and model after each build.
+
+Miami (ath12k) stages more than a board file: the IPQ5332 Q6 firmware, the
+board files and the regulatory database, from the read-only stock bank at
+preinit into a tmpfs firmware path (`miami-board-data` in its support
+package, which owns its 72-LEB vault; `cambium-board-data` leaves it alone).
 
 The ath11k families (Thor, Cheetah, Jaguar) install `cambium-board-data`.
 It copies the Wi-Fi board file that the AP's stock firmware selects for its
