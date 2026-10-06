@@ -37,7 +37,12 @@ define Device/cambiumnetworks_miami-persistent
 	# device-data vault (3), which holds the Q6 firmware and every regional
 	# board file (72 LEBs).
 	CAMBIUM_VAULT_SIZE := 9142272
-	IMAGES := factory.ubi sysupgrade.bin
+	# cambium-install.sh writes kernel.itb and rootfs.squashfs into the
+	# stock firmware's inactive bank volume by volume (as validated), so a
+	# reinstall can keep the settings; factory.ubi is the same bank.
+	IMAGES := kernel.itb rootfs.squashfs factory.ubi sysupgrade.bin
+	IMAGE/kernel.itb := append-kernel
+	IMAGE/rootfs.squashfs := append-rootfs
 	IMAGE/factory.ubi := cambium-ab-ubi
 	IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
 	BOARD_NAME := cambiumnetworks_miami
