@@ -1,0 +1,36 @@
+From: Manikanta Mylavarapu <manikanta.mylavarapu@oss.qualcomm.com>
+Subject: [PATCH] firmware: qcom_scm: pass PAS metadata size on IPQ5332
+
+Backport the v14 metadata-size change to Linux 6.18's existing PAS API.
+Use command V2 only if TrustZone reports it available; retain the old
+two-argument call for existing firmware/platforms. No generic PAS API
+migration or unrelated watchdog formatting change is included.
+Original: 20260803-rproc-v14-1-a1f87b0b0ad2@oss.qualcomm.com
+
+--- a/drivers/firmware/qcom/qcom_scm.c
++++ b/drivers/firmware/qcom/qcom_scm.c
+@@ -662,6 +662,14 @@ int qcom_scm_pas_init_image(u32 pas_id, const void *metadata, size_t size,
+ 
+ 	desc.args[1] = mdata_phys;
+ 
++	if (__qcom_scm_is_call_available(__scm->dev, QCOM_SCM_SVC_PIL,
++					 QCOM_SCM_PIL_PAS_INIT_IMAGE_V2)) {
++		desc.cmd = QCOM_SCM_PIL_PAS_INIT_IMAGE_V2;
++		desc.arginfo = QCOM_SCM_ARGS(3, QCOM_SCM_VAL, QCOM_SCM_RW,
++					     QCOM_SCM_VAL);
++		desc.args[2] = size;
++	}
++
+ 	ret = qcom_scm_call(__scm->dev, &desc, &res);
+ 	qcom_scm_bw_disable();
+ 
+--- a/drivers/firmware/qcom/qcom_scm.h
++++ b/drivers/firmware/qcom/qcom_scm.h
+@@ -105,6 +105,7 @@
+ #define QCOM_SCM_PIL_PAS_SHUTDOWN	0x06
+ #define QCOM_SCM_PIL_PAS_IS_SUPPORTED	0x07
+ #define QCOM_SCM_PIL_PAS_MSS_RESET	0x0a
++#define QCOM_SCM_PIL_PAS_INIT_IMAGE_V2	0x1a
+ 
+ #define QCOM_SCM_SVC_IO			0x05
+ #define QCOM_SCM_IO_READ		0x01
