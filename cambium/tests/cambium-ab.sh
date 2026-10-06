@@ -1,6 +1,6 @@
 #!/bin/sh
 # Simulation tests for the shared Cambium A/B code (package cambium-ab) and
-# every family module (Jaguar, Cheetah, Thor, Sage): board tables and the identity
+# every family module (Jaguar, Cheetah, Thor, Sage, Gambit, Miami): board tables and the identity
 # preflight, boot commands, the inactive-bank writer and its platform.sh
 # dispatch, the boot guard, the one-time conversion and the device-data vault
 # in cambium-board-data. The real scripts run against simulated MTD/UBI
@@ -292,6 +292,7 @@ ln -s "$top/package/cambium/cambium-cheetah-support/files/cambium-ab-cheetah.sh"
 ln -s "$top/package/cambium/cambium-thor-support/files/cambium-ab-thor.sh" "$S/modules/"
 ln -s "$top/package/cambium/cambium-sage-support/files/cambium-ab-sage.sh" "$S/modules/"
 ln -s "$top/package/cambium/cambium-gambit-support/files/cambium-ab-gambit.sh" "$S/modules/"
+ln -s "$top/package/cambium/cambium-miami-support/files/cambium-ab-miami.sh" "$S/modules/"
 export CAMBIUM_SAGE_LIB=$top/target/linux/ipq40xx/base-files/lib/functions/cambium-sage.sh
 export AB_NEWROOT=$S/newroot
 export CAMBIUM_AB_LIB=$ab_pkg/cambium-ab.sh CAMBIUM_AB_MODULES=$S/modules
@@ -315,7 +316,7 @@ sku_byte() {
 	cambiumnetworks,xv2-21x) echo 043 ;; cambiumnetworks,xv2-23t) echo 044 ;;
 	cambiumnetworks,xv3-8) echo 023 ;; cambium,e410) echo 012 ;;
 	cambiumnetworks,e410b) echo 025 ;; cambiumnetworks,e510) echo 020 ;;
-	cambiumnetworks,e600) echo 013 ;; *) echo 177 ;;
+	cambiumnetworks,e600) echo 013 ;; cambiumnetworks,x7-35x) echo 054 ;; *) echo 177 ;;
 	esac
 }
 cheetah_board() {
@@ -358,6 +359,13 @@ new_ap() {
 			'mtd2: 02f80000 00020000 "0:NVRAM"' 'mtd3: 01000000 00020000 "crashLog"' \
 			'mtd4: 00070000 00001000 "0:ART"' 'mtd5: 00010000 00001000 "0:APPSBLENV"' \
 			'mtd6: 00080000 00020000 "0:TRAINING"' > "$S/proc_mtd"
+	elif [ "$board" = cambiumnetworks,x7-35x ]; then
+		# Miami: two 96 MiB SPI NAND banks after 0:TRAINING and 0:LICENSE;
+		# ART and the U-Boot environment on NOR.
+		printf '%s\n' 'dev:    size   erasesize  name' \
+			'mtd0: 06000000 00020000 "rootfs"' 'mtd1: 06000000 00020000 "rootfs_1"' \
+			'mtd2: 02f40000 00020000 "0:NVRAM"' 'mtd3: 01000000 00020000 "crashLog"' \
+			'mtd4: 00100000 00010000 "0:ART"' 'mtd5: 00010000 00010000 "0:APPSBLENV"' > "$S/proc_mtd"
 	elif [ "$board" = cambiumnetworks,xv3-8 ]; then
 		# Thor: two 96 MiB NAND banks; Aquantia firmware and ART on NOR.
 		printf '%s\n' 'dev:    size   erasesize  name' \
@@ -1373,6 +1381,92 @@ assert 'E400 failed pre-write never erases kernel/root' never_wrote 'erase|forma
 new_gambit_ap
 check 'E400 oversized kernel refused' 1 in_lib eval 'ab_identity && ab_gambit_image_fits 4194304 1024'
 check 'E400 oversized root leaves overlay intact' 1 in_lib eval 'ab_identity && ab_gambit_image_fits 1024 44000000'
+
+# --- Miami (cambium-ab-miami.sh) ------------------------------------------------
+M=cambiumnetworks,x7-35x
+tool ping <<'PEOF'
+#!/bin/sh
+[ -f "$JAGUAR_SIM/ping_ok" ]
+PEOF
+# The one-shot miami-oem-install.sh / cambium-install.sh leave in the
+# environment for OpenWrt in slot $1 (OEM in the other slot).
+miami_oneshot_env() {
+	local part=rootfs offset=0xc0000 cfg=${2:-slot$1}
+	[ "$1" = 1 ] && part=rootfs_1 offset=0x60c0000
+	{
+		echo 'bootcmd=bootipq'
+		echo "image=$((1 - $1))"
+		echo 'miami_start=setenv bootcmd bootipq; setenv changing_bootcmd; setenv miami_trial entered; saveenv'
+		echo "miami_load=nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts mtdparts=nand0:0x6000000@$offset(fs) && ubi part fs && setenv miami_trial ubi_ready && run miami_save && ubi read 0x60000000 kernel && setenv miami_trial fit_loaded && run miami_save && run miami_boot"
+		echo "miami_boot=setenv bootargs console=ttyMSM0,115200n8 ubi.mtd=$part root=/dev/ubiblock0_1 rootfstype=squashfs rootwait; bootm 0x60000000#config@mi01.6-acadia-$cfg; setenv bootargs \${miami_oem_bootargs}; setenv miami_trial bootm_returned; run miami_save"
+		echo 'miami_fallback=reset'
+	} > "$S/env"
+}
+miami_ap() { new_ap $M "$1"; miami_oneshot_env "$1" "${2:-}"; rm -f "$S/ping_ok"; : > "$S/calls"; }
+MIAMI_ARMED='run miami_start && run miami_load; run miami_fallback'
+
+for active in 0 1; do
+	miami_ap "$active"
+	check "Miami identity, OpenWrt in slot $active" 0 in_lib eval \
+		'ab_identity && [ "$AB_FAMILY:$AB_ACTIVE:$AB_TARGET:$AB_FIT:$AB_VAULT_LEBS:$AB_RADIOS" = "miami:'"$active:$((1 - active))"':config@mi01.6-acadia-ab:72:0" ]'
+done
+miami_ap 1; set_sku 042
+check "Miami SKU mismatch refused" 1 in_lib ab_identity
+miami_ap 1; echo 0xc00 > "$S/sys/mtd/mtd4/flags"
+check "Miami writable 0:ART refused" 1 in_lib ab_identity
+miami_ap 1
+assert "Miami slot 0 A/B boot command (bank at 0xc0000)" [ "$(in_lib eval "ab_board $M; ab_boot_command 0")" = \
+	'nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts mtdparts=nand0:0x6000000@0xc0000(fs) && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait && bootm 0x60000000#config@mi01.6-acadia-ab' ]
+assert "Miami slot 1 A/B boot command (bank at 0x60c0000)" [ "$(in_lib eval "ab_board $M; ab_boot_command 1")" = \
+	'nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts mtdparts=nand0:0x6000000@0x60c0000(fs) && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs console=ttyMSM0,115200n8 ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait && bootm 0x60000000#config@mi01.6-acadia-ab' ]
+assert "Miami guarded command re-runs the OEM-installed one-shot" [ "$(in_lib eval "ab_board $M; ab_guarded_command 1")" = "$MIAMI_ARMED" ]
+check "Miami guarded command refuses a one-shot of the other slot" 1 in_lib eval "ab_board $M; ab_guarded_command 0"
+miami_ap 1 ab
+assert "Miami guarded command accepts the A/B tree" [ "$(in_lib eval "ab_board $M; ab_guarded_command 1")" = "$MIAMI_ARMED" ]
+
+# Before conversion: the guard keeps OpenWrt as the boot only while the LAN
+# reaches its gateway; radios are not required.
+for active in 0 1; do
+	miami_ap "$active"; touch "$S/net_ok" "$S/ping_ok"
+	check "Miami healthy start in slot $active re-arms its boot" 0 guard
+	assert "Miami slot $active armed with the marker" [ "$(env_get bootcmd):$(env_get changing_bootcmd)" = "$MIAMI_ARMED:1" ]
+done
+miami_ap 1; touch "$S/net_ok"
+check "Miami unreachable gateway: not re-armed" 0 guard
+assert "Miami unreachable gateway: stock boot kept, rebooted to OEM" [ "$(env_get bootcmd)" = bootipq ] && grep -qx reboot "$S/calls"
+miami_ap 1; touch "$S/net_ok" "$S/ping_ok"
+sed -i.bak 's/@0x60c0000(fs)/@0xc0000(fs)/' "$S/env"
+check "Miami one-shot of the wrong bank is never re-armed" 1 guard
+assert "Miami wrong bank: stock boot kept" [ "$(env_get bootcmd)" = bootipq ]
+miami_ap 1; touch "$S/net_ok" "$S/ping_ok"; sed -i.bak 's/^image=.*/image=1/' "$S/env"
+check "Miami image= not the OEM bank: not re-armed" 1 guard
+
+# Status, return to stock, and what stays refused before conversion.
+miami_ap 1; touch "$S/net_ok" "$S/ping_ok"; guard >/dev/null 2>&1
+assert "Miami status before conversion: oem-fallback, guarded boot" sh -c \
+	"sh '$ab_pkg/cambium-ab-status' | grep -qx 'mode=oem-fallback' && sh '$ab_pkg/cambium-ab-status' | grep -qx 'boot=openwrt-guarded' && sh '$ab_pkg/cambium-ab-status' | grep -qx 'family=miami'"
+check "cambium-ab-stock without --yes changes nothing" 0 sh "$ab_pkg/cambium-ab-stock"
+assert "cambium-ab-stock dry run left the armed boot" [ "$(env_get bootcmd)" = "$MIAMI_ARMED" ]
+check "cambium-ab-stock --yes" 0 sh "$ab_pkg/cambium-ab-stock" --yes
+assert "stock: bootipq, marker cleared" [ "$(env_get bootcmd):$(env_get changing_bootcmd)" = 'bootipq:' ]
+assert "status after cambium-ab-stock: boot=stock" sh -c "sh '$ab_pkg/cambium-ab-status' | grep -qx 'boot=stock'"
+miami_ap 1; sed -i.bak 's/^image=.*/image=1/' "$S/env"
+check "cambium-ab-stock refuses when image= is not the OEM bank" 1 sh "$ab_pkg/cambium-ab-stock" --yes
+miami_ap 1; echo 'miami_ab_version=1' >> "$S/env"
+check "cambium-ab-stock refuses a converted AP" 1 sh "$ab_pkg/cambium-ab-stock" --yes
+miami_ap 1
+check "Miami conversion needs --allow-untested (not qualified)" 1 sh "$ab_pkg/cambium-ab-convert" --oem-sha256 "$(oem_hash)" --yes
+assert "Miami refused conversion wrote nothing" never_wrote 'format|setenv'
+dispatch53xx() { (. "$S/system.sh"; . "$S/functions.sh"; . "$CAMBIUM_AB_UPGRADE_LIB"
+	eval "$(sed -n '/^platform_check_image() {/,/^}/p; /^platform_do_upgrade() {/,/^}/p' \
+		"$top/target/linux/qualcommbe/ipq53xx/base-files/lib/upgrade/platform.sh")"
+	"$@"); }
+make_fit config@mi01.6-acadia-slot0 config@mi01.6-acadia-slot1 config@mi01.6-acadia-ab > "$S/miami-fit"
+make_image "$S/miami.bin" "$S/miami-fit" "" sysupgrade-cambiumnetworks_miami
+miami_ap 1
+check "Miami sysupgrade refused before conversion (check)" 1 dispatch53xx platform_check_image "$S/miami.bin"
+check "Miami sysupgrade refused before conversion (do)" 1 dispatch53xx platform_do_upgrade "$S/miami.bin"
+assert "Miami refused sysupgrade wrote nothing" never_wrote 'format|mkvol|update|setenv'
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
