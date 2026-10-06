@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cambium-ab
-PKG_RELEASE:=12
+PKG_RELEASE:=13
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=Phil Taylor <phil@m0vse.uk>
 
@@ -19,7 +19,8 @@ define Package/cambium-ab/description
   Two OpenWrt firmware banks with automatic rollback for Cambium access
   points: sysupgrade writes the inactive bank and trial-boots it, a boot
   guard commits it only after health checks, cambium-ab-convert replaces the
-  stock firmware bank once, and cambium-ab-status reports the state. Each
+  stock firmware bank once, cambium-ab-stock makes the stock firmware the
+  default boot again before that, and cambium-ab-status reports the state. Each
   family's board table and U-Boot commands come from its own module
   (/lib/functions/cambium-ab-<family>.sh).
 endef
@@ -35,6 +36,7 @@ define Package/cambium-ab/install
 	$(INSTALL_BIN) ./files/cambium-ab-guard $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/cambium-ab-convert $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/cambium-ab-status $(1)/usr/sbin/
+	$(INSTALL_BIN) ./files/cambium-ab-stock $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/cambium-ab-guard.init $(1)/etc/init.d/cambium-ab-guard
 	$(INSTALL_BIN) ./files/18_cambium_ab_guard $(1)/etc/uci-defaults/
 endef

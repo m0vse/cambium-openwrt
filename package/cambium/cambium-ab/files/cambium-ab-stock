@@ -1,0 +1,51 @@
+#!/bin/sh
+# Before cambium-ab-convert (one OEM bank, one OpenWrt bank): make the stock
+# firmware the default boot again. The OpenWrt bank is left untouched, and
+# the boot guard is stopped so it cannot re-arm OpenWrt before the reboot.
+#
+# Usage: cambium-ab-stock [--yes]
+#   without --yes only shows the current and the new boot command
+#
+# Uses the family's AB_STOCK_BOOTCMD and AB_MARKER; a family whose stock
+# boot needs more (another variable, a fallback pair) provides
+# ab_<family>_stock, which receives the same arguments.
+
+. "${CAMBIUM_SYSTEM_FUNCTIONS:-/lib/functions/system.sh}"
+. "${CAMBIUM_AB_LIB:-/lib/functions/cambium-ab.sh}"
+
+die() {
+	echo "cambium-ab-stock: $*" >&2
+	exit 1
+}
+
+yes=
+case "${1:-}" in
+'') ;;
+--yes) yes=1 ;;
+*) die "unknown argument $1" ;;
+esac
+
+ab_family || die 'not a Cambium image with A/B support'
+ab_board "$(board_name)" || die 'no A/B board entry'
+ab_converted && die 'already converted: both banks run OpenWrt and there is no stock firmware to return to'
+if ab_hook stock; then
+	"ab_${AB_FAMILY}_stock" "$@"
+	exit
+fi
+[ "$AB_LAYOUT" != pair ] || die "$AB_NAME has no generic stock boot; its module must provide ab_${AB_FAMILY}_stock"
+slot=$(ab_running_slot) || die 'not running from a firmware bank'
+oem=$((1 - slot))
+image=$(ab_getenv image)
+[ -z "$image" ] || [ "$image" = "$oem" ] ||
+	die "U-Boot image=$image is not the stock firmware's bank $oem; not changing anything"
+echo "current: bootcmd=$(ab_getenv bootcmd) changing_bootcmd=$(ab_getenv changing_bootcmd)"
+echo "stock:   bootcmd=$AB_STOCK_BOOTCMD${image:+ (image=$image)}"
+[ -n "$yes" ] || { echo 'run with --yes to make the stock firmware the default boot'; exit 0; }
+
+/etc/init.d/cambium-ab-guard stop 2>/dev/null
+# The stock bootcmd first; only then drop the marker this U-Boot needs while
+# bootcmd differs from its default.
+ab_setenv bootcmd "$AB_STOCK_BOOTCMD" || die 'cannot write bootcmd'
+[ "$AB_MARKER" != 1 ] || ab_setenv changing_bootcmd || die 'cannot clear changing_bootcmd'
+logger -t cambium-ab-stock "stock firmware (bank $oem) is the default boot" 2>/dev/null
+echo "The stock firmware (bank $oem) is the default boot. Reboot to enter it; the OpenWrt bank is untouched."
