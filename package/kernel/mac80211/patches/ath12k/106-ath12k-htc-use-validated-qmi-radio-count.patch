@@ -1,0 +1,33 @@
+From: Phil Taylor <phil@m0vse.uk>
+Subject: [PATCH] wifi: ath12k: size HTC WMI endpoints from the QMI radio count
+
+Before SERVICE_READY selects a hardware mode, single-chip MLO firmware
+already reports its PHY count over QMI. HTC still connected one WMI
+endpoint per hardware maximum radio and divided the credits between
+them, so services were requested for PHYs the IPQ5332 does not have.
+
+Use the QMI radio count when the firmware supports single-chip MLO and the
+count is within the hardware maximum; keep the maximum otherwise.
+
+Signed-off-by: Phil Taylor <phil@m0vse.uk>
+---
+--- a/drivers/net/wireless/ath/ath12k/htc.c
++++ b/drivers/net/wireless/ath/ath12k/htc.c
+@@ -773,7 +773,16 @@ int ath12k_htc_init(struct ath12k_base *ab)
+ 		htc->wmi_ep_count = 3;
+ 		break;
+ 	default:
+-		htc->wmi_ep_count = ab->hw_params->max_radios;
++		/* Before SERVICE_READY selects a mode, single-chip MLO FW
++		 * already reports its PHY count through QMI. Do not connect
++		 * nonexistent WMI services or divide credits for them.
++		 * Legacy/invalid counts retain the hardware maximum fallback.
++		 */
++		if (ab->single_chip_mlo_support && ab->qmi.num_radios > 0 &&
++		    ab->qmi.num_radios <= ab->hw_params->max_radios)
++			htc->wmi_ep_count = ab->qmi.num_radios;
++		else
++			htc->wmi_ep_count = ab->hw_params->max_radios;
+ 		break;
+ 	}
+ 
