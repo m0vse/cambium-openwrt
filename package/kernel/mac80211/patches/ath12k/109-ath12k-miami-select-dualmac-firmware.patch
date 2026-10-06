@@ -1,0 +1,39 @@
+From: Phil Taylor <phil@m0vse.uk>
+Subject: [PATCH] wifi: ath12k: select split-PHY firmware for Cambium X7-35X
+
+The Cambium X7-35X wires its QCN9224 as a split-PHY device for
+simultaneous 5 and 6 GHz; the OEM firmware reports two PCI PHYs and
+selects hardware mode 5. The stock firmware bundle contains both AMSS
+variants, but the OTP-based selection starts the single-PHY variant on
+this board.
+
+Select the existing dual-MAC image for this machine and QCN9274 hw2.0
+only. Firmware capability negotiation, calibration and regulatory
+handling are unchanged.
+
+Signed-off-by: Phil Taylor <phil@m0vse.uk>
+---
+--- a/drivers/net/wireless/ath/ath12k/mhi.c
++++ b/drivers/net/wireless/ath/ath12k/mhi.c
+@@ -7,6 +7,7 @@
+ #include <linux/msi.h>
+ #include <linux/pci.h>
+ #include <linux/firmware.h>
++#include <linux/of.h>
+ 
+ #include "core.h"
+ #include "debug.h"
+@@ -218,6 +219,13 @@ int ath12k_mhi_register(struct ath12k_pci *ab_pci)
+ 		}
+ 	}
+ 
++	/* X7-35X wires the split-PHY device for simultaneous 5/6 GHz.
++	 * Its OEM boot exposes two PHYs; OTP alone selects single-MAC.
++	 */
++	if (ab->hw_rev == ATH12K_HW_QCN9274_HW20 &&
++	    of_machine_is_compatible("cambiumnetworks,x7-35x"))
++		dualmac = true;
++
+ 	if (dualmac) {
+ 		if (ab->fw.amss_dualmac_data && ab->fw.amss_dualmac_len > 0) {
+ 			/* use MHI firmware file from firmware-N.bin */

@@ -1,0 +1,27 @@
+From: Phil Taylor <phil@m0vse.uk>
+Subject: [PATCH] wifi: ath12k: use the 512 MiB firmware profile on the X7-35X PCI radio
+
+The QCN9224 in the Cambium X7-35X is run with the firmware's 512 MiB
+memory profile, as the OEM firmware runs it, whatever RAM Linux has.
+
+On this machine, select ATH12K_QMI_MEMORY_MODE_LOW_512_M for the PCI
+device, so QMI negotiation and host/WMI resource sizing agree.
+
+Signed-off-by: Phil Taylor <phil@m0vse.uk>
+---
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -1776,6 +1776,13 @@ enum ath12k_qmi_mem_mode ath12k_core_get_memory_mode(struct ath12k_base *ab)
+ 	si_meminfo(&si);
+ 	total_ram = si.totalram * si.mem_unit;
+ 
++	/* Acadia's PCI radio needs the smaller firmware resource budget,
++	 * independently of the Linux RAM available to the rest of the AP.
++	 * Keep QMI negotiation and host/WMI resource sizing coherent.
++	 */
++	if (ab->hif.bus == ATH12K_BUS_PCI &&
++	    of_machine_is_compatible("cambiumnetworks,x7-35x"))
++		return ATH12K_QMI_MEMORY_MODE_LOW_512_M;
+ 	if (total_ram < SZ_512M)
+ 		return ATH12K_QMI_MEMORY_MODE_LOW_512_M;
+ 
