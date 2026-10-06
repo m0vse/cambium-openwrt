@@ -2,7 +2,7 @@
 # Build, verify and collect one Cambium family snapshot or release.
 #
 # Usage: cambium/scripts/build.sh FAMILY [BUILD_ID]
-#   FAMILY    sage | thor | cheetah | jaguar | gambit
+#   FAMILY    sage | thor | cheetah | jaguar | gambit | miami
 #   BUILD_ID  a snapshot, YYYY.MM.DD.N (default: today's date with N=0), or
 #             a release, X.Y.Z-N: Cambium release N of OpenWrt X.Y.Z, built
 #             from that release (see cambium/README.md)
@@ -20,7 +20,7 @@
 
 set -eu
 
-family=${1:?usage: $0 sage|thor|cheetah|jaguar|gambit [build-id]}
+family=${1:?usage: $0 sage|thor|cheetah|jaguar|gambit|miami [build-id]}
 build_id=${2:-$(date -u +%Y.%m.%d).0}
 top=$(git rev-parse --show-toplevel)
 cd "$top"
@@ -31,6 +31,7 @@ thor)    name=Thor;    target=qualcommax; subtarget=ipq807x ;;
 cheetah) name=Cheetah; target=qualcommax; subtarget=ipq50xx ;;
 jaguar)  name=Jaguar;  target=qualcommax; subtarget=ipq60xx ;;
 gambit)  name=Gambit;  target=ath79;      subtarget=nand ;;
+miami)   name=Miami;   target=qualcommbe; subtarget=ipq53xx ;;
 *) echo "Unknown family: $family" >&2; exit 2 ;;
 esac
 case "$build_id" in
@@ -235,6 +236,27 @@ persistent=$kernel"
 		fail "Jaguar image needs $lebs LEBs; the XV2-2's 52 MiB bank has 392"
 	echo "Jaguar image uses $lebs of 392 LEBs in an XV2-2 bank"
 	;;
+miami)
+	MIAMI_FLAVOR=recovery sh "$verify" "$(image '*cambiumnetworks_miami-recovery-initramfs-uImage.itb')"
+	sysupgrade=$(image '*cambiumnetworks_miami-persistent-squashfs-sysupgrade.bin')
+	tar -xOf "$sysupgrade" sysupgrade-cambiumnetworks_miami/kernel > "$work/miami-kernel.itb" ||
+		fail "Miami sysupgrade lacks the family kernel"
+	MIAMI_FLAVOR=persistent sh "$verify" "$work/miami-kernel.itb"
+	fits="recovery=$(image '*cambiumnetworks_miami-recovery-initramfs-uImage.itb')
+persistent=$work/miami-kernel.itb"
+	factory=$(image '*cambiumnetworks_miami-persistent-squashfs-factory.ubi')
+	[ "$(wc -c < "$factory")" -lt 100663296 ] ||
+		fail "Miami factory image exceeds the 96 MiB bank"
+	grep -aq cambium_device_data "$factory" ||
+		fail "Miami factory image lacks the device-data vault volume"
+	# The vault (72 LEBs) holds the Q6 firmware and regional board files;
+	# the bank must also fit the kernel, root and an 8 MiB overlay (67).
+	root_bytes=$(tar -xOf "$sysupgrade" sysupgrade-cambiumnetworks_miami/root | wc -c)
+	lebs=$(( ($(wc -c < "$work/miami-kernel.itb") + 126975) / 126976 + (root_bytes + 126975) / 126976 + 72 + 67 ))
+	[ "$lebs" -le 724 ] ||
+		fail "Miami image needs $lebs LEBs; a 96 MiB bank has 724"
+	echo "Miami image uses $lebs of 724 LEBs in a bank"
+	;;
 gambit)
 	fits=
 	python3 cambium/scripts/verify-gambit.py recovery "$(image '*cambiumnetworks_e400-recovery-initramfs-kernel.bin')" || fail 'invalid Gambit recovery'
@@ -260,7 +282,8 @@ for root in $roots; do
 		fail "$root is not OpenWrt ${build_id%-*}: $(grep DISTRIB_RELEASE "$root/etc/openwrt_release")"
 	[ ! -s "$root/etc/dropbear/authorized_keys" ] ||
 		fail "$root contains SSH authorized keys"
-	leaked=$(find "$root/lib/firmware" \( -name 'bdwlan*' -o -path '*/ath11k/*/board.bin' \) 2>/dev/null)
+	leaked=$(find "$root/lib/firmware" \( -name 'bdwlan*' -o -path '*/ath11k/*/board.bin' \
+		-o -path '*/ath12k/*/board.bin' -o -name 'q6_fw*' -o -name 'iu_fw*' -o -name '*acadia*' \) 2>/dev/null)
 	[ -z "$leaked" ] || fail "$root contains OEM board data: $leaked"
 done
 
@@ -315,7 +338,8 @@ cp files/etc/cambium-openwrt-release "$output/images/cambium-openwrt-release"
 # with ubiformat, so it can hash them back after writing.
 for f in "$output/images/"*cambiumnetworks_thor-persistent-squashfs-factory.ubi \
 	"$output/images/"*cambiumnetworks_jaguar-persistent-squashfs-factory.ubi \
-	"$output/images/"*cambiumnetworks_cheetah-persistent-squashfs-factory.ubi; do
+	"$output/images/"*cambiumnetworks_cheetah-persistent-squashfs-factory.ubi \
+	"$output/images/"*cambiumnetworks_miami-persistent-squashfs-factory.ubi; do
 	[ -f "$f" ] || continue
 	python3 cambium/scripts/ubi-contents.py "$f" > "$f.contents" ||
 		fail "cannot read the kernel and rootfs content of ${f##*/}"
