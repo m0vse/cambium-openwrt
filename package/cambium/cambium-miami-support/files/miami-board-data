@@ -1,0 +1,321 @@
+#!/bin/sh
+# Miami X7-35X radio data, read-only from this unit's own flash, every boot.
+#
+#   miami-board-data provision    (preinit) stage the radio files, release
+#                                 the radio hold
+#   miami-board-data --check-vault  exit 0 only if the running bank's
+#                                 device-data vault is valid for this unit
+#                                 (cambium-ab checks it before conversion)
+#
+# Sources, in order: the running bank's cambium_device_data vault, then the
+# OEM rootfs on whichever NAND bank is read-only, is not running OpenWrt and
+# holds the OEM Wi-Fi firmware. Calibration always comes from 0:ART. While
+# the OEM bank exists and the vault is empty, the vault (in OpenWrt's own,
+# writable bank) is filled from it, so the radios keep working after an A/B
+# conversion erases the OEM bank. The OEM bank and ART are never written.
+# Files are staged in tmpfs, searched first by the kernel firmware loader.
+# Nothing proprietary is shipped in the image.
+
+FW=/tmp/miami-firmware
+WORK=/tmp/miami-board-data
+# Shared with cambium-ab (status board_data=, the A/B vault health check).
+STATUS=${CAMBIUM_BDF_STATUS:-/tmp/cambium-board-data.status}
+VAULT_NAME=cambium_device_data
+VAULT_FORMAT=1
+AHB=lib/firmware/IPQ5332/WIFI_FW
+PCI=lib/firmware/qcn9224/WIFI_FW
+UBI_OEM=9
+MNT=/tmp/miami-oem-rootfs
+OEM_VOL=
+
+mtd_by_name() {
+	local d
+	for d in /sys/class/mtd/mtd*; do
+		[ -f "$d/name" ] && [ "$(cat "$d/name")" = "$1" ] && { echo "${d##*/mtd}"; return 0; }
+	done
+	return 1
+}
+
+# MTD_WRITEABLE (0x400) clear
+mtd_ro() {
+	[ $(( $(cat /sys/class/mtd/mtd$1/flags) & 0x400 )) -eq 0 ]
+}
+
+# Nothing creates UBI /dev nodes during preinit: make the node from sysfs as
+# soon as the kernel has registered the device (waiting cost 10 s per node).
+wait_node() {
+	local node=$1 sys=$2 i=0 mm
+	while [ ! -e "$node" ]; do
+		mm=$(cat "$sys/dev" 2>/dev/null) &&
+			{ mknod "$node" "$3" "${mm%%:*}" "${mm##*:}" 2>/dev/null || [ -e "$node" ]; } && return 0
+		[ $i -lt 10 ] || return 1
+		sleep 1; i=$((i + 1))
+	done
+}
+
+board() { tr '\000' '\n' < /proc/device-tree/compatible | head -n 1; }
+sku() { hexdump -v -e '1/1 "%02x"' /proc/device-tree/cambium-platform/board-sku 2>/dev/null; }
+running_part() { sed -n 's/.*ubi\.mtd=\([^ ]*\).*/\1/p' /proc/cmdline; }
+
+country() {
+	local c
+	c=$(uci -q get wireless.radio0.country)
+	[ -n "$c" ] && [ "$c" != 00 ] || c=$(uci -q get system.@system[0].miami_country)
+	[ -n "$c" ] || c=GB
+	echo "$c" | tr a-z A-Z
+}
+
+# OEM setup_bdf_wifi7 table for the QCN9224 (5/6 GHz) board file.
+pci_bdf_suffix() {
+	case "$1" in
+	GB) echo ".uk" ;;
+	US|EU|AT|BE|BG|HR|CY|CZ|DK|EE|FI|FR|DE|GR|HU|IE|IT|LV|LT|LU|MT|NL|PL|PT|RO|SK|SI|ES|SE|IS|LI|NO|CH)
+		echo ".fcc.ce" ;;
+	AU|NZ) echo ".au.nz" ;;
+	CA) echo ".ic" ;;
+	*) echo "" ;;
+	esac
+}
+
+# Files kept from the OEM root (relative paths), present ones only.
+oem_files() {
+	local root=$1 f
+	for f in "$root/$AHB"/q6_fw0.mdt "$root/$AHB"/q6_fw0.b* "$root/$AHB"/q6_fw1.mdt \
+		 "$root/$AHB"/q6_fw1.b* "$root/$AHB"/iu_fw.mdt "$root/$AHB"/iu_fw.b* \
+		 "$root/$AHB"/bdwlan.b12-acadia "$root/$AHB"/regdb.bin-acadia \
+		 "$root/$PCI"/bdwlan.b1019-acadia* "$root/$PCI"/regdb.bin-acadia; do
+		[ -f "$f" ] && echo "${f#$root/}"
+	done
+}
+
+required_ok() {
+	local root=$1 f
+	for f in "$AHB/q6_fw0.mdt" "$AHB/q6_fw1.mdt" "$AHB/iu_fw.mdt" "$AHB/bdwlan.b12-acadia" \
+		 "$AHB/regdb.bin-acadia" "$PCI/bdwlan.b1019-acadia"; do
+		[ -s "$root/$f" ] || { echo "missing $f"; return 1; }
+	done
+}
+
+# --- OEM bank (read-only only) -------------------------------------------------
+
+oem_release() {
+	grep -q " $MNT " /proc/mounts && umount "$MNT"
+	[ -n "$OEM_VOL" ] && ubiblock --remove /dev/ubi${UBI_OEM}_$OEM_VOL 2>/dev/null
+	[ -e /sys/class/ubi/ubi$UBI_OEM ] && ubidetach -d "$UBI_OEM"
+	OEM_VOL=
+}
+
+oem_mount_mtd() {
+	local mtd=$1 f
+	mtd_ro "$mtd" || { echo "mtd$mtd is writable; not attaching it"; return 1; }
+	# A wrong ECC setup fails every block; check the UBI magic first.
+	[ "$(dd if=/dev/mtd$mtd bs=2048 count=1 2>/dev/null | head -c 4)" = "UBI#" ] ||
+		{ echo "mtd$mtd first page unreadable or not UBI"; return 1; }
+	ubiattach -m "$mtd" -d "$UBI_OEM" || { echo "mtd$mtd UBI attach failed"; return 1; }
+	for f in /sys/class/ubi/ubi${UBI_OEM}_*; do
+		[ "$(cat "$f/name" 2>/dev/null)" = ubi_rootfs ] && OEM_VOL=${f##*_}
+	done
+	if [ -z "$OEM_VOL" ] ||
+	   ! wait_node /dev/ubi${UBI_OEM}_$OEM_VOL /sys/class/ubi/ubi${UBI_OEM}_$OEM_VOL c ||
+	   ! ubiblock --create /dev/ubi${UBI_OEM}_$OEM_VOL ||
+	   ! wait_node /dev/ubiblock${UBI_OEM}_$OEM_VOL /sys/class/block/ubiblock${UBI_OEM}_$OEM_VOL b; then
+		echo "mtd$mtd has no usable ubi_rootfs"; oem_release; return 1
+	fi
+	mkdir -p "$MNT"
+	mount -t squashfs -o ro /dev/ubiblock${UBI_OEM}_$OEM_VOL "$MNT" ||
+		{ echo "mtd$mtd rootfs mount failed"; oem_release; return 1; }
+	[ -f "$MNT/$AHB/q6_fw0.mdt" ] ||
+		{ echo "mtd$mtd holds no OEM Wi-Fi firmware"; oem_release; return 1; }
+}
+
+# Mount the OEM rootfs from a read-only bank OpenWrt is not running from.
+oem_mount() {
+	local name mtd running
+	running=$(running_part)
+	for name in rootfs rootfs_1; do
+		[ "$name" = "$running" ] && continue
+		mtd=$(mtd_by_name "$name") || continue
+		oem_mount_mtd "$mtd" && { echo "OEM Wi-Fi files from $name (mtd$mtd, read-only)"; return 0; }
+	done
+	return 1
+}
+
+# --- vault ---------------------------------------------------------------------
+
+art_sha() {
+	local art
+	art=$(mtd_by_name 0:ART) || return 1
+	sha256sum < /dev/mtd$art | cut -d ' ' -f1
+}
+
+# Set VAULT_DEV to the running bank's vault volume, if it has one.
+vault_locate() {
+	local mtd e vol
+	VAULT_DEV=
+	mtd=$(mtd_by_name "$(running_part)") || return 1
+	for e in /sys/class/ubi/ubi[0-9]*; do
+		[ -f "$e/mtd_num" ] && [ "$(cat "$e/mtd_num")" = "$mtd" ] || continue
+		for vol in /sys/class/ubi/${e##*/}_*; do
+			[ "$(cat "$vol/name" 2>/dev/null)" = "$VAULT_NAME" ] || continue
+			wait_node "/dev/${vol##*/}" "$vol" c || return 1
+			VAULT_DEV=/dev/${vol##*/}
+			return 0
+		done
+	done
+	return 1
+}
+
+manifest_value() { sed -n "s/^$2 //p" "$1/MANIFEST" | head -n 1; }
+
+vault_read() {
+	rm -rf "$1" && mkdir -p "$1"
+	tar -xf "$VAULT_DEV" -C "$1" 2>/dev/null
+	[ -f "$1/MANIFEST" ]
+}
+
+# 0 valid, 1 missing or corrupt, 2 made for another board, SKU or ART.
+vault_check() {
+	local dir=$1 tag path size hash
+	[ -f "$dir/MANIFEST" ] || return 1
+	[ "$(manifest_value "$dir" format)" = "$VAULT_FORMAT" ] || return 1
+	[ "$(manifest_value "$dir" board)" = "$(board)" ] || return 2
+	[ "$(manifest_value "$dir" sku)" = "$(sku)" ] || return 2
+	[ "$(manifest_value "$dir" art_sha256)" = "$(art_sha)" ] || return 2
+	while read -r tag path size hash; do
+		[ "$tag" = file ] || continue
+		[ -f "$dir/files/$path" ] && [ "$(wc -c < "$dir/files/$path")" -eq "$size" ] &&
+			[ "$(sha256sum < "$dir/files/$path" | cut -d ' ' -f1)" = "$hash" ] || return 1
+	done < "$dir/MANIFEST"
+	required_ok "$dir/files" >/dev/null
+}
+
+# Write the vault from the OEM root $1, then read it back and check it.
+vault_write() {
+	local root=$1 stage=$WORK/stage f cap
+	rm -rf "$stage" && mkdir -p "$stage/files" || return 1
+	{
+		echo "format $VAULT_FORMAT"
+		echo "board $(board)"
+		echo "sku $(sku)"
+		echo "art_sha256 $(art_sha)"
+		echo "source oem-slot"
+		echo "created $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+		oem_files "$root" | while read -r f; do
+			mkdir -p "$stage/files/${f%/*}" && cp "$root/$f" "$stage/files/$f" || exit 1
+			echo "file $f $(wc -c < "$root/$f") $(sha256sum < "$root/$f" | cut -d ' ' -f1)"
+		done
+	} > "$stage/MANIFEST" || return 1
+	(cd "$stage" && tar -cf "$WORK/vault.tar" MANIFEST files) || return 1
+	cap=$(cat "/sys/class/ubi/${VAULT_DEV##*/}/data_bytes")
+	[ "$(wc -c < "$WORK/vault.tar")" -le "$cap" ] ||
+		{ echo "vault archive does not fit the $cap-byte volume"; rm -f "$WORK/vault.tar"; return 1; }
+	ubiupdatevol "$VAULT_DEV" "$WORK/vault.tar" || { rm -f "$WORK/vault.tar"; return 1; }
+	rm -rf "$WORK/vault.tar" "$stage"
+	vault_read "$WORK/readback" && vault_check "$WORK/readback"
+}
+
+# --- staging the radio files -------------------------------------------------------------------
+
+# Stage radio files from root $1 (OEM tree or unpacked vault) plus calibration.
+install_from() {
+	local root=$1 art f sfx c
+	local ahb=$FW/ath12k/IPQ5332/hw1.0 pci=$FW/ath12k/QCN9274/hw2.0
+	required_ok "$root" || return 1
+	art=$(mtd_by_name 0:ART) || { echo "no 0:ART partition"; return 1; }
+	mtd_ro "$art" || { echo "0:ART is writable; refusing"; return 1; }
+	mkdir -p "$ahb" "$pci"
+	for f in "$root/$AHB"/q6_fw0.mdt "$root/$AHB"/q6_fw0.b* "$root/$AHB"/q6_fw1.mdt \
+		 "$root/$AHB"/q6_fw1.b* "$root/$AHB"/iu_fw.mdt "$root/$AHB"/iu_fw.b*; do
+		cp "$f" "$ahb/" || return 1
+	done
+	# ath12k requests the user-PD and IU images by these names
+	cp "$root/$AHB/q6_fw1.mdt" "$ahb/q6_fw1.mbn"
+	cp "$root/$AHB/iu_fw.mdt" "$ahb/iu_fw.mbn"
+	cp "$root/$AHB/bdwlan.b12-acadia" "$ahb/board.bin"
+	# OEM S20CopyRegDB (Acadia) installs regdb.bin-acadia for both radios;
+	# the AHB firmware has regdb_mandatory
+	cp "$root/$AHB/regdb.bin-acadia" "$ahb/regdb.bin"
+	f=$root/$PCI/regdb.bin-acadia
+	[ -f "$f" ] || f=$root/$AHB/regdb.bin-acadia
+	cp "$f" "$pci/regdb.bin"
+	c=$(country)
+	sfx=$(pci_bdf_suffix "$c")
+	[ -f "$root/$PCI/bdwlan.b1019-acadia$sfx" ] ||
+		{ echo "no bdwlan.b1019-acadia$sfx; using the plain (ROW) board file"; sfx=; }
+	cp "$root/$PCI/bdwlan.b1019-acadia$sfx" "$pci/board.bin"
+	echo "country $c -> bdwlan.b1019-acadia$sfx"
+	# own-unit calibration (512-byte blocks): AHB ART+0x1000 63488,
+	# PCI ART+362496 184320
+	dd if=/dev/mtd$art of="$ahb/cal-ahb-c000000.wifi.bin" bs=512 skip=8 count=124 2>/dev/null
+	dd if=/dev/mtd$art of="$pci/cal-pci-0001:01:00.0.bin" bs=512 skip=708 count=360 2>/dev/null
+	for f in "$ahb/q6_fw0.mdt" "$ahb/q6_fw1.mbn" "$ahb/iu_fw.mbn" "$ahb/board.bin" "$ahb/regdb.bin" \
+		 "$ahb/cal-ahb-c000000.wifi.bin" "$pci/board.bin" "$pci/regdb.bin" \
+		 "$pci/cal-pci-0001:01:00.0.bin"; do
+		[ -s "$f" ] || { echo "missing $f"; return 1; }
+	done
+	[ "$(wc -c < "$ahb/cal-ahb-c000000.wifi.bin")" = 63488 ] || { echo "AHB cal size"; return 1; }
+	[ "$(wc -c < "$pci/cal-pci-0001:01:00.0.bin")" = 184320 ] || { echo "PCI cal size"; return 1; }
+	(cd "$ahb" && sha256sum *) ; (cd "$pci" && sha256sum *)
+	# Searched before /lib/firmware; stock files (QCN9274 amss/m3) still load
+	echo -n "$FW" > /sys/module/firmware_class/parameters/path
+	[ "$(cat /sys/module/firmware_class/parameters/path)" = "$FW" ] ||
+		{ echo "firmware search path not set"; return 1; }
+}
+
+provision_run() {
+	local rc
+	mkdir -p "$WORK"
+	if vault_locate; then
+		if vault_read "$WORK/vault"; then vault_check "$WORK/vault"; rc=$?; else rc=1; fi
+		case "$rc" in
+		0)
+			echo "using the device-data vault $VAULT_DEV"
+			install_from "$WORK/vault/files" && { echo vault > "$STATUS"; return 0; }
+			;;
+		2)
+			# Never overwrite another unit's data; an operator must look.
+			echo "the vault belongs to another board, SKU or ART; not using or replacing it"
+			echo vault-mismatch > "$STATUS"
+			oem_mount || return 1
+			install_from "$MNT"; rc=$?; oem_release; return $rc
+			;;
+		esac
+		# Empty or invalid vault: fill it from the OEM bank while it exists.
+		oem_mount || { echo missing > "$STATUS"; echo "no vault and no read-only OEM bank"; return 1; }
+		if vault_write "$MNT"; then
+			echo "device-data vault written and verified"
+			echo vault > "$STATUS"
+		else
+			echo "vault write failed; using the OEM bank directly"
+			echo imported > "$STATUS"
+		fi
+		install_from "$MNT"; rc=$?; oem_release; return $rc
+	fi
+	# RAM boot or no vault volume: the OEM bank only.
+	oem_mount || { echo missing > "$STATUS"; echo "no read-only OEM bank with Wi-Fi firmware"; return 1; }
+	echo imported > "$STATUS"
+	install_from "$MNT"; rc=$?; oem_release; return $rc
+}
+
+provision() {
+	local log=/tmp/miami-radio-provision.log p
+	if provision_run > "$log" 2>&1; then
+		for p in /sys/bus/platform/devices/c000000.wifi /sys/bus/pci/devices/0001:01:00.0; do
+			[ -f "$p/driver_override" ] && echo > "$p/driver_override"
+		done
+		echo "miami-radio: provisioned ($(cat "$STATUS")); radios released" > /dev/kmsg
+	else
+		oem_release >> "$log" 2>&1
+		echo "miami-radio: provisioning FAILED, radios stay held: $(tail -n1 "$log")" > /dev/kmsg
+		return 1
+	fi
+}
+
+case "${1:-}" in
+provision) provision ;;
+--check-vault)
+	mkdir -p "$WORK"
+	vault_locate && vault_read "$WORK/check" && vault_check "$WORK/check"
+	;;
+*) echo "usage: $0 provision|--check-vault" >&2; exit 2 ;;
+esac
