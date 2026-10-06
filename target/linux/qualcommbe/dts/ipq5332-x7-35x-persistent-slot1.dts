@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/*
+ * Persistent OpenWrt in NAND bank 1 (rootfs_1) beside the OEM firmware: that
+ * bank and 0:APPSBLENV (for the cambium-ab boot guard) are writable; the OEM
+ * bank rootfs and every other partition stay read-only.
+ */
+#include "ipq5332-x7-35x-recovery.dts"
+
+&miami_rootfs_1 {
+	/delete-property/ read-only;
+};
+
+&miami_appsblenv {
+	/delete-property/ read-only;
+};
