@@ -1,0 +1,7 @@
+#!/bin/sh
+# Deployment country for Miami radio provisioning (board file selection) and
+# wireless config. Change with: uci set system.@system[0].miami_country=XX
+[ -n "$(uci -q get system.@system[0].miami_country)" ] ||
+	uci -q set system.@system[0].miami_country=GB
+uci -q commit system
+exit 0
