@@ -7,6 +7,9 @@ Changes that apply to every family.
 - Snapshots are built weekly, on Monday evening at 19:17 UTC, instead of
   daily; run the snapshot workflow by hand for an extra one. The rebase onto
   upstream OpenWrt runs with it, so `main` is rewritten weekly too.
+- The build takes upstream's prebuilt LLVM eBPF toolchain from
+  `qualcommbe/ipq95xx` when its own subtarget has none (a subtarget upstream
+  does not build), instead of stopping when that download is missing.
 
 ## 2026.09.28.1
 
