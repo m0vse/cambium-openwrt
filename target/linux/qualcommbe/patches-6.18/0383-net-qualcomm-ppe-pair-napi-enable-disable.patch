@@ -1,0 +1,148 @@
+From: Phil Taylor <phil@m0vse.uk>
+Subject: [PATCH] net: ethernet: qualcomm: ppe: pair NAPI enable and disable
+
+EDMA enables and disables the Tx completion and Rx NAPI contexts per
+port and deletes them on teardown, but did not record whether a context
+was enabled. When probe fails before a port was ever opened, teardown
+calls napi_disable() on a NAPI context that was never enabled, which
+never returns.
+
+Track napi_enabled per ring and only enable or disable a context whose
+state changes.
+
+Signed-off-by: Phil Taylor <phil@m0vse.uk>
+---
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
+@@ -275,6 +275,7 @@
+  * @dma: Descriptor ring physical address
+  * @count: Number of descriptors in the ring
+  * @napi_added: Flag to indicate NAPI add status
++ * @napi_enabled: Flag to pair NAPI enable and disable
+  */
+ struct edma_txcmpl_ring {
+ 	struct napi_struct napi;
+@@ -286,6 +287,7 @@
+ 	dma_addr_t dma;
+ 	u32 count;
+ 	bool napi_added;
++	bool napi_enabled;
+ };
+ 
+ extern int edma_tx_napi_budget;
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
+@@ -260,6 +260,7 @@
+  * @rxdesc_stats: Rx descriptor ring statistics
+  * @rxfill: RxFill ring used
+  * @napi_added: Flag to indicate NAPI add status
++ * @napi_enabled: Flag to pair NAPI enable and disable
+  * @pdma: Primary descriptor ring physical address
+  * @sdma: Secondary descriptor ring physical address
+  * @head: Head of the skb list in case of scatter-gather frame
+@@ -277,6 +278,7 @@
+ 	struct edma_rxdesc_stats rxdesc_stats;
+ 	struct edma_rxfill_ring *rxfill;
+ 	bool napi_added;
++	bool napi_enabled;
+ 	dma_addr_t pdma;
+ 	dma_addr_t sdma;
+ 	struct sk_buff *head;
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
+@@ -586,10 +586,11 @@
+ 	for_each_possible_cpu(i) {
+ 		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
+ 		txcmpl_ring = &edma_ctx->txcmpl_rings[ring_idx];
+-		if (!txcmpl_ring->napi_added)
++		if (!txcmpl_ring->napi_added || txcmpl_ring->napi_enabled)
+ 			continue;
+ 
+ 		napi_enable(&txcmpl_ring->napi);
++		txcmpl_ring->napi_enabled = true;
+ 	}
+ }
+ 
+@@ -608,10 +609,11 @@
+ 	for_each_possible_cpu(i) {
+ 		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
+ 		txcmpl_ring = &edma_ctx->txcmpl_rings[ring_idx];
+-		if (!txcmpl_ring->napi_added)
++		if (!txcmpl_ring->napi_added || !txcmpl_ring->napi_enabled)
+ 			continue;
+ 
+ 		napi_disable(&txcmpl_ring->napi);
++		txcmpl_ring->napi_enabled = false;
+ 	}
+ }
+ 
+@@ -633,7 +635,11 @@
+ 		if (!txcmpl_ring->napi_added)
+ 			continue;
+ 
+-		napi_disable(&txcmpl_ring->napi);
++		/* Probe failure may delete NAPI before the port was ever opened. */
++		if (txcmpl_ring->napi_enabled) {
++			napi_disable(&txcmpl_ring->napi);
++			txcmpl_ring->napi_enabled = false;
++		}
+ 		netif_napi_del(&txcmpl_ring->napi);
+ 		txcmpl_ring->napi_added = false;
+ 	}
+@@ -666,6 +672,7 @@
+ 		netif_napi_add_weight(netdev, &txcmpl_ring->napi,
+ 				      edma_tx_napi_poll, hw_info->napi_budget_tx);
+ 		txcmpl_ring->napi_added = true;
++		txcmpl_ring->napi_enabled = false;
+ 		netdev_dbg(netdev, "Napi added for Tx cmpl ring: %u\n", txcmpl_ring->id);
+ 	}
+ 
+--- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
++++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
+@@ -899,10 +899,11 @@
+ 
+ 		rxdesc_ring = &edma_ctx->rx_rings[i];
+ 
+-		if (!rxdesc_ring->napi_added)
++		if (!rxdesc_ring->napi_added || !rxdesc_ring->napi_enabled)
+ 			continue;
+ 
+ 		napi_disable(&rxdesc_ring->napi);
++		rxdesc_ring->napi_enabled = false;
+ 	}
+ }
+ 
+@@ -922,10 +923,11 @@
+ 
+ 		rxdesc_ring = &edma_ctx->rx_rings[i];
+ 
+-		if (!rxdesc_ring->napi_added)
++		if (!rxdesc_ring->napi_added || rxdesc_ring->napi_enabled)
+ 			continue;
+ 
+ 		napi_enable(&rxdesc_ring->napi);
++		rxdesc_ring->napi_enabled = true;
+ 	}
+ }
+ 
+@@ -948,7 +950,11 @@
+ 		if (!rxdesc_ring->napi_added)
+ 			continue;
+ 
+-		napi_disable(&rxdesc_ring->napi);
++		/* Partial initialization may leave added NAPI disabled. */
++		if (rxdesc_ring->napi_enabled) {
++			napi_disable(&rxdesc_ring->napi);
++			rxdesc_ring->napi_enabled = false;
++		}
+ 		netif_napi_del(&rxdesc_ring->napi);
+ 		rxdesc_ring->napi_added = false;
+ 	}
+@@ -980,6 +986,7 @@
+ 		netif_napi_add_weight(edma_ctx->dummy_dev, &rxdesc_ring->napi,
+ 				      edma_rx_napi_poll, hw_info->napi_budget_rx);
+ 		rxdesc_ring->napi_added = true;
++		rxdesc_ring->napi_enabled = false;
+ 	}
+ 
+ 	netdev_dbg(edma_ctx->dummy_dev, "Rx NAPI budget: %d\n", edma_rx_napi_budget);
