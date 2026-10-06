@@ -1,0 +1,141 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/*
+ * Cambium Miami flash, every partition read-only.
+ *
+ * Fixed partitions from the X7-35X MIBIB table (v4): flash 0 is the SPI NOR
+ * (64 KiB units), flash 1 the QPIC SPI NAND (128 KiB units). Linux reads
+ * calibration, MAC addresses and the OEM Wi-Fi files but cannot modify the
+ * OEM banks, bootloaders or environment; UBI attaches a read-only MTD in
+ * read-only mode. The NAND firmware banks keep the OEM names rootfs and
+ * rootfs_1, which the OEM U-Boot passes as ubi.mtd=. The persistent trees
+ * unlock only their own bank(s) and 0:APPSBLENV.
+ */
+
+&tlmm {
+	miami_spi0_pins: miami-spi0-state {
+		data-clk-pins {
+			pins = "gpio14", "gpio15", "gpio16";
+			function = "blsp0_spi";
+			drive-strength = <2>;
+			bias-pull-down;
+		};
+		cs-pins {
+			pins = "gpio17";
+			function = "blsp0_spi";
+			drive-strength = <2>;
+			bias-pull-up;
+		};
+	};
+
+	miami_qspi_nand_pins: miami-qspi-nand-state {
+		clock-pins {
+			pins = "gpio13";
+			function = "qspi_clk";
+			drive-strength = <8>;
+			bias-pull-down;
+		};
+		cs-pins {
+			pins = "gpio12";
+			function = "qspi_cs";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+		data-pins {
+			pins = "gpio8", "gpio9", "gpio10", "gpio11";
+			function = "qspi_data";
+			drive-strength = <8>;
+			bias-pull-down;
+		};
+	};
+};
+
+&blsp1_spi0 {
+	pinctrl-0 = <&miami_spi0_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	flash@0 {
+		/* MX25U6435F, 8 MiB */
+		compatible = "jedec,spi-nor";
+		reg = <0>;
+		spi-max-frequency = <50000000>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 { label = "0:SBL1"; reg = <0x000000 0x080000>; read-only; };
+			partition@80000 { label = "0:SBL1_1"; reg = <0x080000 0x080000>; read-only; };
+			partition@100000 { label = "0:MIBIB"; reg = <0x100000 0x010000>; read-only; };
+			partition@110000 { label = "0:BOOTCONFIG"; reg = <0x110000 0x010000>; read-only; };
+			partition@120000 { label = "0:BOOTCONFIG1"; reg = <0x120000 0x010000>; read-only; };
+			partition@130000 { label = "0:APPSBL"; reg = <0x130000 0x0a0000>; read-only; };
+			partition@1d0000 { label = "0:DEVCFG"; reg = <0x1d0000 0x010000>; read-only; };
+			partition@1e0000 { label = "0:DEVCFG_1"; reg = <0x1e0000 0x010000>; read-only; };
+			partition@1f0000 { label = "0:TME"; reg = <0x1f0000 0x020000>; read-only; };
+			partition@210000 { label = "0:TME_1"; reg = <0x210000 0x020000>; read-only; };
+			partition@230000 { label = "config"; reg = <0x230000 0x010000>; read-only; };
+			partition@240000 { label = "0:CDT"; reg = <0x240000 0x010000>; read-only; };
+			miami_appsblenv: partition@250000 { label = "0:APPSBLENV"; reg = <0x250000 0x010000>; read-only; };
+			partition@260000 { label = "0:APPSBL_1"; reg = <0x260000 0x0a0000>; read-only; };
+			partition@300000 { label = "0:ART"; reg = <0x300000 0x100000>; read-only; };
+			partition@400000 { label = "mfginfo"; reg = <0x400000 0x010000>; read-only; };
+			partition@410000 { label = "0:QSEE"; reg = <0x410000 0x170000>; read-only; };
+			partition@580000 { label = "0:QSEE_1"; reg = <0x580000 0x170000>; read-only; };
+			partition@6f0000 { label = "0:CDT_1"; reg = <0x6f0000 0x010000>; read-only; };
+			partition@700000 { label = "0:EXTRADATA"; reg = <0x700000 0x080000>; read-only; };
+		};
+	};
+};
+
+&{/soc@0} {
+	qpic_bam: dma-controller@7984000 {
+		compatible = "qcom,bam-v1.7.0";
+		reg = <0x07984000 0x1c000>;
+		interrupts = <GIC_SPI 66 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&gcc GCC_QPIC_AHB_CLK>;
+		clock-names = "bam_clk";
+		#dma-cells = <1>;
+		qcom,ee = <0>;
+	};
+
+	qpic_nand: spi@79b0000 {
+		compatible = "qcom,ipq9574-snand";
+		reg = <0x079b0000 0x10000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&gcc GCC_QPIC_CLK>,
+			 <&gcc GCC_QPIC_AHB_CLK>,
+			 <&gcc GCC_QPIC_IO_MACRO_CLK>;
+		clock-names = "core", "aon", "iom";
+		dmas = <&qpic_bam 0>, <&qpic_bam 1>, <&qpic_bam 2>;
+		dma-names = "tx", "rx", "cmd";
+		pinctrl-0 = <&miami_qspi_nand_pins>;
+		pinctrl-names = "default";
+
+		flash@0 {
+			/* MX35UF2GE4AD, 256 MiB: 8-bit/512-byte BCH, as U-Boot writes it. */
+			compatible = "spi-nand";
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			nand-ecc-engine = <&qpic_nand>;
+			nand-ecc-strength = <8>;
+			nand-ecc-step-size = <512>;
+
+			partitions {
+				compatible = "fixed-partitions";
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				partition@0 { label = "0:TRAINING"; reg = <0x0000000 0x0080000>; read-only; };
+				partition@80000 { label = "0:LICENSE"; reg = <0x0080000 0x0040000>; read-only; };
+				miami_rootfs: partition@c0000 { label = "rootfs"; reg = <0x00c0000 0x6000000>; read-only; };
+				miami_rootfs_1: partition@60c0000 { label = "rootfs_1"; reg = <0x60c0000 0x6000000>; read-only; };
+				partition@c0c0000 { label = "0:NVRAM"; reg = <0xc0c0000 0x2f40000>; read-only; };
+				partition@f000000 { label = "crashLog"; reg = <0xf000000 0x1000000>; read-only; };
+			};
+		};
+	};
+};
