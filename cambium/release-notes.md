@@ -31,15 +31,19 @@ SKU. Hardware status per model:
 | Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X | validated | validated (beside the stock firmware, kept by the boot guard) | A/B, untested; until conversion reinstall with `--keep-settings` |
 | | | X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
 
-Families are listed oldest first. Run the listed (latest) stock firmware,
-ideally in both slots, before installing. Lila, the Miami models other
+Families are listed oldest first. **The listed stock firmware version MUST
+be running** (currently the latest published Cambium version): it is the
+version the layouts and procedures were validated on, and earlier versions
+fail validation. Ideally have it in both slots before installing. Lila, the Miami models other
 than the X7-35X and the Gambit models other than the E400 have no OpenWrt
 build yet; they are listed so
 the table covers every Cambium access point family.
 
 **Installing:** `cambium-install.sh` (a release asset) RAM-boots or installs
 from the stock firmware's root shell for every family, with all checks,
-backups and read-back built in; see the site's installer section.
+backups and read-back built in; see the site's installer section. With it
+nothing else is needed: no TFTP server and none of the manual commands the
+site shows for reference.
 
 **Untested models: RAM boot only.** On any model not marked validated, use
 only the recovery (RAM) image, then run `cambium-report.sh` (a release
