@@ -1,0 +1,16 @@
+#!/bin/sh
+# Miami: keep the QCN9224 from binding before its board files and
+# calibration are staged (81_miami_radio_provision releases it).
+miami_radio_hold() {
+	local p=/sys/bus/pci/devices/0001:01:00.0
+	[ -d "$p" ] || return 0
+	[ "$(cat "$p/vendor")" = 0x17cb ] || return 0
+	[ "$(cat "$p/device")" = 0x1109 ] || return 0
+	if [ -L "$p/driver" ]; then
+		echo 'miami-radio: QCN9224 already bound before its board data was staged' > /dev/kmsg
+		return 1
+	fi
+	echo miami-radio-held > "$p/driver_override"
+	echo 'miami-radio: QCN9224 held until its board data is staged' > /dev/kmsg
+}
+boot_hook_add preinit_essential miami_radio_hold

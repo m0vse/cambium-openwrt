@@ -1,0 +1,15 @@
+#!/bin/sh
+# Miami: when a radio registers, generate its wireless config, apply the
+# deployment country and enable the radio device. Default SSIDs stay
+# disabled until configured (OpenWISP template or by hand).
+[ "$ACTION" = add ] || exit 0
+country=$(uci -q get system.@system[0].miami_country)
+[ -n "$country" ] || country=GB
+iw reg set "$country" 2>/dev/null
+wifi config >/dev/null 2>&1
+for r in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
+	c=$(uci -q get wireless.$r.country)
+	{ [ -n "$c" ] && [ "$c" != 00 ]; } || uci -q set wireless.$r.country="$country"
+	[ -n "$(uci -q get wireless.$r.disabled)" ] || uci -q set wireless.$r.disabled=0
+done
+uci -q commit wireless
