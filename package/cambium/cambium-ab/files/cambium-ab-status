@@ -1,6 +1,7 @@
 #!/bin/sh
 # Read-only Cambium A/B status as key=value lines, for local diagnostics and
-# OpenWISP: running and confirmed slots, any pending trial target, the state
+# OpenWISP: running and confirmed slots, before conversion what U-Boot boots
+# next (boot=openwrt-guarded, stock or other), any pending trial target, the state
 # (confirmed, armed, trial-started, rolled-back, fallback, writing,
 # write-failed, converting, convert-failed) and the last failure.
 
@@ -12,6 +13,17 @@ if ab_converted; then
 	echo 'mode=ab'
 else
 	echo 'mode=oem-fallback'
+	# Before conversion no trial state is recorded: report what U-Boot boots
+	# next, the guard-armed OpenWrt boot of this slot or the stock firmware.
+	bootcmd=$(ab_getenv bootcmd)
+	slot=$(ab_running_slot 2>/dev/null)
+	if [ "$bootcmd" = "$AB_STOCK_BOOTCMD" ]; then
+		echo 'boot=stock'
+	elif [ -n "$slot" ] && [ "$bootcmd" = "$(ab_guarded_command "$slot" 2>/dev/null)" ]; then
+		echo 'boot=openwrt-guarded'
+	else
+		echo 'boot=other'
+	fi
 fi
 echo "family=$AB_FAMILY"
 echo "model=$AB_MODEL"
