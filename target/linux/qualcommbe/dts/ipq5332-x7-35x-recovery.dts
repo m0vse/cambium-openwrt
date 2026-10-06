@@ -1,0 +1,244 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/dts-v1/;
+
+/*
+ * Cambium Networks X7-35X (Miami family), recovery (RAM) tree: every flash
+ * partition is read-only. The persistent trees include this one and unlock
+ * only their own firmware bank(s) and the U-Boot environment.
+ */
+
+/* The extra firmware reservation of the OEM device tree. */
+/memreserve/ 0x484ef000 0xe000;
+
+#include <arm64/qcom/ipq5332.dtsi>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/clock/qcom,ipq5332-nsscc.h>
+#include <dt-bindings/clock/qcom,ipq5332-cmn-pll.h>
+#include "ipq5332-miami-wifi.dtsi"
+#include "ipq5332-miami-flash.dtsi"
+
+/ {
+	model = "Cambium Networks X7-35X";
+	compatible = "cambiumnetworks,x7-35x", "qcom,ipq5332";
+
+	cambium-platform {
+		compatible = "cambium-platform";
+		board-sku = <44>;
+	};
+
+	aliases {
+		serial0 = &blsp1_uart0;
+		ethernet0 = &miami_lan;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+		bootargs = "console=ttyMSM0,115200n8";
+	};
+
+	clocks {
+		miami_cmn_ref: miami-cmn-ref-clk {
+			compatible = "fixed-clock";
+			clock-frequency = <48000000>;
+			#clock-cells = <0>;
+		};
+	};
+
+	soc@0 {
+		miami_cmn_pll: clock-controller@9b000 {
+			compatible = "qcom,ipq5332-cmn-pll";
+			reg = <0x9b000 0x800>;
+			clocks = <&miami_cmn_ref>,
+				 <&gcc GCC_CMN_12GPLL_AHB_CLK>,
+				 <&gcc GCC_CMN_12GPLL_SYS_CLK>;
+			clock-names = "ref", "ahb", "sys";
+			#clock-cells = <1>;
+			assigned-clocks = <&miami_cmn_pll IPQ5332_CMN_PLL_CLK>;
+			assigned-clock-rates-u64 = /bits/ 64 <6000000000>;
+		};
+	};
+
+	memory@40000000 {
+		reg = <0 0x40000000 0 0x40000000>;
+	};
+
+	/* ipq5332.dtsi already reserves the bootloader, SBL, TZ and SMEM. */
+	reserved-memory {
+		tzapp@49b00000 {
+			reg = <0 0x49b00000 0 0x600000>;
+			no-map;
+		};
+		wcss@4a900000 {
+			reg = <0 0x4a900000 0 0x2300000>;
+			no-map;
+		};
+		miami_m3_dump: m3-dump@4cc00000 {
+			reg = <0 0x4cc00000 0 0x100000>;
+			no-map;
+		};
+		q6-etr-dump@4cd00000 {
+			reg = <0 0x4cd00000 0 0x100000>;
+			no-map;
+		};
+		miami_q6_caldb: q6-caldb@4ce00000 {
+			reg = <0 0x4ce00000 0 0x500000>;
+			no-map;
+		};
+		miami_mlo_mem: mlo@4db00000 {
+			reg = <0 0x4db00000 0 0x1100000>;
+			no-map;
+		};
+		qcn9224@51e00000 {
+			reg = <0 0x51e00000 0 0x3200000>;
+			no-map;
+		};
+		/* The OEM firmware allocates this pool at the top of 1 GiB. */
+		oem-dma@7f700000 {
+			reg = <0 0x7f700000 0 0x900000>;
+			no-map;
+		};
+	};
+
+	keys {
+		compatible = "gpio-keys";
+		pinctrl-0 = <&miami_button_pins>;
+		pinctrl-names = "default";
+		button-wps {
+			label = "wps";
+			linux,code = <KEY_WPS_BUTTON>;
+			gpios = <&tlmm 43 GPIO_ACTIVE_LOW>;
+			debounce-interval = <60>;
+		};
+	};
+};
+
+&blsp1_uart0 {
+	pinctrl-0 = <&serial_0_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&sleep_clk {
+	clock-frequency = <32000>;
+};
+
+&xo_board {
+	clock-frequency = <24000000>;
+};
+
+&tlmm {
+	miami_mdio_pins: miami-mdio-state {
+		mdc {
+			pins = "gpio27";
+			function = "mdc1";
+			drive-strength = <8>;
+			bias-disable;
+		};
+		mdio {
+			pins = "gpio28";
+			function = "mdio1";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
+	miami_button_pins: miami-button-state {
+		pins = "gpio43";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+	};
+	miami_pcie1_perst: miami-pcie1-perst-state {
+		pins = "gpio47";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+	};
+};
+
+&mdio {
+	/* As the OEM qca_mdio_probe does: enable UNIPHY0 AHB/SYS, set UNIPHY0
+	 * +0x610 bit 0 (the PHY's 50 MHz reference), wait 100 ms, then pulse
+	 * the PHY reset 100 ms/100 ms.
+	 */
+	reg = <0x90000 0x64>, <0x7a00610 0x4>;
+	clocks = <&gcc GCC_MDIO_AHB_CLK>,
+		 <&gcc GCC_UNIPHY0_AHB_CLK>,
+		 <&gcc GCC_UNIPHY0_SYS_CLK>;
+	clock-names = "gcc_mdio_ahb_clk", "uniphy0_ahb", "uniphy0_sys";
+	pinctrl-0 = <&miami_mdio_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	miami_phy: ethernet-phy@1c {
+		compatible = "ethernet-phy-id004d.d101";
+		reg = <0x1c>;
+		/* QCA8081 switches to 2500BASE-X at 2.5 Gbit/s (not yet tested). */
+		max-speed = <2500>;
+		reset-gpios = <&tlmm 25 GPIO_ACTIVE_LOW>;
+		/* Per-PHY reset runs after the bus hook enables the reference clock. */
+		reset-assert-us = <100000>;
+		reset-deassert-us = <100000>;
+	};
+};
+
+/* Clock the NSS from the programmed CMN PLL, not from U-Boot's state. */
+&nsscc {
+	clocks = <&miami_cmn_pll IPQ5332_PPE_200MHZ_CLK>,
+		 <&miami_cmn_pll IPQ5332_NSS_300MHZ_CLK>,
+		 <&gcc GPLL0_OUT_AUX>,
+		 <&pcs0 0>, <&pcs0 1>, <&pcs1 0>, <&pcs1 1>,
+		 <&xo_board>,
+		 <&gcc GCC_NSSCC_CLK>,
+		 <&gcc GCC_NSSNOC_NSSCC_CLK>,
+		 <&gcc GCC_NSSNOC_SNOC_CLK>,
+		 <&gcc GCC_NSSNOC_SNOC_1_CLK>,
+		 <&gcc GCC_SNOC_NSSNOC_CLK>,
+		 <&gcc GCC_SNOC_NSSNOC_1_CLK>;
+};
+
+&qcom_ppe {
+	/* The second port (an MHT switch on SGMII) is not supported yet. */
+	status = "okay";
+	ethernet-ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		miami_lan: port@1 {
+			reg = <1>;
+			label = "lan1";
+			phy-mode = "sgmii";
+			/* OEM UNIPHY0 MII_CTRL0=0x844: FORCE_MODE clear, i.e. Cisco
+			 * SGMII in-band AN with the QCA8081; MII_STS0=0xd0.
+			 */
+			managed = "in-band-status";
+			pcs-handle = <&pcs0_ch0>;
+			phy-handle = <&miami_phy>;
+			clocks = <&nsscc NSS_CC_PORT1_MAC_CLK>,
+				 <&nsscc NSS_CC_PORT1_RX_CLK>,
+				 <&nsscc NSS_CC_PORT1_TX_CLK>;
+			clock-names = "mac", "rx", "tx";
+			resets = <&nsscc NSS_CC_PORT1_MAC_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT1_RX_CLK_ARES>,
+				 <&nsscc NSS_CC_PORT1_TX_CLK_ARES>;
+			reset-names = "mac", "rx", "tx";
+		};
+	};
+};
+
+&pcs0 {
+	status = "okay";
+};
+
+/* QCN9224 (5 and 6 GHz) on the two-lane PCIe1. */
+&pcie1_phy {
+	status = "okay";
+};
+
+&pcie1 {
+	status = "okay";
+	pinctrl-0 = <&miami_pcie1_perst>;
+	pinctrl-names = "default";
+	perst-gpios = <&tlmm 47 GPIO_ACTIVE_LOW>;
+};
+
+/* U-Boot supplies the unit MAC through the ethernet0 alias. */
