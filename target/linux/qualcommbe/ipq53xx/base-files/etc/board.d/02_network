@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+. /lib/functions/uci-defaults.sh
+
+board_config_update
+
+case "$(board_name)" in
+cambiumnetworks,x7-35x)
+	# Managed by DHCP on the LAN bridge, as the other Cambium families;
+	# 17_miami_bridge_section moves it to VLAN 1.
+	ucidef_set_interface_lan "lan1" "dhcp"
+	;;
+esac
+
+board_config_flush
+
+exit 0
