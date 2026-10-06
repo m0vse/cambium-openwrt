@@ -117,9 +117,12 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
   <p>Access points are grouped by Cambium's hardware families. Each family
   image contains the device tree of every model in it and boots the one that
   matches the access point's board SKU, so there is exactly one recovery and
-  one persistent image per family. Families are listed oldest first. The
-  stock firmware column is the latest published Cambium version, which
-  should be running before an install. <strong>Sysupgrade</strong> is
+  one persistent image per family. Families are listed oldest first.
+  <strong>The access point MUST be running the stock firmware version in the
+  <em>Stock firmware</em> column</strong> (currently the latest published
+  Cambium version): it is the version the layouts, boot commands and
+  procedures were validated on, and earlier versions fail validation.
+  <strong>Sysupgrade</strong> is
   whether an installed OpenWrt can be upgraded in place with
   <code>sysupgrade</code> (from LuCI, the command line or OpenWISP); where it
   cannot, upgrade by reinstalling the persistent image.</p>
@@ -233,7 +236,9 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
     <a href="https://github.com/m0vse/cambium-openwrt/issues">open an issue</a>
     to ask about access. Every later step runs in this root shell.</li>
     <li><strong>Use <a href="#installer">the installer</a></strong> for the
-    steps below: one command each, with every check built in.</li>
+    steps below: one command each, with every check built in. With the
+    installer you need nothing else: no TFTP server and none of the manual
+    commands further down.</li>
     <li><strong>Check the model and slot.</strong> Confirm the board SKU and
     which slot the stock firmware runs from (below). Stop if either is not
     what your family expects.</li>
@@ -254,6 +259,13 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
   </ol>
 
   <h3 id="installer">The installer: one command per step</h3>
+  <div class="note"><strong>With <code>cambium-install.sh</code> nothing else
+  is needed.</strong> It fetches the images over http from your computer (no
+  TFTP), checks the model, layout, slot and boot environment, backs up and
+  uploads what it will touch, writes and reads back, and arms the boot. The
+  TFTP copies, <code>dd</code> backups and <code>fw_setenv</code> commands in
+  the per-family sections below only show what it does; you do not need to
+  run any of them.</div>
   <p><code>cambium-install.sh</code> (from the release, or
   <a href="cambium-install.sh">this site</a>) runs the procedures below for
   every family from the stock firmware's root shell: it identifies the
@@ -306,20 +318,24 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram      # checks, bac
     </tbody>
   </table>
   </div>
-  <p>The per-family steps below are what the script does, for reference and
-  for doing it by hand.</p>
+  <p>The per-family steps below are what the script does. They are a
+  reference only: with the installer you do not need them.</p>
 
-  <h3>Common steps (stock firmware root shell)</h3>
-  <p>Copy images to the access point's <code>/tmp</code> from a TFTP server
-  on your network, then check them against the release's
-  <code>SHA256SUMS</code>:</p>
+  <h3>Manual steps (not needed with the installer)</h3>
+  <p>Only if you are not using the installer: copy images to the access
+  point's <code>/tmp</code> from a TFTP server on your network, then check
+  them against the release's <code>SHA256SUMS</code>:</p>
 <pre>tftp -b 8192 -g -l /tmp/IMAGE -r IMAGE SERVER_IP
 sha256sum /tmp/IMAGE</pre>
-  <h3>Before you start: latest stock firmware, ideally in both slots</h3>
-  <p>Update the access point to the latest published Cambium firmware for
-  its family (the <em>Stock firmware</em> column in the
-  <a href="#hardware">hardware table</a>; these are the versions the
-  procedures were validated on). Ideally install it <strong>twice</strong>:
+  <h3>Before you start: the listed stock firmware, ideally in both slots</h3>
+  <div class="note danger"><strong>The stock firmware version in the
+  <a href="#hardware">hardware table</a> MUST be running</strong> (currently
+  the latest published Cambium version for each family). The flash layouts,
+  boot commands and procedures were validated on exactly that version;
+  earlier versions fail validation and are not supported. Update the access
+  point first.</div>
+  <p>Update the access point to the listed Cambium firmware for its family.
+  Ideally install it <strong>twice</strong>:
   each Cambium upgrade writes the slot that is not running and then switches
   to it, so a second upgrade leaves the same current version in both slots.
   The slot OpenWrt does not use keeps a current stock firmware for rollback,
@@ -383,9 +399,12 @@ cat /sys/class/ubi/ubi0/mtd_num           # the MTD of the running slot</pre>
   vendor half) and serial numbers; read the file before posting it.</p>
   <p><strong>On the stock firmware</strong>, first, so the flash layout is
   known even if the RAM boot fails:</p>
-<pre>tftp -b 8192 -g -l /tmp/cambium-report.sh -r cambium-report.sh SERVER_IP
-sh /tmp/cambium-report.sh                      # writes /tmp/cambium-report-sku*.txt
-cd /tmp &amp;&amp; for f in cambium-report-sku*.txt; do tftp -p -l "$f" -r "$f" SERVER_IP; done</pre>
+<pre>wget -O /tmp/cambium-report.sh http://COMPUTER_IP:8000/cambium-report.sh   # from the folder cambium-serve.py serves
+sh /tmp/cambium-report.sh                      # writes /tmp/cambium-report-sku*.txt</pre>
+  <p>Copy the report off the access point (for example
+  <code>scp -O 'root@AP_IP:/tmp/cambium-report-sku*.txt' .</code>), or, with
+  a TFTP server that accepts uploads:</p>
+<pre>cd /tmp &amp;&amp; for f in cambium-report-sku*.txt; do tftp -p -l "$f" -r "$f" SERVER_IP; done</pre>
   <p>If your family's steps below find a partition layout that differs
   from the one they expect, <strong>stop there</strong>: do not stage or
   RAM-boot anything, and send the stock-firmware report.</p>
