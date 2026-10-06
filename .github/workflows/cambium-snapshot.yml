@@ -22,7 +22,7 @@ on:
       families:
         description: Families to build (space separated)
         type: string
-        default: sage thor cheetah jaguar gambit
+        default: sage thor cheetah jaguar gambit miami
       republish_run:
         description: Only publish the build output of this earlier run ID (no sync or build)
         type: string
@@ -205,7 +205,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REBASED: ${{ steps.sync.outputs.rebased }}
           FORCE: ${{ inputs.force }}
-          FAMILIES: ${{ inputs.families || 'sage thor cheetah jaguar gambit' }}
+          FAMILIES: ${{ inputs.families || 'sage thor cheetah jaguar gambit miami' }}
         run: |
           head=$(git rev-parse HEAD)
           echo "sha=$head" >> "$GITHUB_OUTPUT"
