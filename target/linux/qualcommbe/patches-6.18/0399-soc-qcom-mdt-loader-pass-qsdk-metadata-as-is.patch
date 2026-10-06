@@ -1,0 +1,40 @@
+From: Phil Taylor <phil@m0vse.uk>
+Subject: [PATCH] soc: qcom: mdt_loader: pass QSDK split-image metadata unchanged
+
+QSDK-built split images, such as the IPQ5332 Q6 firmware q6_fw0/q6_fw1,
+keep the hash segment at its own file offset at the end of the .mdt file.
+qcom_mdt_read_metadata() repacks the hash segment directly after the ELF
+headers, and TrustZone then rejects the metadata (PAS init_image returns
+an invalid argument), so the Q6 cannot be authenticated.
+
+When the hash segment ends the .mdt and does not follow the headers, pass
+the .mdt to TrustZone unchanged.
+
+Follows the fix for the same symptom in perceival/openwrt-flint3#93.
+
+Signed-off-by: Phil Taylor <phil@m0vse.uk>
+---
+--- a/drivers/soc/qcom/mdt_loader.c
++++ b/drivers/soc/qcom/mdt_loader.c
+@@ -197,6 +197,21 @@
+ 	ehdr_size = phdrs[0].p_filesz;
+ 	hash_size = phdrs[hash_segment].p_filesz;
+ 
++	/*
++	 * QSDK-style split images (e.g. IPQ5332 Q6 q6_fw0/q6_fw1) keep the
++	 * hash segment at its own p_offset and end the .mdt file with it.
++	 * TrustZone validates the metadata against those offsets, so pass
++	 * the .mdt unchanged instead of repacking the hash after the header.
++	 */
++	if (ehdr_size + hash_size != fw->size &&
++	    phdrs[hash_segment].p_offset + hash_size == fw->size) {
++		data = kmemdup(fw->data, fw->size, GFP_KERNEL);
++		if (!data)
++			return ERR_PTR(-ENOMEM);
++		*data_len = fw->size;
++		return data;
++	}
++
+ 	data = kmalloc(ehdr_size + hash_size, GFP_KERNEL);
+ 	if (!data)
+ 		return ERR_PTR(-ENOMEM);
