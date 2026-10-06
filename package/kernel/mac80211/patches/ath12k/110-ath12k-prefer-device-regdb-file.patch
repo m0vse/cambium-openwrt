@@ -1,0 +1,32 @@
+From: Phil Taylor <phil@m0vse.uk>
+Subject: [PATCH] wifi: ath12k: prefer a device-specific regdb.bin
+
+ath12k loads the regulatory database from board-2.bin before trying a
+standalone regdb.bin. Where the platform provisions the vendor regulatory
+database the OEM firmware loads (the Cambium X7-35X stages its own
+regdb.bin from the unit's OEM firmware at boot), that file must win over
+the generic database in board-2.bin.
+
+Try regdb.bin first; fall back to board-2.bin when it is absent.
+
+Signed-off-by: Phil Taylor <phil@m0vse.uk>
+---
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -580,6 +580,16 @@
+ {
+ 	char boardname[BOARD_NAME_SIZE], default_boardname[BOARD_NAME_SIZE];
+ 	int ret;
++
++	/* A device-specific regdb.bin provisioned next to the firmware (e.g.
++	 * the vendor regulatory database the OEM loads) takes precedence over
++	 * the generic regdb carried in board-2.bin.
++	 */
++	ret = ath12k_core_fetch_board_data_api_1(ab, bd, ATH12K_REGDB_FILE_NAME);
++	if (!ret) {
++		ath12k_info(ab, "using device-specific %s\n", ATH12K_REGDB_FILE_NAME);
++		return 0;
++	}
+ 
+ 	ret = ath12k_core_create_board_name(ab, boardname, BOARD_NAME_SIZE);
+ 	if (ret) {
