@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/*
+ * Cambium A/B: both NAND firmware banks and 0:APPSBLENV are writable, so
+ * cambium-ab-convert can replace the OEM bank and A/B sysupgrade can write
+ * the inactive bank. ART, mfginfo, NVRAM, crashLog and the bootloaders stay
+ * read-only.
+ */
+#include "ipq5332-x7-35x-recovery.dts"
+
+&miami_rootfs {
+	/delete-property/ read-only;
+};
+
+&miami_rootfs_1 {
+	/delete-property/ read-only;
+};
+
+&miami_appsblenv {
+	/delete-property/ read-only;
+};
