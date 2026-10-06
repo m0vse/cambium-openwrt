@@ -467,64 +467,78 @@
     {
       "family": "miami",
       "name": "Miami",
-      "platform": "IPQ5332, Wi-Fi 7 (new OpenWrt target needed)",
+      "platform": "IPQ5332, Wi-Fi 7",
       "stock_firmware": "7.2-r1",
-      "built": false,
+      "built": true,
+      "target": "qualcommbe/ipq53xx",
+      "devices": {
+        "recovery": "cambiumnetworks_miami-recovery",
+        "persistent": "cambiumnetworks_miami-persistent"
+      },
       "models": [
         {
           "model": "X7-55X",
           "sku": 42,
           "recovery": {
-            "status": "no-build"
+            "status": "no-build",
+            "note": "not in the Miami family image yet: needs a unit to capture its hardware"
           },
           "persistent": {
-            "status": "no-build"
+            "status": "no-build",
+            "note": "not in the Miami family image yet: needs a unit to capture its hardware"
           },
           "sysupgrade": {
             "status": "no-build",
-            "note": "no OpenWrt build yet"
+            "note": "no OpenWrt build for this model yet"
           }
         },
         {
           "model": "X7-56X",
           "sku": 43,
           "recovery": {
-            "status": "no-build"
+            "status": "no-build",
+            "note": "not in the Miami family image yet: needs a unit to capture its hardware"
           },
           "persistent": {
-            "status": "no-build"
+            "status": "no-build",
+            "note": "not in the Miami family image yet: needs a unit to capture its hardware"
           },
           "sysupgrade": {
             "status": "no-build",
-            "note": "no OpenWrt build yet"
+            "note": "no OpenWrt build for this model yet"
           }
         },
         {
           "model": "X7-35X",
           "sku": 44,
           "recovery": {
-            "status": "no-build"
+            "config": "config@mi01.6-acadia",
+            "status": "validated"
           },
           "persistent": {
-            "status": "no-build"
+            "config": "config@mi01.6-acadia-ab",
+            "status": "validated",
+            "note": "installed from the stock firmware into its inactive bank and booted with that bank's tree (config@mi01.6-acadia-slot0 or -slot1, OEM bank read-only); the boot guard keeps it the boot after each healthy start, and settings survive a reinstall with --keep-settings"
           },
           "sysupgrade": {
-            "status": "no-build",
-            "note": "no OpenWrt build yet"
+            "status": "untested",
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks (implemented, not yet converted on hardware); until then upgrade from the stock firmware with cambium-install.sh install --keep-settings"
           }
         },
         {
           "model": "X7-53X",
           "sku": 49,
           "recovery": {
-            "status": "no-build"
+            "status": "no-build",
+            "note": "not in the Miami family image yet: needs a unit to capture its hardware"
           },
           "persistent": {
-            "status": "no-build"
+            "status": "no-build",
+            "note": "not in the Miami family image yet: needs a unit to capture its hardware"
           },
           "sysupgrade": {
             "status": "no-build",
-            "note": "no OpenWrt build yet"
+            "note": "no OpenWrt build for this model yet"
           }
         }
       ]
