@@ -1,7 +1,7 @@
 #!/bin/sh
 # cambium-install.sh: RAM-boot or install Cambium OpenWrt from the access
 # point's stock firmware root shell, for every built family (Sage, Thor,
-# Jaguar, Cheetah, Gambit E400). It encodes the procedures on
+# Jaguar, Cheetah, Gambit E400, Miami). It encodes the procedures on
 # https://m0vse.github.io/cambium-openwrt/#install.
 #
 #   sh cambium-install.sh [options] ram       RAM-boot the recovery image
@@ -28,6 +28,8 @@
 #   --format-inactive  let ram erase the inactive slot (after backing it up)
 #                   when its stock firmware copy leaves too little free space
 #                   for the RAM image
+#   --keep-settings Miami install over an earlier install: replace only the
+#                   kernel and root filesystem and keep the settings
 #   --no-reboot     arm everything but do not reboot
 #   --yes           make the changes; without it only checks and backs up
 #   --overwrite-inactive-rootfs  Sage RAM: confirm replacing the inactive
@@ -44,7 +46,7 @@ CURL=${CAMBIUM_CURL:-curl}  # a test hook
 WORK=$R/tmp/cambium-install
 LOG=$WORK/install.log
 GITHUB=https://github.com/m0vse/cambium-openwrt/releases/download
-cmd= src= tftp= backed_up= trial= yes= reboot=1 ptest= format_inactive= overwrite_inactive_rootfs=
+cmd= src= tftp= backed_up= trial= yes= reboot=1 ptest= format_inactive= overwrite_inactive_rootfs= keep=
 while [ $# -gt 0 ]; do
 	case "$1" in
 	ram|install|stock|update-upgrader) cmd=$1 ;;
@@ -56,14 +58,15 @@ while [ $# -gt 0 ]; do
 	--persistent-test) ptest=1 ;;
 	--format-inactive) format_inactive=1 ;;
 	--overwrite-inactive-rootfs) overwrite_inactive_rootfs=1 ;;
+	--keep-settings) keep=1 ;;
 	--no-reboot) reboot= ;;
 	--yes) yes=1 ;;
-	-h|--help) sed -n '2,38p' "$0"; exit 0 ;;
+	-h|--help) sed -n '2,40p' "$0"; exit 0 ;;
 	*) echo "cambium-install: unknown argument '$1' (see --help)" >&2; exit 2 ;;
 	esac
 	shift
 done
-[ -n "$cmd" ] || { sed -n '2,38p' "$0"; exit 2; }
+[ -n "$cmd" ] || { sed -n '2,40p' "$0"; exit 2; }
 [ -z "$src" ] && [ -n "$tftp" ] && src=tftp:$tftp
 
 mkdir -p "$WORK" || { echo "cambium-install: cannot create $WORK" >&2; exit 1; }
@@ -247,6 +250,45 @@ layout_cheetah() {
 	bank_offset "$R0" 524288 rootfs
 	bank_offset "$R1" 101187584 rootfs_1
 	require_stock_on_rootfs_1
+}
+# Miami: two 96 MiB SPI NAND banks after 0:TRAINING and 0:LICENSE, rootfs
+# at 0xc0000 and rootfs_1 at 0x60c0000. The stock firmware may run from
+# either; OpenWrt goes into the other. Sets T (MTD), TSLOT, TPART, TOFF.
+layout_miami() {
+	local img
+	slots
+	[ "$S0:$S1" = 06000000:06000000 ] || die "$MODEL rootfs is $S0 and rootfs_1 $S1 bytes (hex), not 06000000 each: not the captured Miami layout. Run cambium-report.sh and open an issue"
+	bank_offset "$R0" 786432 rootfs
+	bank_offset "$R1" 101449728 rootfs_1
+	img=$(getenv image)
+	if [ "$RUN" = "$R0" ]; then
+		[ "$img" = 0 ] || die "the stock firmware runs from rootfs but U-Boot image=$img: not changing anything"
+		T=$R1 TSLOT=1 TPART=rootfs_1 TOFF=0x60c0000
+	else
+		[ "$img" = 1 ] || die "the stock firmware runs from rootfs_1 but U-Boot image=$img: not changing anything"
+		T=$R0 TSLOT=0 TPART=rootfs TOFF=0xc0000
+	fi
+	say "Miami: stock firmware on mtd$RUN, OpenWrt goes into $TPART (mtd$T)"
+}
+# miami_oneshot LOAD BOOTARGS CONFIG: the one-shot validated on the X7-35X.
+# miami_start restores bootipq and saves first; the progress markers save
+# the stock mtdids/mtdparts back before each saveenv. The OpenWrt boot guard
+# re-arms the same variables after a healthy start.
+miami_oneshot() {
+	local parts="mtdparts=nand0:0x6000000@$TOFF(fs)" n
+	for n in bootargs mtdids mtdparts; do
+		if [ -z "$(getenv "miami_oem_$n")" ]; then
+			setenv_checked "miami_oem_$n" "$(getenv "$n")"
+		else
+			[ "$(getenv "miami_oem_$n")" = "$(getenv "$n")" ] || die "the saved stock $n (miami_oem_$n) differs from the current one"
+		fi
+	done
+	setenv_checked miami_start 'setenv bootcmd bootipq; setenv changing_bootcmd; setenv miami_trial entered; saveenv'
+	setenv_checked miami_save "setenv mtdids \${miami_oem_mtdids}; setenv mtdparts \${miami_oem_mtdparts}; saveenv && setenv mtdids nand0=nand0 && setenv mtdparts $parts"
+	setenv_checked miami_load "nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts $parts && ubi part fs && setenv miami_trial ubi_ready && run miami_save && ubi read 0x60000000 $1 && setenv miami_trial fit_loaded && run miami_save && run miami_boot"
+	setenv_checked miami_boot "setenv bootargs $2; bootm 0x60000000#$3; setenv bootargs \${miami_oem_bootargs}; setenv miami_trial bootm_returned; run miami_save"
+	setenv_checked miami_fallback reset
+	arm 'run miami_start && run miami_load; run miami_fallback'
 }
 # Sage: one UBI device with linux0/rootfs0 and linux1/rootfs1; I is the
 # running (stock) pair, T the other one.
@@ -575,6 +617,15 @@ cmd_ram() {
 		stage_ram "$image" "$R0"
 		arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x80000(fs)\"; ubi part fs && ubi read 0x60000000 openwrt && bootm 0x60000000#$CONFIG; reset"
 		;;
+	miami)
+		[ -n "$ptest" ] && die "--persistent-test is for Jaguar"
+		layout_miami
+		image=$(get_image cambiumnetworks_miami-recovery-initramfs-uImage.itb) || exit 1
+		backup "$R/dev/mtd${T}ro"
+		dry_run_stop "stage the RAM image in $TPART (mtd$T) and boot it once"
+		stage_ram "$image" "$T"
+		miami_oneshot "openwrt $(printf '0x%x' "$(wc -c < "$image")")" console=ttyMSM0,115200n8 "$CONFIG"
+		;;
 	*) die "no RAM boot procedure for family $FAMILY" ;;
 	esac
 	say "one-shot armed: this boot only. Any later reboot or power cycle returns to the stock firmware."
@@ -637,6 +688,73 @@ install_cheetah() {
 	# The cambium-ab Cheetah module's guarded boot of slot 0.
 	arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x80000(fs)\"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait\" && bootm 0x60000000#$CONFIG; bootipq"
 	say "guarded first boot armed: after a healthy start OpenWrt re-arms its boot; otherwise the next boot returns to the stock firmware."
+}
+
+# Miami: rebuild the inactive bank as the cambium-ab layout volume by volume
+# (kernel 0, rootfs 1, rootfs_data 2, cambium_device_data 3), keeping 64 MiB
+# for kernel and rootfs so a later --keep-settings install fits, then arm the
+# one-shot of that bank's tree. --keep-settings replaces only kernel and
+# rootfs (and grows a vault an earlier install made smaller).
+install_miami() {
+	local kernel root kbytes rbytes ubi v e leb free data vault=9142272 pool=67108864 cfg
+	local LEB_BYTES=126976
+	layout_miami
+	need ubiattach ubidetach ubimkvol ubirmvol ubiupdatevol
+	kernel=$(get_image cambiumnetworks_miami-persistent-squashfs-kernel.itb) || exit 1
+	root=$(get_image cambiumnetworks_miami-persistent-squashfs-rootfs.squashfs) || exit 1
+	[ "$(hexenc "$kernel" | head -c 8)" = d00dfeed ] || die "${kernel##*/} is not a FIT image"
+	[ "$(head -c 4 "$root")" = hsqs ] || die "${root##*/} is not a SquashFS image"
+	kbytes=$(wc -c < "$kernel"); rbytes=$(wc -c < "$root")
+	backup "$R/dev/mtd${T}ro"
+	[ $(( (kbytes + LEB_BYTES - 1) / LEB_BYTES + (rbytes + LEB_BYTES - 1) / LEB_BYTES + 2 )) -le $((pool / LEB_BYTES)) ] ||
+		die "the kernel and root filesystem do not fit the 64 MiB kept for them"
+	if [ -n "$keep" ]; then
+		dry_run_stop "replace the kernel and root filesystem in $TPART (mtd$T), keep its settings and boot it"
+	else
+		dry_run_stop "replace everything in $TPART (mtd$T), the stock firmware's inactive bank, with OpenWrt and boot it"
+	fi
+	attach "$T"; ubi=$UBI
+	leb=$(cat "$R/sys/class/ubi/$ubi/eraseblock_size")
+	if [ -n "$keep" ]; then
+		for v in kernel rootfs rootfs_data; do
+			[ -n "$(vol_of "$ubi" "$v")" ] || die "$TPART holds no earlier OpenWrt install (no $v volume): install without --keep-settings"
+		done
+		step "ubirmvol kernel" ubirmvol "$R/dev/$ubi" -N kernel
+		step "ubirmvol rootfs" ubirmvol "$R/dev/$ubi" -N rootfs
+		v=$(vol_of "$ubi" cambium_device_data)
+		if [ -z "$v" ] || [ "$(cat "$R/sys/class/ubi/$v/data_bytes")" -lt "$vault" ]; then
+			[ -z "$v" ] || step "ubirmvol cambium_device_data" ubirmvol "$R/dev/$ubi" -N cambium_device_data
+			step "ubimkvol cambium_device_data" ubimkvol "$R/dev/$ubi" -n 3 -N cambium_device_data -s "$vault"
+			say "the device-data vault is empty or resized; OpenWrt fills it from the stock firmware at its next boot"
+		fi
+	else
+		for e in "$R"/sys/class/ubi/"$ubi"_[0-9]*; do
+			[ -f "$e/name" ] || continue
+			step "ubirmvol $(cat "$e/name")" ubirmvol "$R/dev/$ubi" -N "$(cat "$e/name")"
+		done
+		free=$(( $(cat "$R/sys/class/ubi/$ubi/avail_eraseblocks") * leb ))
+		data=$(( free - pool - (vault + leb - 1) / leb * leb ))
+		[ "$data" -ge 8388608 ] || die "$TPART has too little space left for the settings"
+		step "ubimkvol rootfs_data" ubimkvol "$R/dev/$ubi" -n 2 -N rootfs_data -s "$data"
+		step "ubimkvol cambium_device_data" ubimkvol "$R/dev/$ubi" -n 3 -N cambium_device_data -s "$vault"
+	fi
+	step "ubimkvol kernel" ubimkvol "$R/dev/$ubi" -n 0 -N kernel -s "$kbytes"
+	step "ubimkvol rootfs" ubimkvol "$R/dev/$ubi" -n 1 -N rootfs -s "$rbytes"
+	for v in kernel:$kernel rootfs:$root; do
+		e=$(vol_of "$ubi" "${v%%:*}")
+		[ -n "$e" ] || die "the ${v%%:*} volume was created but does not show in /sys/class/ubi"
+		step "ubiupdatevol ${v%%:*}" ubiupdatevol "$R/dev/$e" "${v#*:}"
+		sync
+		[ "$(head -c "$(wc -c < "${v#*:}")" "$R/dev/$e" | sha256sum | cut -d' ' -f1)" = "$(sha256sum < "${v#*:}" | cut -d' ' -f1)" ] ||
+			die "the ${v%%:*} volume does not read back as written"
+		say "${v%%:*} volume written and read back"
+	done
+	step "ubidetach mtd$T" ubidetach -m "$T"
+	# The bank's own tree: only that bank and the environment are writable.
+	cfg=${CONFIG%-ab}-slot$TSLOT
+	miami_oneshot kernel "console=ttyMSM0,115200n8 ubi.mtd=$TPART root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" "$cfg"
+	say "guarded first boot of $TPART armed: after a healthy start (LAN with a reachable gateway) OpenWrt keeps itself the boot; otherwise the next boot returns to the stock firmware."
+	say "in OpenWrt: set a root password (passwd); cambium-ab-status shows boot=openwrt-guarded and board_data=vault; cambium-ab-stock --yes makes the stock firmware the default again"
 }
 
 # The stock firmware has no OpenWrt board-sku node, so identify the pair with
@@ -757,6 +875,7 @@ cmd_install() {
 	cheetah) install_cheetah ;;
 	sage) install_sage_ab ;;
 	thor) install_thor ;;
+	miami) install_miami ;;
 	*) die "no install procedure for family $FAMILY" ;;
 	esac
 	finish
@@ -880,6 +999,7 @@ cmd_stock() {
 	cambiumnetworks,xv3-8) env=thor want='aq_load_fw&&bootipq' ;;
 	cambiumnetworks,xv2-2*|cambiumnetworks,xe3-4*) env=jaguar want=bootipq ;;
 	cambiumnetworks,xv2-21x|cambiumnetworks,xv2-22h|cambiumnetworks,xv2-23t) env=cheetah want=bootipq ;;
+	cambiumnetworks,x7-35x) env=miami want=bootipq ;;
 	cambium,e410|cambiumnetworks,e410|cambiumnetworks,e410b|cambiumnetworks,e510) env=sage want=bootipq ;;
 	*) die "$board is not a Cambium family this script knows" ;;
 	esac
