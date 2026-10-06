@@ -54,14 +54,23 @@ if [ "${CAMBIUM_SKIP_FEEDS:-0}" != 1 ]; then
 fi
 
 # Building LLVM for eBPF takes hours; use upstream's prebuilt toolchain for
-# this target, as the OpenWrt buildbots do.
+# this target, as the OpenWrt buildbots do. The archive is a host tool
+# (x86_64, BPF backend only), so a subtarget upstream does not build (e.g.
+# qualcommbe/ipq53xx) takes qualcommbe/ipq95xx's.
 if [ ! -f llvm-bpf/.llvm-version ]; then
 	log "Fetching prebuilt LLVM eBPF toolchain"
-	base=https://downloads.openwrt.org/snapshots/targets/$target/$subtarget
-	[ "$channel" = release ] &&
-		base=https://downloads.openwrt.org/releases/${build_id%-*}/targets/$target/$subtarget
-	sums=$(wget -qO- "$base/sha256sums")
-	file=$(printf '%s\n' "$sums" | sed -n 's/^[0-9a-f]\{64\} \*\{0,1\}\(llvm-bpf-.*\.Linux-x86_64\.tar\.zst\)$/\1/p' | head -n 1)
+	file=
+	for dir in "$target/$subtarget" qualcommbe/ipq95xx; do
+		base=https://downloads.openwrt.org/snapshots/targets/$dir
+		[ "$channel" = release ] &&
+			base=https://downloads.openwrt.org/releases/${build_id%-*}/targets/$dir
+		# A missing directory must fall through, not stop the build (set -e).
+		sums=$(wget -qO- "$base/sha256sums") || sums=
+		file=$(printf '%s\n' "$sums" | sed -n 's/^[0-9a-f]\{64\} \*\{0,1\}\(llvm-bpf-.*\.Linux-x86_64\.tar\.zst\)$/\1/p' | head -n 1)
+		[ -z "$file" ] || break
+	done
+	[ -z "$file" ] || [ "$dir" = "$target/$subtarget" ] ||
+		log "No prebuilt LLVM for $target/$subtarget; using $dir's"
 	if [ -n "$file" ] && wget -q -O "/tmp/$file" "$base/$file" &&
 		printf '%s\n' "$sums" | grep " \*\{0,1\}$file\$" | sed 's/ \*/  /' |
 			(cd /tmp && sha256sum -c --quiet -); then
