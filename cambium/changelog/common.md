@@ -4,6 +4,11 @@ Changes that apply to every family.
 
 ## Unreleased
 
+- `cambium-ab-stock --yes` makes the stock firmware the default boot again
+  from OpenWrt before conversion, and `cambium-ab-status` reports what
+  U-Boot boots next (`boot=openwrt-guarded`, `stock` or `other`) until
+  then. The installer's `stock` command still works as before.
+- The Miami family is built in snapshots and releases.
 - Snapshots are built weekly, on Monday evening at 19:17 UTC, instead of
   daily; run the snapshot workflow by hand for an extra one. The rebase onto
   upstream OpenWrt runs with it, so `main` is rewritten weekly too.

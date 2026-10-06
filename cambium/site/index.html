@@ -156,7 +156,10 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
       <tr><td class="fam" rowspan="3">Cheetah<br><small>IPQ5018, Wi-Fi 6</small></td><td rowspan="3">7.2-r1</td><td>XV2-21X</td><td>35</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> A/B build</td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
       <tr><td>XV2-22H</td><td>34</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
       <tr><td>XV2-23T</td><td>36</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
-      <tr><td class="fam">Miami<br><small>IPQ5332, Wi-Fi 7</small></td><td>7.2-r1</td><td>X7-35X, X7-53X, X7-55X, X7-56X</td><td>44, 49, 42, 43</td><td colspan="3"><span class="pill none">no build yet</span> needs hardware and a new OpenWrt target</td></tr>
+      <tr><td class="fam" rowspan="4">Miami<br><small>IPQ5332, Wi-Fi 7</small></td><td rowspan="4">7.2-r1</td><td>X7-35X</td><td>44</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> beside the stock firmware, kept by the boot guard</td><td><span class="pill untested">untested</span> A/B with automatic rollback, after conversion; until then reinstall from the stock firmware, keeping settings</td></tr>
+      <tr><td>X7-53X</td><td>49</td><td><span class="pill none">no build yet</span></td><td><span class="pill none">no build yet</span></td><td><span class="pill none">no build yet</span> needs hardware</td></tr>
+      <tr><td>X7-55X</td><td>42</td><td><span class="pill none">no build yet</span></td><td><span class="pill none">no build yet</span></td><td><span class="pill none">no build yet</span> needs hardware</td></tr>
+      <tr><td>X7-56X</td><td>43</td><td><span class="pill none">no build yet</span></td><td><span class="pill none">no build yet</span></td><td><span class="pill none">no build yet</span> needs hardware</td></tr>
     </tbody>
   </table>
   </div>
@@ -246,7 +249,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
     <li><strong>Install the persistent image</strong> into the inactive slot,
     boot it once, check it, then make it the default.</li>
     <li><strong>Optionally, convert to two OpenWrt banks</strong> (Thor, Jaguar,
-    Cheetah) for <code>sysupgrade</code>. This removes the stock firmware, so
+    Cheetah, Gambit; not yet tested on Miami) for <code>sysupgrade</code>. This removes the stock firmware, so
     only convert once you are sure you will not need it again.</li>
   </ol>
 
@@ -339,6 +342,7 @@ cat /sys/class/ubi/ubi0/mtd_num           # the MTD of the running slot</pre>
       <tr><td class="fam">Thor</td><td><code>ubi.mtd=rootfs_1</code>; <code>ubi0</code> on <code>mtd2</code></td><td><code>rootfs_1</code> (<code>mtd2</code>)</td><td><code>rootfs</code> (<code>mtd1</code>)</td></tr>
       <tr><td class="fam">Jaguar</td><td><code>ubi.mtd=rootfs</code> or <code>rootfs_1</code>; <code>ubi0</code> on its MTD</td><td>either slot (XV2-2: usually <code>rootfs</code>; XV2-2T1: <code>rootfs_1</code>)</td><td>the other slot</td></tr>
       <tr><td class="fam">Cheetah</td><td><code>ubi.mtd=rootfs_1</code>; <code>ubi0</code> on <code>mtd3</code></td><td><code>rootfs_1</code> (<code>mtd3</code>)</td><td><code>rootfs</code> (<code>mtd2</code>)</td></tr>
+      <tr><td class="fam">Miami</td><td><code>ubi.mtd=rootfs</code> or <code>rootfs_1</code>; <code>image</code> matches</td><td>either slot</td><td>the other slot</td></tr>
     </tbody>
   </table>
   </div>
@@ -707,6 +711,67 @@ sysupgrade /tmp/sysupgrade.bin                     # keeps settings; add -n to r
 cambium-ab-status                                  # a few minutes later: running = confirmed = the new slot</pre>
   </details>
 
+  <details id="miami">
+  <summary><strong>Miami</strong> &mdash; validated on the X7-35X (stock firmware 7.2-r1). Not yet for the X7-53X, X7-55X or X7-56X.</summary>
+  <p><a href="changelog.html#miami">Miami changelog</a>: what changed in each snapshot.</p>
+  <p>The X7-35X (IPQ5332 with a QCN9224, Wi-Fi 7) has two 96&nbsp;MiB SPI
+  NAND banks, <code>rootfs</code> at <code>0xc0000</code> and
+  <code>rootfs_1</code> at <code>0x60c0000</code>. The stock firmware may
+  run from either; OpenWrt goes into the other one. The bootloaders, ART,
+  manufacturing data, nvram and crash log are never written. Wired
+  Ethernet (the LAN port with DHCP) and all three radios work: 2.4&nbsp;GHz
+  on the IPQ5332 and 5 and 6&nbsp;GHz on the QCN9224. Their firmware, board
+  files and regulatory database come from the unit's own stock firmware,
+  and the 5/6&nbsp;GHz board file follows the configured Wi-Fi country
+  (as the stock firmware selects it from its regulatory domain); nothing
+  proprietary is in the images. Not yet supported: the second Ethernet
+  port, Bluetooth/Zigbee and the LEDs. Use the
+  <a href="#installer">installer</a> for every step that writes flash.</p>
+
+  <h4>RAM boot</h4>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram        # check run: layout, slot, image hashes; backs up and uploads; writes nothing
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes ram</pre>
+  <p>The recovery image is staged in the inactive bank and booted once; any
+  reboot or power cycle returns to the stock firmware.</p>
+
+  <h4>Persistent install</h4>
+  <p>Replaces the stock firmware's inactive bank with OpenWrt (kernel, root
+  filesystem, settings and the device-data vault), reads it back, and arms
+  the guarded first boot of that bank. OpenWrt boots with a tree in which
+  only its own bank and the U-Boot environment are writable, so the stock
+  firmware in the other bank cannot be changed. After a healthy start (the
+  LAN up with a reachable gateway) the boot guard keeps OpenWrt as the boot;
+  if the LAN does not come up, the next boot returns to the stock
+  firmware:</p>
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 install
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes install</pre>
+  <p>In OpenWrt, set a root password and check the guard, the vault and the
+  radios:</p>
+<pre>passwd
+cambium-ab-status                       # family=miami, mode=oem-fallback, boot=openwrt-guarded, board_data=vault
+logread -e cambium-ab-guard             # "healthy; guarded OpenWrt boot of slot N rearmed" within 5 minutes
+iw dev</pre>
+  <p>The first boot copies the radio files from the stock firmware into the
+  bank's device-data vault; later boots use the vault.</p>
+
+  <h4>Upgrading</h4>
+  <p>Until conversion, upgrade from the stock firmware, keeping the
+  settings. In OpenWrt make the stock firmware the default and reboot into
+  it, then reinstall:</p>
+<pre>cambium-ab-stock --yes                  # in OpenWrt, then reboot
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes --keep-settings install</pre>
+  <p><code>--keep-settings</code> replaces only the kernel and root
+  filesystem.</p>
+
+  <h4>Convert to two OpenWrt banks (not yet tested)</h4>
+  <p>Conversion and A/B <code>sysupgrade</code> are implemented as for the
+  other families but have not been run on a Miami yet; until then
+  <code>sysupgrade</code> refuses. Conversion needs the device-data vault,
+  a verified off-device backup of the stock bank, and
+  <code>--allow-untested</code>, and must run in OpenWrt booted with the
+  A/B tree. Only try it on a unit you can recover by serial console.</p>
+  </details>
+
   <details id="gambit">
   <summary><strong>Gambit</strong> &mdash; validated on the E400 (stock firmware 4.2.3.3). Not for the E500, E501S or E502S.</summary>
   <p><a href="changelog.html#gambit">Gambit changelog</a>: what changed in each snapshot.</p>
@@ -781,7 +846,7 @@ cambium-ab-status                                  # a few minutes later: runnin
   <h3>After the first boot (all families)</h3>
   <p>Set a root password with <code>passwd</code>, then check
   <code>cat /tmp/cambium-board-data.status</code> (should be
-  <code>vault</code> on Thor, Jaguar and Cheetah),
+  <code>vault</code> on Thor, Jaguar, Cheetah and Miami),
   <code>cat /etc/cambium-openwrt-release</code> and the radios with
   <code>iw dev</code>. Configure the network or OpenWISP as required.</p>
 
@@ -797,6 +862,7 @@ cambium-ab-status                                  # a few minutes later: runnin
       <tr><td class="fam">Jaguar</td><td>XV2-2 <code>config@cp01-c1</code>, XV2-2T0 <code>config@cp01-c1-1</code>, XV2-2T1 <code>config@cp01-c1-2</code>, XE3-4 <code>config@cp01-c3-xv3-4</code>, XE3-4TN <code>config@cp01-c3-2</code></td></tr>
       <tr><td class="fam">Cheetah</td><td>XV2-21X <code>config@mp03.3-ocelot</code>, XV2-22H <code>config@mp03.3-cheetah</code>, XV2-23T <code>config@mp03.3-lynx</code></td></tr>
       <tr><td class="fam">Gambit</td><td>E400: no FIT configuration; a raw uImage loaded at <code>0x83000000</code></td></tr>
+      <tr><td class="fam">Miami</td><td>X7-35X <code>config@mi01.6-acadia</code> (recovery); installed OpenWrt boots <code>config@mi01.6-acadia-slot0</code> or <code>-slot1</code> for its bank, and <code>config@mi01.6-acadia-ab</code> after conversion</td></tr>
     </tbody>
   </table>
   </div>
@@ -840,6 +906,10 @@ cambium-ab-status                                  # a few minutes later: runnin
     stock</code> returns to it). An XV3-8 still on the single-bank image
     sysupgrades in place to the new image, then reinstalls once to move to
     A/B.</li>
+    <li><strong>Miami</strong> (validated on the X7-35X) is upgraded from the
+    stock firmware with <code>cambium-install.sh --keep-settings
+    install</code>; A/B <code>sysupgrade</code> after conversion is not yet
+    tested. See the <a href="#miami">Miami steps</a>.</li>
     <li>Kernel modules must come from the same snapshot as the running image.
     The feed for each snapshot is configured in the image; feeds for the two
     most recent snapshots are kept online.</li>
@@ -852,7 +922,10 @@ sh /tmp/cambium-install.sh --yes stock
 reboot</pre>
   <p>This restores the OEM <code>bootcmd</code> and selects the recorded OEM
   <code>image</code> pair. Sage has no <code>changing_bootcmd</code> marker;
-  Thor, Jaguar and Cheetah clear theirs when returning to stock.</p>
+  Thor, Jaguar, Cheetah and Miami clear theirs when returning to stock.
+  Images from this snapshot on also have <code>cambium-ab-stock --yes</code>,
+  which does the same on the families with a <code>changing_bootcmd</code>
+  marker without fetching the installer.</p>
 </section>
 
 <section id="safety">

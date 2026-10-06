@@ -28,11 +28,13 @@ SKU. Hardware status per model:
 | | | XE3-4 | validated | validated (A/B build); 6 GHz not validated | A/B, validated; **must not** be used on an XE3-4 running upstream OpenWrt |
 | Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | validated (A/B build) | A/B, validated |
 | | | XV2-22H, XV2-23T | untested | untested: RAM boot only | A/B, untested |
-| Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X, X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
+| Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X | validated | validated (beside the stock firmware, kept by the boot guard) | A/B, untested; until conversion reinstall with `--keep-settings` |
+| | | X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
 
 Families are listed oldest first. Run the listed (latest) stock firmware,
-ideally in both slots, before installing. Lila and Miami, and the Gambit
-models other than the E400, have no OpenWrt build yet; they are listed so
+ideally in both slots, before installing. Lila, the Miami models other
+than the X7-35X and the Gambit models other than the E400 have no OpenWrt
+build yet; they are listed so
 the table covers every Cambium access point family.
 
 **Installing:** `cambium-install.sh` (a release asset) RAM-boots or installs
@@ -70,6 +72,8 @@ untested or unported model, please open an issue on this repository.
   Thor XV3-8, the Cheetah XV2-21X and the Gambit E400). An XV3-8 on the earlier single-bank image
   sysupgrades in place to this image, then reinstalls once
   (`cambium-install.sh stock`, then `install`) to move to A/B.
+- Miami (Wi-Fi 7) is new: see *Miami* below for what is and is not
+  supported.
 - **The Jaguar sysupgrade image MUST NOT be used to upgrade an XE3-4
   running upstream OpenWrt.** Upstream's XE3-4 image has the same board
   name, so its sysupgrade accepts this image but writes it without the A/B
@@ -79,3 +83,41 @@ untested or unported model, please open an issue on this repository.
   feed for each build is configured in the image and kept for the two most
   recent snapshots and each OpenWrt series' newest release (fewer snapshots
   if the site nears GitHub Pages' 1 GB limit).
+
+## Miami (Wi-Fi 7, IPQ5332)
+
+New family, on a new OpenWrt subtarget (`qualcommbe/ipq53xx`). Only the
+X7-35X has been run; the X7-53X, X7-55X and X7-56X are not in the image.
+
+**Supported on the X7-35X (validated):**
+
+- RAM boot of the recovery image from the stock firmware
+  (`cambium-install.sh ram`).
+- Persistent install into the stock firmware's inactive bank, whichever
+  bank the stock firmware runs from (`cambium-install.sh install`). The
+  stock firmware stays in the other bank, read-only to OpenWrt.
+- The boot guard keeps OpenWrt as the boot after each healthy start (LAN
+  up with a reachable gateway). If the LAN does not come up, the next boot
+  returns to the stock firmware. `cambium-ab-stock --yes` makes the stock
+  firmware the default again.
+- Upgrades from the stock firmware, keeping settings
+  (`cambium-install.sh --keep-settings install`).
+- Wired Ethernet on the LAN port (DHCP, management on VLAN 1 as the other
+  families).
+- All three radios: 2.4 GHz (IPQ5332) and 5 and 6 GHz (QCN9224). Firmware,
+  board files and the regulatory database come from the unit's own stock
+  firmware, then from the bank's device-data vault; none are distributed.
+  The 5/6 GHz board file follows the configured Wi-Fi country, as the
+  stock firmware selects it from its regulatory domain.
+- LuCI, OpenWISP and the other packages of the persistent images.
+
+**Not supported yet:**
+
+- A/B conversion (`cambium-ab-convert`) and A/B `sysupgrade`: implemented,
+  but not run on hardware. `sysupgrade` refuses until conversion, and
+  conversion needs `--allow-untested`.
+- The second Ethernet port (on a separate switch chip).
+- Bluetooth and Zigbee (EFR32MG21 radio).
+- The LEDs.
+- The X7-53X, X7-55X and X7-56X: no build yet; their hardware needs
+  capturing from a unit.
