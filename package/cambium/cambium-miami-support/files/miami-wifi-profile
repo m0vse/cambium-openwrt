@@ -1,0 +1,43 @@
+#!/bin/sh
+# Miami: fall back to the smaller QCN9224 firmware memory profile if the
+# default one fails. ath12k uses its default profile (mem_profile=auto: 16
+# VAPs and up to 512 clients per radio on this 1 GiB AP). If, after a boot,
+# the QCN9224 was released for its driver but registered no radio within
+# WAIT seconds and its firmware logged a crash, write
+#   options ath12k mem_profile=low
+# to /etc/modules.conf for the next boot (9 VAPs, 128 clients per radio),
+# and log it. Nothing is done when /etc/modules.conf already sets an ath12k
+# option (set by hand, or an earlier fallback), and it never reboots. To go
+# back to auto, delete that line and reboot.
+
+PCI=${MIAMI_WIFI_PCI:-/sys/bus/pci/devices/0001:01:00.0}
+CONF=${MIAMI_WIFI_CONF:-/etc/modules.conf}
+PARAM=${MIAMI_WIFI_PARAM:-/sys/module/ath12k/parameters/mem_profile}
+STATUS=${CAMBIUM_BDF_STATUS:-/tmp/cambium-board-data.status}
+WAIT=${MIAMI_WIFI_WAIT:-180}
+TAG=miami-wifi-profile
+
+log() {
+	logger -t "$TAG" "$*" 2>/dev/null
+	echo "$TAG: $*" 2>/dev/null > /dev/kmsg
+}
+
+grep -q '^[[:space:]]*options[[:space:]]\{1,\}ath12k[[:space:]]' "$CONF" 2>/dev/null && exit 0
+[ "$(cat "$PARAM" 2>/dev/null)" = auto ] || exit 0
+case "$(cat "$STATUS" 2>/dev/null)" in vault|imported) ;; *) exit 0 ;; esac
+[ -d "$PCI" ] || exit 0
+
+i=0
+while [ "$i" -lt "$WAIT" ]; do
+	ls "$PCI"/ieee80211/phy* >/dev/null 2>&1 && exit 0
+	sleep 10
+	i=$((i + 10))
+done
+# Released by miami-board-data, bound, and still no radio: crashed firmware?
+[ -z "$(cat "$PCI/driver_override" 2>/dev/null)" ] || exit 0
+dmesg | grep "${PCI##*/}" | grep -q -i -E 'firmware crashed|RDDM|assert' || {
+	log "the QCN9224 registered no radio within ${WAIT}s, but its firmware did not crash; not changing the memory profile"
+	exit 0
+}
+echo 'options ath12k mem_profile=low' >> "$CONF" && sync
+log "the QCN9224 firmware crashed with the default memory profile; the 512 MiB profile (mem_profile=low: 9 VAPs, 128 clients per radio) is set in $CONF for the next boot"

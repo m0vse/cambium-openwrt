@@ -789,6 +789,16 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes upgrade</pre>
   <p><code>upgrade</code> replaces only the kernel and root filesystem and
   keeps the settings (it is <code>install --keep-settings</code>).</p>
 
+  <h4>5/6&nbsp;GHz memory profile (advanced)</h4>
+  <p>The QCN9224 runs ath12k's default firmware memory profile: up to 16
+  SSIDs and 256 clients per radio, as Cambium specifies. If its firmware
+  ever crashes with that profile at start-up, the AP switches itself to the
+  smaller profile for the next boot (9 SSIDs, 128 clients per radio) and
+  logs <code>miami-wifi-profile</code>; it never reboots on its own. To
+  choose the profile yourself, set it in <code>/etc/modules.conf</code> and
+  reboot (delete the line to go back to the default):</p>
+<pre>echo 'options ath12k mem_profile=low' &gt;&gt; /etc/modules.conf   # or mem_profile=auto</pre>
+
   <h4>Convert to two OpenWrt banks (not yet tested)</h4>
   <p>Conversion and A/B <code>sysupgrade</code> are implemented as for the
   other families but have not been run on a Miami yet; until then
