@@ -1,0 +1,39 @@
+From: Phil Taylor <phil@m0vse.uk>
+Subject: [PATCH] wifi: ath12k: add a mem_profile module parameter
+
+ath12k picks the firmware memory profile from the RAM Linux sees: the
+smaller 512 MiB profile below 512 MiB, the default otherwise. A board whose
+firmware cannot run the default budget with the memory it was given has no
+way to ask for the smaller one without capping Linux's RAM.
+
+Add mem_profile=auto|low: auto keeps the existing choice, low selects the
+512 MiB profile (fewer VAPs and clients per radio) whatever the RAM size.
+
+Signed-off-by: Phil Taylor <phil@m0vse.uk>
+---
+--- a/drivers/net/wireless/ath/ath12k/core.c
++++ b/drivers/net/wireless/ath/ath12k/core.c
+@@ -34,6 +34,10 @@
+ MODULE_PARM_DESC(ftm_mode, "Boots up in factory test mode");
+ EXPORT_SYMBOL(ath12k_ftm_mode);
+ 
++static char *ath12k_mem_profile = "auto";
++module_param_named(mem_profile, ath12k_mem_profile, charp, 0444);
++MODULE_PARM_DESC(mem_profile, "Firmware memory profile: auto (by RAM size) or low (512 MiB)");
++
+ /* protected with ath12k_hw_group_mutex */
+ static struct list_head ath12k_hw_group_list = LIST_HEAD_INIT(ath12k_hw_group_list);
+ 
+@@ -1806,6 +1810,12 @@
+ 	unsigned long total_ram;
+ 	struct sysinfo si;
+ 
++	/* A board whose firmware cannot run the default budget with the
++	 * memory it was given can ask for the smaller profile explicitly.
++	 */
++	if (ath12k_mem_profile && !strcmp(ath12k_mem_profile, "low"))
++		return ATH12K_QMI_MEMORY_MODE_LOW_512_M;
++
+ 	si_meminfo(&si);
+ 	total_ram = si.totalram * si.mem_unit;
+ 
