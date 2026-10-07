@@ -159,7 +159,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
       <tr><td class="fam" rowspan="3">Cheetah<br><small>IPQ5018, Wi-Fi 6</small></td><td rowspan="3">7.2-r1</td><td>XV2-21X</td><td>35</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> A/B build</td><td><span class="pill ok">validated</span> A/B with automatic rollback</td></tr>
       <tr><td>XV2-22H</td><td>34</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
       <tr><td>XV2-23T</td><td>36</td><td><span class="pill untested">untested</span></td><td><span class="pill untested">RAM boot only</span> send a report first</td><td><span class="pill untested">untested</span> A/B with automatic rollback</td></tr>
-      <tr><td class="fam" rowspan="4">Miami<br><small>IPQ5332, Wi-Fi 7</small></td><td rowspan="4">7.2-r1</td><td>X7-35X</td><td>44</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> beside the stock firmware, kept by the boot guard</td><td><span class="pill untested">untested</span> A/B with automatic rollback, after conversion; until then reinstall from the stock firmware, keeping settings</td></tr>
+      <tr><td class="fam" rowspan="4">Miami<br><small>IPQ5332, Wi-Fi 7</small></td><td rowspan="4">7.2-r1</td><td>X7-35X</td><td>44</td><td><span class="pill ok">validated</span></td><td><span class="pill ok">validated</span> beside the stock firmware, kept by the boot guard</td><td><span class="pill untested">untested</span> A/B with automatic rollback, after conversion; until then <code>cambium-install.sh upgrade</code> from the stock firmware, keeping settings</td></tr>
       <tr><td>X7-53X</td><td>49</td><td><span class="pill none">no build yet</span></td><td><span class="pill none">no build yet</span></td><td><span class="pill none">no build yet</span> needs hardware</td></tr>
       <tr><td>X7-55X</td><td>42</td><td><span class="pill none">no build yet</span></td><td><span class="pill none">no build yet</span></td><td><span class="pill none">no build yet</span> needs hardware</td></tr>
       <tr><td>X7-56X</td><td>43</td><td><span class="pill none">no build yet</span></td><td><span class="pill none">no build yet</span></td><td><span class="pill none">no build yet</span> needs hardware</td></tr>
@@ -309,6 +309,7 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 ram      # checks, bac
     <tbody>
       <tr><td><code>ram</code></td><td>RAM-boots the recovery image once, every family. Any later reboot returns to the stock firmware. On a model that is not validated, stop here and <a href="#report">send a report</a>.</td></tr>
       <tr><td><code>install</code></td><td>Installs the persistent image on a validated model and arms a guarded first boot. Sage uses the shared A/B guard to commit a healthy boot automatically. Thor: if its stock firmware has no <code>ubiformat</code>, it RAM-boots the installer instead; run the same <code>install</code> command again inside it.</td></tr>
+      <tr><td><code>upgrade</code></td><td>Miami, interim until its A/B <code>sysupgrade</code> is tested and supported: reinstalls the persistent image from the stock firmware over an earlier install, replacing only the kernel and root filesystem and keeping the settings (the same as <code>install --keep-settings</code>).</td></tr>
       <tr><td><code>stock</code></td><td>In an installed OpenWrt that still has the stock firmware in its other slot (not converted to A/B): makes the stock firmware the default boot again, e.g. to reinstall a single-bank Thor as A/B.</td></tr>
       <tr><td><code>--trial</code></td><td>Hardware trial of a persistent image not yet validated on the model, e.g. a Jaguar on an XV2-2T0.</td></tr>
       <tr><td><code>--persistent-test</code></td><td>Jaguar: RAM-boot the A/B persistent trees (the test-only image) with no bank attached.</td></tr>
@@ -773,14 +774,18 @@ iw dev</pre>
   <p>The first boot copies the radio files from the stock firmware into the
   bank's device-data vault; later boots use the vault.</p>
 
-  <h4>Upgrading</h4>
-  <p>Until conversion, upgrade from the stock firmware, keeping the
-  settings. In OpenWrt make the stock firmware the default and reboot into
-  it, then reinstall:</p>
+  <h4>Upgrading (interim)</h4>
+  <p><strong>This is an interim measure</strong> until A/B
+  <code>sysupgrade</code> has been tested and is supported on Miami; then
+  Miami will upgrade like the other families, from OpenWrt. Until then,
+  upgrade from the stock firmware, keeping the settings: in OpenWrt make the
+  stock firmware the default and reboot into it, then run
+  <code>upgrade</code>:</p>
 <pre>cambium-ab-stock --yes                  # in OpenWrt, then reboot
-sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes --keep-settings install</pre>
-  <p><code>--keep-settings</code> replaces only the kernel and root
-  filesystem.</p>
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 upgrade         # check run
+sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes upgrade</pre>
+  <p><code>upgrade</code> replaces only the kernel and root filesystem and
+  keeps the settings (it is <code>install --keep-settings</code>).</p>
 
   <h4>Convert to two OpenWrt banks (not yet tested)</h4>
   <p>Conversion and A/B <code>sysupgrade</code> are implemented as for the
@@ -926,8 +931,9 @@ cambium-ab-status                                  # a few minutes later: runnin
     sysupgrades in place to the new image, then reinstalls once to move to
     A/B.</li>
     <li><strong>Miami</strong> (validated on the X7-35X) is upgraded from the
-    stock firmware with <code>cambium-install.sh --keep-settings
-    install</code>; A/B <code>sysupgrade</code> after conversion is not yet
+    stock firmware with <code>cambium-install.sh upgrade</code>, which keeps
+    the settings: an interim measure until its A/B <code>sysupgrade</code>
+    (after conversion), which is not yet
     tested. See the <a href="#miami">Miami steps</a>.</li>
     <li>Kernel modules must come from the same snapshot as the running image.
     The feed for each snapshot is configured in the image; feeds for the two
