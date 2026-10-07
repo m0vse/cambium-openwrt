@@ -107,13 +107,15 @@ X7-35X has been run; the X7-53X, X7-55X and X7-56X are not in the image.
 - Upgrades from the stock firmware, keeping settings
   (`cambium-install.sh upgrade`). This is an interim measure until A/B
   `sysupgrade` has been tested and is supported on Miami.
-- Wired Ethernet on the LAN port (DHCP, management on VLAN 1 as the other
-  families).
+- Wired Ethernet on its single 2.5 GbE port, which is also the PoE input
+  (DHCP, management on VLAN 1 as the other families).
 - All three radios: 2.4 GHz (IPQ5332) and 5 and 6 GHz (QCN9224). Firmware,
   board files and the regulatory database come from the unit's own stock
   firmware, then from the bank's device-data vault; none are distributed.
   The 5/6 GHz board file follows the configured Wi-Fi country, as the
   stock firmware selects it from its regulatory domain.
+- The status LED: amber while booting, green when running, blue while
+  OpenWISP manages the AP.
 - LuCI, OpenWISP and the other packages of the persistent images.
 
 **Not supported yet:**
@@ -121,8 +123,6 @@ X7-35X has been run; the X7-53X, X7-55X and X7-56X are not in the image.
 - A/B conversion (`cambium-ab-convert`) and A/B `sysupgrade`: implemented,
   but not run on hardware. `sysupgrade` refuses until conversion, and
   conversion needs `--allow-untested`.
-- The second Ethernet port (on a separate switch chip).
 - Bluetooth and Zigbee (EFR32MG21 radio).
-- The LEDs.
 - The X7-53X, X7-55X and X7-56X: no build yet; their hardware needs
   capturing from a unit.
