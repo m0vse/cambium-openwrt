@@ -1,7 +1,9 @@
 #!/bin/sh
-# Miami: when a radio registers, generate its wireless config, apply the
-# deployment country and enable the radio device. Default SSIDs stay
-# disabled until configured (OpenWISP template or by hand).
+# Miami: when a radio registers, generate its wireless config and apply the
+# deployment country to radios that have none. A radio that wifi config
+# creates disabled (OpenWrt's default) stays disabled, as do the default
+# SSIDs, until configured (OpenWISP template, LuCI or by hand); only a radio
+# without a disabled option is enabled.
 [ "$ACTION" = add ] || exit 0
 country=$(uci -q get system.@system[0].miami_country)
 [ -n "$country" ] || country=GB
