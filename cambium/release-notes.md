@@ -28,7 +28,7 @@ SKU. Hardware status per model:
 | | | XE3-4 | validated | validated (A/B build); 6 GHz not validated | A/B, validated; **must not** be used on an XE3-4 running upstream OpenWrt |
 | Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | validated (A/B build) | A/B, validated |
 | | | XV2-22H, XV2-23T | untested | untested: RAM boot only | A/B, untested |
-| Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X | validated | validated (beside the stock firmware, kept by the boot guard) | A/B, untested; until conversion reinstall with `--keep-settings` |
+| Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X | validated | validated (beside the stock firmware, kept by the boot guard) | A/B, untested; until conversion `cambium-install.sh upgrade` from the stock firmware |
 | | | X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
 
 Families are listed oldest first. **The listed stock firmware version MUST
@@ -105,7 +105,8 @@ X7-35X has been run; the X7-53X, X7-55X and X7-56X are not in the image.
   returns to the stock firmware. `cambium-ab-stock --yes` makes the stock
   firmware the default again.
 - Upgrades from the stock firmware, keeping settings
-  (`cambium-install.sh --keep-settings install`).
+  (`cambium-install.sh upgrade`). This is an interim measure until A/B
+  `sysupgrade` has been tested and is supported on Miami.
 - Wired Ethernet on the LAN port (DHCP, management on VLAN 1 as the other
   families).
 - All three radios: 2.4 GHz (IPQ5332) and 5 and 6 GHz (QCN9224). Firmware,
