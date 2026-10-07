@@ -872,7 +872,7 @@ sed -i.bak -e 's/^bootcmd=.*/bootcmd=bootipq/' -e '/^changing_bootcmd=/d' "$W/en
 printf '\320\015\376\355miami-kernel-2' > "$W/rel/$p-qualcommbe-ipq53xx-cambiumnetworks_miami-persistent-squashfs-kernel.itb"
 (cd "$W/rel" && sha256sum -- $(ls | grep -v -e SHA256SUMS -e test-only) > SHA256SUMS); cp "$W"/rel/* "$W/http/"
 : > "$W/calls"
-check "Miami --keep-settings reinstall" 0 inst --from "$W/rel" --yes --backed-up --keep-settings install
+check "Miami upgrade (reinstall keeping settings)" 0 inst --from "$W/rel" --yes --backed-up upgrade
 assert "Miami --keep-settings kept rootfs_data" [ "$(cat "$W/flash/mtd4/2.data")" = keep-these-settings ]
 assert "Miami --keep-settings wrote the new kernel" [ "$(cat "$W/flash/mtd4/0.data")" = "$(printf '\320\015\376\355miami-kernel-2')" ]
 assert "Miami --keep-settings removed only kernel and rootfs" [ "$(grep '^rmvol' "$W/calls" | tr '\n' ';')" = 'rmvol mtd4 kernel;rmvol mtd4 rootfs;' ]
@@ -883,6 +883,13 @@ assert "Miami refused --keep-settings changed no volume" [ -z "$(grep -E '^(mkvo
 ap miami X7-35X 44 0; sed -i.bak 's/^bootcmd=.*/bootcmd=run miami_start \&\& run miami_load; run miami_fallback/' "$W/env"
 check "Miami install refused while OpenWrt is still the boot" 1 inst --from "$W/rel" --yes --backed-up install
 assert "the refusal says a boot is armed" said 'a one-shot or install is already armed'
+ap cheetah XV2-21X 35 1
+check "upgrade is refused on a family other than Miami" 1 inst --from "$W/rel" --yes --backed-up upgrade
+assert "the upgrade refusal points to sysupgrade or reinstall" said 'upgrade (--keep-settings) is for Miami'
+assert "refused upgrade wrote nothing" nothing_written
+ap miami X7-35X 44 0; mkdir -p "$RT/etc"; touch "$RT/etc/openwrt_release"
+check "upgrade in OpenWrt is refused" 1 inst --from "$W/rel" --yes upgrade
+assert "the refusal says to return to the stock firmware first" said 'upgrade runs from the stock firmware'
 ap miami X7-55X 42 0
 check "X7-55X install refused (no build)" 1 inst --from "$W/rel" --yes --backed-up install
 assert "X7-55X refusal gives the reason" said 'not in the Miami family image yet'
