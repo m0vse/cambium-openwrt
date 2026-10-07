@@ -256,6 +256,9 @@ persistent=$work/miami-kernel.itb"
 	[ "$lebs" -le 724 ] ||
 		fail "Miami image needs $lebs LEBs; a 96 MiB bank has 724"
 	echo "Miami image uses $lebs of 724 LEBs in a bank"
+	# The 2.4 GHz radio is on AHB: ath12k must be built with it.
+	grep -qx 'CPTCFG_ATH12K_AHB=y' build_dir/target-*/linux-${target}_$subtarget/mac80211-regular/backports-*/.config ||
+		fail "Miami ath12k lacks AHB support (CPTCFG_ATH12K_AHB): no 2.4 GHz radio"
 	;;
 gambit)
 	fits=
