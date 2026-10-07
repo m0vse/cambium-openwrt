@@ -70,9 +70,12 @@ config-$(call config_package,ath11k-ahb) += ATH11K_AHB
 config-$(call config_package,ath11k-pci) += ATH11K_PCI
 config-$(call config_package,ath12k) += ATH12K
 # IPQ5332 (qualcommbe/ipq53xx) carries its 2.4 GHz radio on AHB; ath12k
-# builds the AHB bus into the same module.
+# builds the AHB bus into the same module. ATH12K_AHB is a bool, so it is
+# set to y whether kmod-ath12k is built in or as a module.
 ifdef CONFIG_TARGET_qualcommbe_ipq53xx
-config-$(call config_package,ath12k) += ATH12K_AHB
+ifneq ($(CONFIG_PACKAGE_kmod-ath12k),)
+config-y += ATH12K_AHB
+endif
 endif
 
 config-$(call config_package,ath5k) += ATH5K ATH5K_PCI
