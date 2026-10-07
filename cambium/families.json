@@ -518,11 +518,11 @@
           "persistent": {
             "config": "config@mi01.6-acadia-ab",
             "status": "validated",
-            "note": "installed from the stock firmware into its inactive bank and booted with that bank's tree (config@mi01.6-acadia-slot0 or -slot1, OEM bank read-only); the boot guard keeps it the boot after each healthy start, and settings survive a reinstall with --keep-settings"
+            "note": "installed from the stock firmware into its inactive bank and booted with that bank's tree (config@mi01.6-acadia-slot0 or -slot1, OEM bank read-only); the boot guard keeps it the boot after each healthy start, and settings survive cambium-install.sh upgrade"
           },
           "sysupgrade": {
             "status": "untested",
-            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks (implemented, not yet converted on hardware); until then upgrade from the stock firmware with cambium-install.sh install --keep-settings"
+            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks (implemented, not yet converted on hardware); until then, as an interim measure, upgrade from the stock firmware with cambium-install.sh upgrade"
           }
         },
         {
