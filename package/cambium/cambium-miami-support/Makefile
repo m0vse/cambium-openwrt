@@ -11,7 +11,7 @@ define Package/cambium-miami-support
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=Cambium Miami family access point support
-  DEPENDS:=@TARGET_qualcommbe_ipq53xx +uboot-envtools +ubi-utils +cambium-ab +cambium-rrm-agent
+  DEPENDS:=@TARGET_qualcommbe_ipq53xx +uboot-envtools +ubi-utils +cambium-ab +cambium-openwisp-led +cambium-rrm-agent
   PKGARCH:=all
 endef
 
