@@ -282,8 +282,15 @@ for root in $roots; do
 		fail "$root is not OpenWrt ${build_id%-*}: $(grep DISTRIB_RELEASE "$root/etc/openwrt_release")"
 	[ ! -s "$root/etc/dropbear/authorized_keys" ] ||
 		fail "$root contains SSH authorized keys"
-	leaked=$(find "$root/lib/firmware" \( -name 'bdwlan*' -o -path '*/ath11k/*/board.bin' \
-		-o -path '*/ath12k/*/board.bin' -o -name 'q6_fw*' -o -name 'iu_fw*' -o -name '*acadia*' \) 2>/dev/null)
+	# Miami's Q6 images and Acadia files come only from the unit; other
+	# families ship upstream's public ath11k q6_fw.* firmware.
+	if [ "$family" = miami ]; then
+		leaked=$(find "$root/lib/firmware" \( -name 'bdwlan*' -o -path '*/ath11k/*/board.bin' \
+			-o -path '*/ath12k/*/board.bin' -o -name 'q6_fw*' -o -name 'iu_fw*' -o -name '*acadia*' \) 2>/dev/null)
+	else
+		leaked=$(find "$root/lib/firmware" \( -name 'bdwlan*' -o -path '*/ath11k/*/board.bin' \
+			-o -path '*/ath12k/*/board.bin' \) 2>/dev/null)
+	fi
 	[ -z "$leaked" ] || fail "$root contains OEM board data: $leaked"
 done
 
