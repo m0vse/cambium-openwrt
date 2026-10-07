@@ -14,7 +14,8 @@ X7-56X (no build yet).
   own stock firmware, then from the bank's device-data vault; the
   5/6 GHz board file follows the configured Wi-Fi country.
 - `cambium-install.sh` RAM-boots, installs into whichever bank the stock
-  firmware is not running from, and reinstalls with `--keep-settings`; the
+  firmware is not running from, and `upgrade` reinstalls keeping the
+  settings (interim, until A/B sysupgrade is tested on Miami); the
   boot guard keeps OpenWrt the boot after each healthy start, and
   `cambium-ab-stock --yes` makes the stock firmware the default again.
 - Not yet: the second Ethernet port, Bluetooth/Zigbee and the LEDs.
