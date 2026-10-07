@@ -20,7 +20,7 @@ define Package/cambium-openwisp-led/description
   controller answers the device's checksum request, and green otherwise.
   On green/amber boards (E400), shows green while managed and amber otherwise.
   Works on every Cambium family (Sage, Thor, Jaguar, Cheetah, Gambit and
-  Miami; Miami has no status LEDs defined yet, so only the state is kept).
+  Miami).
 endef
 
 define Build/Compile
