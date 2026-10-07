@@ -1,0 +1,9 @@
+#!/bin/sh /etc/rc.common
+# Check once per boot, in the background, that the QCN9224 came up with the
+# default firmware memory profile (miami-wifi-profile).
+
+START=99
+
+boot() {
+	( /usr/sbin/miami-wifi-profile ) >/dev/null 2>&1 &
+}
