@@ -6,6 +6,10 @@
 #
 #   sh cambium-install.sh [options] ram       RAM-boot the recovery image
 #   sh cambium-install.sh [options] install   install the persistent image
+#   sh cambium-install.sh [options] upgrade   Miami: install over an earlier
+#                                             install, keeping its settings
+#                                             (interim, until A/B sysupgrade
+#                                             is tested on Miami)
 #   sh cambium-install.sh [options] stock     installed OpenWrt, not yet
 #                                             converted to A/B: make the
 #                                             stock firmware the default boot
@@ -28,8 +32,8 @@
 #   --format-inactive  let ram erase the inactive slot (after backing it up)
 #                   when its stock firmware copy leaves too little free space
 #                   for the RAM image
-#   --keep-settings Miami install over an earlier install: replace only the
-#                   kernel and root filesystem and keep the settings
+#   --keep-settings the same as upgrade: replace only the kernel and root
+#                   filesystem and keep the settings (Miami)
 #   --no-reboot     arm everything but do not reboot
 #   --yes           make the changes; without it only checks and backs up
 #   --overwrite-inactive-rootfs  Sage RAM: confirm replacing the inactive
@@ -50,6 +54,7 @@ cmd= src= tftp= backed_up= trial= yes= reboot=1 ptest= format_inactive= overwrit
 while [ $# -gt 0 ]; do
 	case "$1" in
 	ram|install|stock|update-upgrader) cmd=$1 ;;
+	upgrade) cmd=install keep=1 ;;
 	--from) src=${2:-}; shift ;;
 	--release) src=$GITHUB/${2:-}; shift ;;
 	--backed-up) backed_up=1 ;;
@@ -61,12 +66,12 @@ while [ $# -gt 0 ]; do
 	--keep-settings) keep=1 ;;
 	--no-reboot) reboot= ;;
 	--yes) yes=1 ;;
-	-h|--help) sed -n '2,40p' "$0"; exit 0 ;;
+	-h|--help) sed -n '2,44p' "$0"; exit 0 ;;
 	*) echo "cambium-install: unknown argument '$1' (see --help)" >&2; exit 2 ;;
 	esac
 	shift
 done
-[ -n "$cmd" ] || { sed -n '2,40p' "$0"; exit 2; }
+[ -n "$cmd" ] || { sed -n '2,44p' "$0"; exit 2; }
 [ -z "$src" ] && [ -n "$tftp" ] && src=tftp:$tftp
 
 mkdir -p "$WORK" || { echo "cambium-install: cannot create $WORK" >&2; exit 1; }
@@ -855,6 +860,9 @@ install_thor_installer() {
 }
 
 cmd_install() {
+	if [ -n "$keep" ] && on_openwrt; then
+		die "upgrade runs from the stock firmware: in OpenWrt run cambium-ab-stock --yes, reboot into the stock firmware, then run upgrade there"
+	fi
 	load_release
 	if on_openwrt; then
 		identify installer
@@ -868,6 +876,8 @@ cmd_install() {
 	fi
 	identify persistent
 	[ -n "$ptest" ] && die "--persistent-test belongs to ram"
+	[ -z "$keep" ] || [ "$FAMILY" = miami ] ||
+		die "upgrade (--keep-settings) is for Miami; on $FAMILY use sysupgrade after conversion, or reinstall (stock, then install)"
 	check_stock_bootcmd
 	case "$FAMILY" in
 	gambit) gambit_stage_ram installer ;;
