@@ -2,7 +2,7 @@
 # Show OpenWISP management on the status LED of every Cambium family: blue
 # while the controller answers this device's checksum request, green
 # otherwise. Families name the LEDs differently (blue:status / green:status
-# on Sage, Thor and Cheetah; jaguar:status:blue / jaguar:status:green on
+# on Sage, Thor, Cheetah and Miami; jaguar:status:blue / jaguar:status:green on
 # Jaguar). Without blue, a green/amber pair shows green while managed and
 # amber otherwise (E400). Boards without either complete pair keep their LEDs
 # as they are. The managed state file is kept up to date either way: Sage's upgrade

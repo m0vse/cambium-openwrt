@@ -13,6 +13,7 @@
 #include <arm64/qcom/ipq5332.dtsi>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
 #include <dt-bindings/clock/qcom,ipq5332-nsscc.h>
 #include <dt-bindings/clock/qcom,ipq5332-cmn-pll.h>
 #include "ipq5332-miami-wifi.dtsi"
@@ -30,6 +31,10 @@
 	aliases {
 		serial0 = &blsp1_uart0;
 		ethernet0 = &miami_lan;
+		led-boot = &led_orange;
+		led-failsafe = &led_orange;
+		led-running = &led_green;
+		led-upgrade = &led_orange;
 	};
 
 	chosen {
@@ -97,6 +102,43 @@
 		oem-dma@7f700000 {
 			reg = <0 0x7f700000 0 0x900000>;
 			no-map;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		/* The OEM cambium-platform led-gpio <22 44 38 32>: red, green,
+		 * amber, blue, in the order Jaguar and Cheetah use; the OEM lights
+		 * amber at power-on. Checked on an X7-35X: 44 green, 32 blue; 22
+		 * and 38 both light the red/orange element (purple with blue).
+		 */
+		led_red: led-red {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&tlmm 22 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_green: led-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&tlmm 44 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led_orange: led-orange {
+			color = <LED_COLOR_ID_ORANGE>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&tlmm 38 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+
+		led_blue: led-blue {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&tlmm 32 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
 		};
 	};
 
