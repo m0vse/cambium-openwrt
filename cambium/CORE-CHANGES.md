@@ -57,9 +57,11 @@ After this, upstream's `base-files`, the targets' `base-files` and
 - Miami: `target/linux/qualcommbe/patches-6.18/0379`-`0399` (IPQ5332 PPE
   and CMN PLL backports, the X7-35X PHY reference clock, the WCSS secure
   PIL series, QSDK split-image metadata, the X7-35X user-PD boot record)
-  and `package/kernel/mac80211/patches/ath12k/106`-`110`. The PPE fixes
-  (0383, 0385), the metadata fix (0399), 106 and 110 are generic enough to
-  offer upstream; the rest is X7-35X-specific. One-line core edits:
+  and `package/kernel/mac80211/patches/ath12k/106`, `109`-`111`. The PPE
+  fixes (0383, 0385), the metadata fix (0399), 106, 110 and 111 (the
+  `mem_profile` parameter) are generic enough to offer upstream (110 would
+  need gating: it lets a device regdb.bin override board-2.bin's on every
+  platform); the rest is X7-35X-specific. One-line core edits:
   `kmod-qrtr-smd` allowed on qualcommbe (`netsupport.mk`) and ath12k's AHB
   bus on ipq53xx (`mac80211/ath.mk`).
 
