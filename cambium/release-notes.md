@@ -116,6 +116,11 @@ X7-35X has been run; the X7-53X, X7-55X and X7-56X are not in the image.
   stock firmware selects it from its regulatory domain.
 - The status LED: amber while booting, green when running, blue while
   OpenWISP manages the AP.
+- Up to 16 SSIDs and 256 clients per radio on 5/6 GHz (ath12k's default
+  firmware memory profile). If the QCN9224 firmware crashes with it at
+  start-up, the AP selects the smaller profile (9 SSIDs, 128 clients) for
+  the next boot; `options ath12k mem_profile=low|auto` in
+  `/etc/modules.conf` chooses it by hand.
 - LuCI, OpenWISP and the other packages of the persistent images.
 
 **Not supported yet:**

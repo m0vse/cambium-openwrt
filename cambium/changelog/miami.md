@@ -20,4 +20,7 @@ X7-56X (no build yet).
   `cambium-ab-stock --yes` makes the stock firmware the default again.
 - Status LED: amber while booting, green when running, blue while
   OpenWISP manages the AP.
+- 5/6 GHz uses ath12k's default memory profile (16 SSIDs, 256 clients per
+  radio) instead of the forced 512 MiB one, with an automatic fallback if
+  its firmware crashes and a `mem_profile` option to choose it.
 - Not yet: Bluetooth/Zigbee. (The X7-35X has a single 2.5 GbE port.)
