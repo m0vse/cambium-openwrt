@@ -18,4 +18,6 @@ X7-56X (no build yet).
   settings (interim, until A/B sysupgrade is tested on Miami); the
   boot guard keeps OpenWrt the boot after each healthy start, and
   `cambium-ab-stock --yes` makes the stock firmware the default again.
-- Not yet: the second Ethernet port, Bluetooth/Zigbee and the LEDs.
+- Status LED: amber while booting, green when running, blue while
+  OpenWISP manages the AP.
+- Not yet: Bluetooth/Zigbee. (The X7-35X has a single 2.5 GbE port.)
