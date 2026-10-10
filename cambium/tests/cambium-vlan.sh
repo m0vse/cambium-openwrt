@@ -51,7 +51,7 @@ fresh() {
 		'openwisp.http.management_interface=br-lan' > "$W/uci"
 }
 val() { sed -n "s/^$1=//p" "$W/uci"; }
-run() { sh "$1" > /dev/null 2>&1; }
+run() { ${TEST_SHELL:-sh} "$1" > /dev/null 2>&1; }
 expect() { # expect DESCRIPTION WANT GOT
 	if [ "$2" = "$3" ]; then pass=$((pass + 1)); else
 		fail=$((fail + 1)); echo "FAIL: $1: got '$3', want '$2'"; fi
@@ -87,6 +87,26 @@ sed "s|/lib/functions/cambium-sage.sh|$W/root/lib/functions/cambium-sage.sh|g" \
 fresh cambiumnetworks,e410 lan; run "$W/sage-vlan"
 expect "E410: only untagged VLAN 1 on lan" 'lan:u*' "$(val network.vlan_br_lan_1.ports)"
 expect "E410: management on br-lan.1" br-lan.1 "$(val network.lan.device)"
+
+# E600's read-only recovery image needs the same management isolation,
+# without making its still-unqualified NAND writable.
+e600_vlan=$top/target/linux/ipq40xx/base-files/etc/uci-defaults/96-sage-e600-vlan-management
+fresh cambiumnetworks,e600 'lan1 lan2'; run "$e600_vlan"
+expect "E600: VLAN filtering" 1 "$(val network.device_br_lan.vlan_filtering)"
+expect "E600: both ports untagged/PVID 1" 'lan1:u* lan2:u*' "$(val network.vlan_br_lan_1.ports)"
+expect "E600: management on VLAN 1" 'br-lan.1 br-lan.1 br-lan.1' \
+	"$(val network.lan.device) $(val network.lan6.device) $(val openwisp.http.management_interface)"
+cp "$W/uci" "$W/e600.before"; run "$e600_vlan"
+expect "E600: repeated first boot preserves configuration" '' "$(cmp -s "$W/uci" "$W/e600.before" || echo changed)"
+fresh cambiumnetworks,e600 'lan1 lan2'
+printf '%s\n' 'network.wg0=interface' >> "$W/uci"
+cp "$W/uci" "$W/e600.before"; run "$e600_vlan"
+expect "E600: managed configuration preserved" '' "$(cmp -s "$W/uci" "$W/e600.before" || echo changed)"
+for board in e410 e410b e510 e430h e430w e700; do
+	fresh "cambiumnetworks,$board" 'lan1 lan2'
+	cp "$W/uci" "$W/e600.before"; run "$e600_vlan"
+	expect "$board: E600 default does not alter other models" '' "$(cmp -s "$W/uci" "$W/e600.before" || echo changed)"
+done
 
 # A trunk OpenWISP has already configured is left alone.
 fresh cambiumnetworks,xv2-2t1 'lan1 lan2'
