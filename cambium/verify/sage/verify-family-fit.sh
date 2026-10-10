@@ -86,8 +86,16 @@ test "$(fdtget -t s "$dtb" /soc/nand-controller@79b0000 status)" = okay
 test "$(fdtget -t x "$dtb" /soc/nand-controller@79b0000/nand@0/partitions/partition@0 reg)" = '0 8000000'
 test "$(fdtget -t u "$dtb" /soc/nand-controller@79b0000/nand@0 nand-ecc-strength)" = 4
 test "$(fdtget -t u "$dtb" /soc/nand-controller@79b0000/nand@0 nand-ecc-step-size)" = 512
-fdtget "$dtb" /soc/nand-controller@79b0000/nand@0/partitions/partition@0 read-only >/dev/null
+if [ "$flavor" = recovery ]; then
+	fdtget "$dtb" /soc/nand-controller@79b0000/nand@0/partitions/partition@0 read-only >/dev/null
+else
+	if fdtget "$dtb" /soc/nand-controller@79b0000/nand@0/partitions/partition@0 read-only >/dev/null 2>&1; then exit 1; fi
+fi
 for partition in 0 40000 60000 c0000 d0000 e0000 f0000 170000 180000 190000 1a0000; do
+	if [ "$flavor:$partition" = persistent:e0000 ]; then
+		if fdtget "$dtb" "/soc/spi@78b5000/flash@0/partitions/partition@$partition" read-only >/dev/null 2>&1; then exit 1; fi
+		continue
+	fi
 	fdtget "$dtb" "/soc/spi@78b5000/flash@0/partitions/partition@$partition" read-only >/dev/null
 done
 test "$(fdtget -t s "$dtb" /soc/pcie@40000000 status)" = okay

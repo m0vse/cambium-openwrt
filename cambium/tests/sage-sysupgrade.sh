@@ -49,12 +49,17 @@ cambium,e410 10 1
 cambiumnetworks,e410 10 1
 cambiumnetworks,e410b 21 1
 cambiumnetworks,e510 16 1
-cambiumnetworks,e600 11 0
+cambiumnetworks,e600 11 1
 cambiumnetworks,e700 14 0
 cambiumnetworks,e430w 13 0
 cambiumnetworks,e430h 15 0
 EOF
 check "an unknown board is not a Sage" 1 cambium_sage_board acme,router
+cambium_sage_board cambiumnetworks,e600
+assert "E600 uses parallel NAND device 0" test "$SAGE_NAND_DEV" = 0
+assert "E600 U-Boot uses nand0 mapping" test "$SAGE_NAND_MTDPARTS" = 'mtdparts=nand0:0x8000000@0x0(fs)'
+assert "E600 kernel uses native parallel NAND name" test "$SAGE_KERNEL_MTDPARTS" = 'mtdparts=qcom_nand.0:128M(fs)'
+assert "E600 boots config@10" sh -c 'case "$1" in *"nand device 0"*"linux1 && bootm 0x84000000#config@10") exit 0 ;; esac; exit 1' sh "$(cambium_sage_boot_command 1)"
 
 # --- board SKU cross-check ------------------------------------------------------
 cambium_sage_board cambium,e410

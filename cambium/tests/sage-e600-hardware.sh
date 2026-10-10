@@ -16,7 +16,7 @@ grep -q 'ath10k-firmware-qca9984' "$base/image/generic.mk"
 grep -q 'lan_mac=$(mtd_get_mac_text mfginfo 0x6 12)' "$base/base-files/etc/board.d/02_network"
 . "$base/base-files/lib/functions/cambium-sage.sh"
 cambium_sage_board cambiumnetworks,e600
-test "$SAGE_QUALIFIED" = 0
+test "$SAGE_QUALIFIED:$SAGE_NAND_DEV" = 1:0
 work=$(mktemp -d)
 trap 'rm -r "$work"' EXIT HUP INT TERM
 sed -n '/^ipq40xx_setup_macs()/,/^}/p' "$base/base-files/etc/board.d/02_network" > "$work/macs.sh"
@@ -41,4 +41,4 @@ for model in e410 e410b e510 e430h e430w e700; do
 		fi
 	done
 done
-echo 'ok: isolated E600 hardware and persistent-write refusal'
+echo 'ok: isolated E600 hardware and captured parallel-NAND layout'
