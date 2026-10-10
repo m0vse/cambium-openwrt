@@ -18,7 +18,8 @@ SKU. Hardware status per model:
 | | | E502S | no build yet | no build yet | no build yet: needs hardware |
 | Sage (IPQ4019) | 4.2.3.3-r10 | E410, E410B | validated | validated | A/B, validated (shared A/B code) |
 | | | E510 | untested | untested | A/B, untested (same layout as the E410) |
-| | | E430H, E430W, E600, E700 | untested | untested | refused: layout not yet captured |
+| | | E600 | validated (both Ethernet ports; radios initialise) | validated on one test unit (UBIFS, guarded boot and reboot); Wi-Fi clients pending | A/B, untested; preserved OEM fallback cannot be overwritten |
+| | | E430H, E430W, E700 | untested | untested | refused: layout not yet captured |
 | Lila (Wi-Fi 5, MIPS) | 4.2.3.3-r10 | E425W, E505 | no build yet | no build yet | no build yet |
 | Thor (IPQ8074) | 7.2-r1 | XV3-8 | validated | validated (A/B build) | A/B, validated |
 | | | XE5-8 | untested | not built: flash layout not yet captured | none |
@@ -59,6 +60,37 @@ slots where the XV2-2T1 has two 96 MiB slots.
 Hardware for validation is very welcome: if you can send a unit of an
 untested or unported model, please open an issue on this repository.
 
+### E600 validation scope (2026-10-10)
+
+Build `2026.10.10.902` was installed persistently on one SKU 11 E600 into
+the inactive `linux1`/`rootfs1` pair using the shared Sage A/B writer.
+The writable UBIFS root booted, the health guard automatically confirmed
+slot 1, and a subsequent reboot returned to confirmed slot 1. This validates
+the initial OEM-to-OpenWrt installation, not an OpenWrt sysupgrade or the
+two-upgrade conversion to SquashFS with per-pair overlays.
+
+The factory management MAC was retained. VLAN-filtered management on
+`br-lan.1` with untagged/PVID 1 on both ports works with the test unit's
+seeded static address and default route. Both Ethernet ports passed traffic
+during RAM testing; LAN2 was also live after persistent installation.
+DHCP reliability remains unresolved and is not claimed as validated.
+The integrated 2.4 GHz 2x2 and PCIe QCA9984 5 GHz 4x4 radios initialise
+with the unit's factory calibration. **Wi-Fi client association and traffic
+testing are still pending**, deliberately deferred by the tester.
+
+The preserved OEM slot 0 kernel and root hashes match the original backups;
+`sage_oem_fallback=0` and `sage_boot0=setenv image 0; bootipq` are retained.
+Actual fallback execution has not been tested. Subsequent upgrades refuse
+to overwrite this preserved OEM pair. The environment is discovered by
+partition label (native Linux `/dev/mtd6`, not the E410's `/dev/mtd5`).
+
+This test explicitly retained the OEM-compatible 4-bit ECC per 512-byte
+step despite the NAND chip's stated 8-bit requirement. That limitation
+remains unresolved: successful boot testing does not qualify flash endurance
+or fleet deployment. Other Sage hardware definitions are unchanged.
+
+### General firmware behaviour
+
 - Images use stock OpenWrt defaults: no SSH keys are included and root has
   no password until you set one. The LAN is a DHCP client and never serves
   DHCP or router advertisements.
@@ -67,7 +99,9 @@ untested or unported model, please open an issue on this repository.
   slot; the OEM slot and calibration (ART) are never modified. If that slot
   is gone or unreadable, the radios stay down and wired operation continues.
 - Sage uses the same A/B code as the other families and, from 2026.09.28.1,
-  a SquashFS root with a writable overlay per slot. An E410 or E410B on an
+  its normal sysupgrade image uses a SquashFS root with a writable overlay
+  per slot. Initial OEM installs use UBIFS; the E600 test above has not yet
+  converted to SquashFS. An E410 or E410B on an
   earlier (UBIFS) image converts in two stages: run `cambium-install.sh
   update-upgrader` on it, then two normal sysupgrades, each converting one
   pair (validated on the E410 and E410B). Thor,
