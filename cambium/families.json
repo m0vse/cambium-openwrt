@@ -115,12 +115,12 @@
           "recovery": {
             "config": "config@10",
             "status": "validated",
-            "note": "RAM boot on SKU 11: both Ethernet ports, both radios and factory calibration; 256 MiB RAM, 128 MiB parallel NAND, U-Boot NAND device 0."
+            "note": "RAM boot on SKU 11: traffic through both Ethernet ports and both radios initialising with factory calibration; Wi-Fi client association and traffic remain untested. 256 MiB RAM, 128 MiB parallel NAND, U-Boot NAND device 0."
           },
           "persistent": {
             "config": "config@10",
-            "status": "untested",
-            "note": "Explicit hardware trial only: OEM-compatible BCH4/512, inactive UBI pair, guarded first boot and preserved OEM bootipq fallback. Chip's BCH8 requirement remains an accepted test-unit limitation."
+            "status": "validated",
+            "note": "Single E600 test unit validated on 2026-10-10 with build 2026.10.10.902: inactive-pair UBIFS installation, automatic guarded confirmation and subsequent reboot into confirmed slot 1; factory MAC, VLAN 1 static management and default route work. OEM slot 0 kernel/root hashes match the original backups and its bootipq fallback is retained (fallback execution not tested). Both radios initialise; Wi-Fi client testing, DHCP reliability, SquashFS conversion and sysupgrade remain pending. OEM-compatible BCH4/512 was explicitly accepted for this unit despite the chip's BCH8 requirement; not fleet-qualified."
           },
           "sysupgrade": {
             "status": "untested",
