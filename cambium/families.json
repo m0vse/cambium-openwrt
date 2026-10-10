@@ -114,15 +114,17 @@
           "sku": 11,
           "recovery": {
             "config": "config@10",
-            "status": "untested"
+            "status": "validated",
+            "note": "RAM boot on SKU 11: both Ethernet ports, both radios and factory calibration; 256 MiB RAM, 128 MiB parallel NAND, U-Boot NAND device 0."
           },
           "persistent": {
             "config": "config@10",
-            "status": "untested"
+            "status": "untested",
+            "note": "Explicit hardware trial only: OEM-compatible BCH4/512, inactive UBI pair, guarded first boot and preserved OEM bootipq fallback. Chip's BCH8 requirement remains an accepted test-unit limitation."
           },
           "sysupgrade": {
-            "status": "refused",
-            "note": "different NAND controller; layout not yet captured"
+            "status": "untested",
+            "note": "Shared Sage A/B writer; refuses to overwrite a preserved E600 OEM fallback. Not fleet-qualified."
           }
         },
         {

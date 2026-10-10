@@ -47,7 +47,7 @@
 	};
 };
 
-/* Expose NAND for diagnostics, but keep it read-only until qualification. */
+/* Recovery is read-only; only the persistent leaf opts into captured writes. */
 &nand {
 	status = "okay";
 
@@ -55,8 +55,9 @@
 		reg = <0>;
 		/* OEM nandcs@0 explicitly uses BCH4/512. Keep its on-flash
 		 * format for recovery reads; selecting BCH8 is not a migration.
-		 * The chip requires BCH8 for new deployments, so persistent
-		 * qualification must resolve U-Boot/OEM compatibility first.
+		 * The chip requires BCH8 for new deployments. This hardware trial
+		 * explicitly retains OEM BCH4, accepting that reliability limitation
+		 * rather than changing the format underneath the OEM bootloader.
 		 */
 		nand-ecc-strength = <4>;
 		nand-ecc-step-size = <512>;
