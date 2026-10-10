@@ -1,9 +1,10 @@
 # Sage changelog
 
-E410, E410B, E510 (validated layout); E430H, E430W, E600, E700 (RAM boot only).
+E410, E410B, E510 (validated layout); E600 (RAM and persistent boot validated on one test unit; Wi-Fi clients and sysupgrade pending); E430H, E430W, E700 (RAM boot only).
 
 ## Unreleased
 
+- E600 support status updated after build `2026.10.10.902` testing on 2026-10-10: persistent UBIFS installation into slot 1, automatic health-guard confirmation and a subsequent reboot into confirmed slot 1 succeeded. Factory MAC, VLAN 1 static management and default route are correct; both Ethernet ports passed traffic during RAM testing and both radios initialise. OEM slot 0 kernel/root hashes remain unchanged and its `bootipq` fallback is retained, but fallback execution has not been tested. Wi-Fi client association/traffic testing is explicitly deferred; DHCP reliability, persistent SquashFS conversion and sysupgrade are not validated. The explicitly accepted BCH4/512 versus chip BCH8 limitation remains; this is not fleet qualification. Documentation/metadata only, no firmware rebuild required.
 - E600 persistent hardware trial (explicitly approved OEM-compatible BCH4/512): use parallel NAND device 0, discover this unit's NOR environment by label, and permit writes only to `fs` and `APPSBLENV` in the persistent tree. First installation uses the shared Sage writer and guarded boot; its OEM pair boots through `bootipq` and subsequent upgrades refuse to overwrite that preserved fallback. Recovery stays read-only; all other Sage model trees and boot mappings are unchanged.
 - E600 RAM trial: initialise management on VLAN-filtered `br-lan.1`, with both Ethernet ports untagged/PVID 1, preserving existing managed configurations and leaving all other Sage models unchanged. Hardware testing confirms both Ethernet ports pass traffic and both radios initialise; the factory MAC is applied automatically. Retain the captured OEM BCH4/512 NAND format for read-only recovery: the chip's BCH8 requirement remains a persistent-install qualification blocker, not a warning to suppress or a safe in-place ECC switch.
 - Correct the E600 FIT verifier's PCIe node path to match the compiled tree (`pcie@40000000`); this changes validation only, not firmware contents.
