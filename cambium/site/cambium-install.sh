@@ -298,7 +298,7 @@ miami_oneshot() {
 # Sage: one UBI device with linux0/rootfs0 and linux1/rootfs1; I is the
 # running (stock) pair, T the other one.
 layout_sage() {
-	local v
+	local v fs
 	I=$(sed -n 's/.*root=ubi0:rootfs\([01]\).*/\1/p' "$R/proc/cmdline")
 	[ -n "$I" ] || die "cannot tell the running Sage slot: /proc/cmdline has no root=ubi0:rootfs0/1"
 	[ "$(getenv image)" = "$I" ] || die "U-Boot image=$(getenv image) but the stock firmware runs from rootfs$I"
@@ -306,6 +306,16 @@ layout_sage() {
 	for v in linux0 rootfs0 linux1 rootfs1; do
 		[ -n "$(vol_of ubi0 "$v")" ] || die "no UBI volume $v on ubi0: not the captured Sage layout"
 	done
+	if [ "$MODEL" = E600 ]; then
+		fs=$(mtd_idx fs)
+		[ -n "$fs" ] && [ "$(mtd_size fs)" = 08000000 ] &&
+			[ "$(cat "$R/sys/class/ubi/ubi0/mtd_num")" = "$fs" ] ||
+			die "E600 does not have the captured 128 MiB fs UBI device"
+		[ "$(cat "$R/sys/class/mtd/mtd$fs/type")" = nand ] &&
+			[ "$(cat "$R/sys/class/mtd/mtd$fs/ecc_strength")" = 4 ] &&
+			[ "$(cat "$R/sys/class/mtd/mtd$fs/ecc_step_size")" = 512 ] ||
+			die "E600 is not using the captured OEM BCH4/512 NAND format"
+	fi
 	say "Sage slots: stock firmware on pair $I, OpenWrt goes into pair $T"
 }
 
@@ -534,7 +544,7 @@ dry_run_stop() {
 # --- commands --------------------------------------------------------------------------
 
 cmd_ram() {
-	local flavour=recovery image off tpart upart t bootargs= vol bytes lebs lebsize capacity magic want hexbytes art
+	local flavour=recovery image off tpart upart t bootargs= vol bytes lebs lebsize capacity magic want hexbytes art ndev
 	on_openwrt && die "this is already OpenWrt: run it from the stock firmware's root shell"
 	load_release
 	[ -n "$ptest" ] && flavour=persistent
@@ -585,7 +595,9 @@ cmd_ram() {
 			die "the staged recovery image does not read back correctly from $vol"
 		say "staged recovery image in inactive $vol and verified its SHA-256"
 		hexbytes=$(printf '%x' "$bytes")
-		arm "setenv bootcmd bootipq; saveenv; nand device 1 && setenv mtdids nand1=nand1 && setenv mtdparts \"mtdparts=nand1:0x8000000@0x0(fs)\" && ubi part fs && ubi read 0x84000000 rootfs$T 0x$hexbytes && bootm 0x84000000#$CONFIG; bootipq"
+		ndev=1
+		[ "$MODEL" != E600 ] || ndev=0
+		arm "setenv bootcmd bootipq; saveenv; nand device $ndev && setenv mtdids nand$ndev=nand$ndev && setenv mtdparts \"mtdparts=nand$ndev:0x8000000@0x0(fs)\" && ubi part fs && ubi read 0x84000000 rootfs$T 0x$hexbytes && bootm 0x84000000#$CONFIG; bootipq"
 		;;
 	jaguar)
 		layout_jaguar
