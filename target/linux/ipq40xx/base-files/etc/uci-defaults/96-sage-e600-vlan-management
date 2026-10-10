@@ -1,0 +1,43 @@
+#!/bin/sh
+# E600 recovery and first install: filter the bridge before starting DHCP.
+# This is network qualification only; E600 flash writes remain unqualified.
+[ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = cambiumnetworks,e600 ] || exit 0
+[ "$(uci -q get network.lan.proto)" = dhcp ] || exit 0
+[ "$(uci -q get network.lan.device)" = br-lan ] || exit 0
+[ -z "$(uci -q get network.wg0)" ] || exit 0
+[ -z "$(uci -q get network.vlan101)" ] || exit 0
+[ -z "$(uci -q get network.vlan_br_lan_101.vlan)" ] || exit 0
+
+bridge_section=
+for section in device_br_lan device_lan '@device[0]' '@device[1]' '@device[2]' '@device[3]'; do
+	[ "$(uci -q get "network.$section.name")" = br-lan ] || continue
+	bridge_section=$section
+	break
+done
+[ -n "$bridge_section" ] || exit 1
+case "$(uci -q get "network.$bridge_section.ports")" in
+	'lan1 lan2'|'lan2 lan1') ;;
+	*) exit 1 ;;
+esac
+[ -z "$(uci -q get "network.$bridge_section.vlan_filtering")" ] || exit 0
+
+if [ "$bridge_section" != device_br_lan ]; then
+	uci rename "network.$bridge_section=device_br_lan" || exit 1
+fi
+uci set network.device_br_lan.vlan_filtering=1
+uci set network.vlan_br_lan_1=bridge-vlan
+uci set network.vlan_br_lan_1.device=br-lan
+uci set network.vlan_br_lan_1.vlan=1
+uci -q delete network.vlan_br_lan_1.ports
+uci add_list network.vlan_br_lan_1.ports='lan1:u*'
+uci add_list network.vlan_br_lan_1.ports='lan2:u*'
+uci set network.lan.device=br-lan.1
+if [ "$(uci -q get network.lan6.device)" = br-lan ]; then
+	uci set network.lan6.device=br-lan.1
+fi
+uci commit network
+if [ "$(uci -q get openwisp.http.management_interface)" = br-lan ]; then
+	uci set openwisp.http.management_interface=br-lan.1
+	uci commit openwisp
+fi
+exit 0

@@ -53,6 +53,11 @@
 
 	nand@0 {
 		reg = <0>;
+		/* OEM nandcs@0 explicitly uses BCH4/512. Keep its on-flash
+		 * format for recovery reads; selecting BCH8 is not a migration.
+		 * The chip requires BCH8 for new deployments, so persistent
+		 * qualification must resolve U-Boot/OEM compatibility first.
+		 */
 		nand-ecc-strength = <4>;
 		nand-ecc-step-size = <512>;
 		nand-bus-width = <8>;
