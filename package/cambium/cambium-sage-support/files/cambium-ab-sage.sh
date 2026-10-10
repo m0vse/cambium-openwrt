@@ -50,6 +50,14 @@ ab_sage_board() {
 	AB_RADIOS=$SAGE_RADIOS
 	AB_LAN='br-lan.1 br-lan'
 	AB_PROTECTED='0:ART'
+	if [ "$SAGE_MODEL" = E600 ]; then
+		# Native NOR labels have no OEM "0:" prefix. OEM installation
+		# still uses its own mapping; never reuse an E410 MTD number.
+		AB_ENV_PART=APPSBLENV
+		AB_PROTECTED=ART
+		[ -z "$(ab_mtd_index 0:APPSBLENV)" ] || AB_ENV_PART=0:APPSBLENV
+		[ -z "$(ab_mtd_index 0:ART)" ] || AB_PROTECTED=0:ART
+	fi
 	# OpenWISP-managed Sage APs are committed only after authenticated
 	# controller access, which can take longer than the other checks.
 	AB_HEALTH_TRIES=180
@@ -58,6 +66,11 @@ ab_sage_board() {
 ab_sage_boot_command() {
 	local format slot="$1"
 	case "$slot" in 0|1) ;; *) echo "cambium-ab: invalid slot $slot" >&2; return 1 ;; esac
+	if [ "$AB_MODEL" = E600 ] && [ "$(ab_getenv sage_oem_fallback)" = "$slot" ]; then
+		# The OEM FIT does not contain OpenWrt's config@10.
+		echo "setenv image $slot; bootipq"
+		return 0
+	fi
 	format=$(ab_sage_root_format "$slot") || return 1
 	(
 		SAGE_ROOT_TYPE=$format
@@ -96,6 +109,15 @@ ab_sage_identity() {
 	case "$fs" in
 	''|*[!0-9]*) echo "cambium-ab: missing or duplicate $SAGE_UBI_PART partition" >&2; return 1 ;;
 	esac
+	if [ "$AB_MODEL" = E600 ]; then
+		[ "$(ab_mtd_geometry "$SAGE_UBI_PART")" = '08000000 00020000' ] &&
+			[ "$(cat "${AB_MTD_SYS:-/sys/class/mtd}/mtd$fs/ecc_strength")" = 4 ] &&
+			[ "$(cat "${AB_MTD_SYS:-/sys/class/mtd}/mtd$fs/ecc_step_size")" = 512 ] &&
+			ab_mtd_writable "$fs" || {
+			echo 'cambium-ab: E600 requires writable captured BCH4/512 NAND' >&2
+			return 1
+		}
+	fi
 	slot=$(ab_running_slot) || return 1
 	AB_ACTIVE=$slot
 	AB_TARGET=$((1 - slot))
@@ -159,6 +181,10 @@ ab_sage_root_format() {
 
 ab_sage_image_fits() {
 	local root_lebs free data_lebs rootvol
+	if [ "$AB_MODEL" = E600 ] && [ "$(ab_getenv sage_oem_fallback)" = "$AB_TARGET" ]; then
+		ab_fail "E600 pair $AB_TARGET is the preserved OEM fallback; refusing to overwrite it"
+		return 1
+	fi
 	[ "$1" -le "$(ab_sage_volume_bytes "linux$AB_TARGET")" ] ||
 		ab_fail "the kernel ($1 bytes) does not fit linux$AB_TARGET" || return 1
 	rootvol=$(ab_ubi_volume "$AB_ACTIVE_UBI" "rootfs$AB_TARGET") || return 1
