@@ -14,3 +14,19 @@
 &swport3 { status = "disabled"; };
 &swport4 { status = "okay"; label = "lan1"; };
 &swport5 { status = "okay"; label = "lan2"; };
+
+/* Only the captured UBI device and this unit's environment may be written. */
+&blsp1_spi1 {
+	flash@0 {
+		partitions {
+			partition@e0000 { /delete-property/ read-only; };
+		};
+	};
+};
+&nand {
+	nand@0 {
+		partitions {
+			partition@0 { /delete-property/ read-only; };
+		};
+	};
+};

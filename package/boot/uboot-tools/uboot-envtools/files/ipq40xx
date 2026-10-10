@@ -18,7 +18,6 @@ cambiumnetworks,e410b|\
 cambiumnetworks,e430h|\
 cambiumnetworks,e430w|\
 cambiumnetworks,e510|\
-cambiumnetworks,e600|\
 cambiumnetworks,e700|\
 devolo,magic-2-wifi-next|\
 edgecore,ecw5211|\
@@ -36,6 +35,12 @@ plasmacloud,pa2200|\
 sophos,apx120|\
 ubnt,utr)
 	ubootenv_add_uci_config "/dev/mtd5" "0x0" "0x10000" "0x10000"
+	;;
+cambiumnetworks,e600)
+	# Parallel NAND probes before NOR; discover the NOR environment by name.
+	env_idx=$(find_mtd_index APPSBLENV)
+	case "$env_idx" in ''|*[!0-9]*) exit 1 ;; esac
+	ubootenv_add_uci_config "/dev/mtd$env_idx" "0x0" "0x10000" "0x10000"
 	;;
 aruba,ap-303)
 	ubootenv_add_uci_config "/dev/mtd13" "0x0" "0x10000" "0x10000"
