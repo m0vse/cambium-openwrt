@@ -281,6 +281,12 @@ ap() {
 			echo "oem-$v" > "$W/flash/mtd0/$i.data"; i=$((i + 1))
 		done
 		mkdir -p "$RT/sys/class/ubi/ubi0"; echo 0 > "$RT/sys/class/ubi/ubi0/mtd_num"
+		if [ "$2" = E600 ]; then
+			mkdir -p "$RT/sys/class/mtd/mtd0"
+			echo nand > "$RT/sys/class/mtd/mtd0/type"
+			echo 4 > "$RT/sys/class/mtd/mtd0/ecc_strength"
+			echo 512 > "$RT/sys/class/mtd/mtd0/ecc_step_size"
+		fi
 		(. "$W/bin/_sim"; refresh ubi0 0)
 		printf '%s\n' 'bootcmd=bootipq' "image=$run" 'bootcount=0' > "$W/env"
 		for i in 5 7; do echo "nor$i" > "$RT/dev/mtd${i}ro"; done
@@ -565,6 +571,18 @@ assert "Sage trial is the shared A/B command" [ "$(env_get bootcmd)" = \
 assert "Sage trial records shared A/B state and OEM fallback" [ "$(env_get sage_ab_version):$(env_get sage_ab_confirmed):$(env_get sage_ab_state):$(env_get sage_ab_target):$(env_get sage_oem_fallback):$(env_get image)" = '1:0:armed:1:0:0' ]
 assert "Sage has no legacy trial metadata or boot marker" [ -z "$(env_get owrt_trial_slot)$(env_get owrt_fallback_slot)$(env_get changing_bootcmd)" ]
 assert "Sage wrote only linux1/rootfs1" [ "$(grep '^update' "$W/calls" | tr '\n' ';')" = 'update mtd0 linux1;update mtd0 rootfs1;' ]
+ap sage E600 11 0
+check "E600 requires explicit persistent hardware trial" 1 inst --from "$W/rel" --yes --backed-up install
+assert "E600 default refusal writes nothing" nothing_written
+check "E600 persistent install uses shared writer" 0 inst --from "$W/rel" --trial --yes --backed-up install
+assert "E600 installer preserves OEM pair 0" [ "$(cat "$W/flash/mtd0/0.data"):$(cat "$W/flash/mtd0/1.data")" = 'oem-linux0:oem-rootfs0' ]
+assert "E600 installer records OEM bootipq fallback" [ "$(env_get sage_boot0)" = 'setenv image 0; bootipq' ]
+assert "E600 installer selects NAND0 and config@10" sh -c "grep -q '^sage_boot1=.*nand device 0.*#config@10$' '$W/env'"
+assert "E600 installer writes only pair 1" [ "$(grep '^update' "$W/calls" | tr '\n' ';')" = 'update mtd0 linux1;update mtd0 rootfs1;' ]
+ap sage E600 11 0
+echo 8 > "$RT/sys/class/mtd/mtd0/ecc_strength"
+check "E600 installer rejects a different ECC format" 1 inst --from "$W/rel" --trial --yes --backed-up install
+assert "E600 ECC refusal writes nothing" nothing_written
 ap sage E410B 21 0
 check "Sage E410B installs with its own configuration" 0 inst --from "$W/rel" --yes --backed-up install
 assert "Sage E410B targets config@17" sh -c "grep -q '^sage_boot1=.*#config@17$' '$W/env'"

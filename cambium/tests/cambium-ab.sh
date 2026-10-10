@@ -1076,6 +1076,10 @@ new_sage_ap() {
 		'mtd2: 08000000 00020000 "fs"' > "$S/proc_mtd"
 	for i in 0 1 2; do mkdir -p "$S/sys/mtd/mtd$i"; echo 0xc00 > "$S/sys/mtd/mtd$i/flags"; done
 	echo 0x800 > "$S/sys/mtd/mtd1/flags"
+	if [ "$board" = cambiumnetworks,e600 ]; then
+		echo 4 > "$S/sys/mtd/mtd2/ecc_strength"
+		echo 512 > "$S/sys/mtd/mtd2/ecc_step_size"
+	fi
 	i=0
 	for v in linux0 rootfs0 linux1 rootfs1 nvram; do
 		echo "$v" > "$S/flash/mtd2/$i.name"
@@ -1109,7 +1113,7 @@ dispatch40xx() { (. "$S/system.sh"; . "$S/functions.sh"; . "$CAMBIUM_AB_UPGRADE_
 pair_data() { cat "$S/flash/mtd2/$1.data"; }
 { printf '\061\030\020\006'; printf 'new-ubifs-root'; } > "$S/sage-ubifs-root"
 printf 'hsqs-new-root' > "$S/sage-root"
-make_fit config@5 config@ap.dk01.1-c2 config@16 config@17 > "$S/sage-fit"
+make_fit config@5 config@ap.dk01.1-c2 config@10 config@16 config@17 > "$S/sage-fit"
 make_image "$S/sage-ubifs.bin" "$S/sage-fit" "$S/sage-ubifs-root" sysupgrade-cambium_e410
 make_image "$S/sage.bin" "$S/sage-fit" "$S/sage-root" sysupgrade-cambium_e410
 
@@ -1120,7 +1124,22 @@ check "E410 identity" 0 in_lib eval \
 new_sage_ap $E 1
 check "E410 running pair 1 targets pair 0" 0 in_lib eval '[ "$(ab_identity && echo $AB_ACTIVE:$AB_TARGET:$AB_TARGET_PART)" = "1:0:linux0/rootfs0" ]'
 new_sage_ap cambiumnetworks,e600 0
-check "E600 refused (layout not captured)" 1 in_lib ab_identity
+sed -i 's/"0:APPSBLENV"/"APPSBLENV"/;s/"0:ART"/"ART"/' "$S/proc_mtd"
+check "E600 captured parallel NAND identity" 0 in_lib eval \
+	'ab_identity && [ "$AB_MODEL:$SAGE_NAND_DEV:$AB_ENV_PART:$AB_PROTECTED" = "E600:0:APPSBLENV:ART" ]'
+echo 8 > "$S/sys/mtd/mtd2/ecc_strength"
+check "E600 refuses unexpected BCH8 identity" 1 in_lib ab_identity
+echo 4 > "$S/sys/mtd/mtd2/ecc_strength"
+echo 0x800 > "$S/sys/mtd/mtd2/flags"
+check "E600 refuses read-only recovery writes" 1 in_lib ab_identity
+echo 0xc00 > "$S/sys/mtd/mtd2/flags"
+echo sage_oem_fallback=0 >> "$S/env"
+assert "E600 fallback uses OEM bootipq, not config@10" [ "$(in_lib eval 'ab_identity && ab_boot_command 0')" = 'setenv image 0; bootipq' ]
+assert "E600 OpenWrt uses NAND 0 and config@10" in_lib eval 'ab_identity && ab_boot_command 1 | grep -q "nand device 0.*#config@10$"'
+new_sage_ap cambiumnetworks,e600 1
+echo sage_oem_fallback=0 >> "$S/env"
+check "E600 upgrade refuses preserved OEM target" 1 dispatch40xx platform_check_image "$S/sage.bin"
+assert "E600 OEM protection leaves flash untouched" [ -z "$(grep -E '^(update|format|resize|mkvol) ' "$S/calls")" ]
 new_sage_ap $E 0; set_sku 020
 check "E410 SKU mismatch refused" 1 in_lib ab_identity
 new_sage_ap $E 0; echo 0xc00 > "$S/sys/mtd/mtd1/flags"
@@ -1229,7 +1248,8 @@ echo 10 > "$S/flash/mtd2/2.size"; (. "$S/bin/_sim"; refresh ubi0 2)
 check "a kernel larger than linux1 is refused" 1 dispatch40xx platform_check_image "$S/sage.bin"
 assert "refusals wrote nothing" never_wrote 'update|setenv'
 new_sage_ap cambiumnetworks,e600 0 adopted
-check "E600 upgrade refused" 1 dispatch40xx platform_do_upgrade "$S/sage.bin"
+check "E600 captured pair upgrade" 0 dispatch40xx platform_do_upgrade "$S/sage.bin"
+assert "E600 upgrade arms its native NAND0 FIT" sh -c "grep -q '^sage_boot1=.*nand device 0.*#config@10$' '$S/env'"
 new_sage_ap $E 0 adopted; echo mtd2/3 > "$S/corrupt"
 check "a Sage readback mismatch fails" 1 dispatch40xx platform_do_upgrade "$S/sage.bin"
 assert "readback failure: pair 0 stays the default" [ "$(env_get bootcmd):$(env_get sage_ab_state)" = 'run sage_stable0:write-failed' ]
