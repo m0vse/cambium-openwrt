@@ -2,6 +2,19 @@
 # E600 recovery and first install: filter the bridge before starting DHCP.
 # This is network qualification only; E600 flash writes remain unqualified.
 [ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = cambiumnetworks,e600 ] || exit 0
+if [ "$(uci -q get network.lan.device)" = br-lan.1 ] &&
+   [ "$(uci -q get network.device_br_lan.vlan_filtering)" = 1 ]; then
+	# A seeded static management configuration already has its VLAN.
+	if [ "$(uci -q get network.lan6.device)" = br-lan ]; then
+		uci set network.lan6.device=br-lan.1
+		uci commit network
+	fi
+	if [ "$(uci -q get openwisp.http.management_interface)" = br-lan ]; then
+		uci set openwisp.http.management_interface=br-lan.1
+		uci commit openwisp
+	fi
+	exit 0
+fi
 [ "$(uci -q get network.lan.proto)" = dhcp ] || exit 0
 [ "$(uci -q get network.lan.device)" = br-lan ] || exit 0
 [ -z "$(uci -q get network.wg0)" ] || exit 0

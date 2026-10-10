@@ -3,8 +3,9 @@
 #
 # Boards built on the E410 tree (E410, E410B, E510) share the SPI-NAND UBI
 # layout captured on the E410/E410B and are qualified for persistent A/B
-# writes. The DK07-based boards (E600, E700, E430W, E430H) use the separate
-# parallel NAND controller; they refuse to write flash until one unit's
+# writes. E600 also has a captured parallel-NAND pair layout, with its OEM
+# BCH4/512 retained for an explicitly approved hardware trial. Other DK07
+# boards (E700, E430W, E430H) refuse to write flash until one unit's
 # layout, U-Boot environment and NAND numbering have been captured. The OEM
 # migration helpers remain E410-only; they do not consult this table.
 
@@ -20,7 +21,7 @@ cambium_sage_board() {
 		# Also E410B hardware, which boots the same configuration.
 		SAGE_MODEL=E410 SAGE_SKU=10 SAGE_FIT=config@ap.dk01.1-c2 SAGE_QUALIFIED=1 ;;
 	cambiumnetworks,e410b)	SAGE_MODEL=E410B SAGE_SKU=21 SAGE_FIT=config@17 SAGE_QUALIFIED=1 ;;
-	cambiumnetworks,e600)	SAGE_MODEL=E600 SAGE_SKU=11 SAGE_FIT=config@10 ;;
+	cambiumnetworks,e600)	SAGE_MODEL=E600 SAGE_SKU=11 SAGE_FIT=config@10 SAGE_QUALIFIED=1 ;;
 	cambiumnetworks,e430w)	SAGE_MODEL=E430W SAGE_SKU=13 SAGE_FIT=config@13 ;;
 	cambiumnetworks,e700)	SAGE_MODEL=E700 SAGE_SKU=14 SAGE_FIT=config@14 ;;
 	cambiumnetworks,e430h)	SAGE_MODEL=E430H SAGE_SKU=15 SAGE_FIT=config@15 ;;
@@ -43,6 +44,12 @@ cambium_sage_board() {
 	SAGE_KERNEL_MAX=4317184
 	SAGE_ROOTFS_MAX=47235072
 	SAGE_RADIOS=2
+	if [ "$SAGE_MODEL" = E600 ]; then
+		# Captured and RAM-tested parallel NAND; retain OEM BCH4/512.
+		SAGE_NAND_DEV=0
+		SAGE_NAND_MTDPARTS='mtdparts=nand0:0x8000000@0x0(fs)'
+		SAGE_KERNEL_MTDPARTS='mtdparts=qcom_nand.0:128M(fs)'
+	fi
 	return 0
 }
 
