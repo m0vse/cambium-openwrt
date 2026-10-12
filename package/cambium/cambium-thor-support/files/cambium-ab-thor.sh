@@ -61,7 +61,30 @@ ab_thor_boot_command() {
 # One-OEM/one-OpenWrt guarded boot of OpenWrt slot $1: restore the stock
 # default first, as the validated Thor one-shots did, and fall back to it.
 ab_thor_guarded_command() {
-	local boot
+	local boot image
+	case "$1" in 0|1) ;; *) return 1 ;; esac
+	image=$(ab_getenv image) || return 1
+	[ "$image" = "$((1 - $1))" ] || return 1
 	boot=$(ab_thor_boot_command "$1") || return 1
-	echo "setenv changing_bootcmd; setenv bootcmd \"aq_load_fw&&bootipq\"; saveenv; $boot; bootipq"
+	boot=$(printf '%s\n' "$boot" | sed 's/; / \&\& /g') || return 1
+	echo "if setenv bootcount 0 && setenv image $image && setenv bootcmd \"aq_load_fw&&bootipq\" && setenv changing_bootcmd && saveenv; then $boot; aq_load_fw && bootipq; fi"
+}
+
+# Matching Thor bootipq flips image for an OEM counter beginning with 8/9.
+# Used only while the opposite bank still contains OEM firmware.
+ab_thor_stock_prepare() {
+	local slot image count after
+	slot=$(ab_running_slot) || return 1
+	case "$slot" in 0|1) ;; *) return 1 ;; esac
+	image=$(ab_getenv image) || return 1
+	[ "$image" = "$((1 - slot))" ] || return 1
+	ab_setenv bootcount 0 && sync || return 1
+	count=$(ab_getenv bootcount) || return 1
+	after=$(ab_getenv image) || return 1
+	[ "$count" = 0 ] && [ "$after" = "$image" ]
+}
+
+ab_thor_legacy_boot() {
+	[ "$(ab_getenv bootcmd)" = "$AB_STOCK_BOOTCMD" ] || return 1
+	ab_thor_stock_prepare
 }
