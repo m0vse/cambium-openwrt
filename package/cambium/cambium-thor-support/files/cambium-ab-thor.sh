@@ -70,7 +70,8 @@ ab_thor_guarded_command() {
 	echo "if setenv bootcount 0 && setenv image $image && setenv bootcmd \"aq_load_fw&&bootipq\" && setenv changing_bootcmd && saveenv; then $boot; aq_load_fw && bootipq; fi"
 }
 
-# Matching Thor bootipq flips image for an OEM counter beginning with 8/9.
+# Thor OEM 7.2-r1 / U-Boot v2.7.5a (binary SHA256 fd6ecad47036...) flips
+# image for an OEM counter beginning with 8/9, as independently decoded.
 # Used only while the opposite bank still contains OEM firmware.
 ab_thor_stock_prepare() {
 	local slot image count after
@@ -85,6 +86,10 @@ ab_thor_stock_prepare() {
 }
 
 ab_thor_legacy_boot() {
-	[ "$(ab_getenv bootcmd)" = "$AB_STOCK_BOOTCMD" ] || return 1
-	ab_thor_stock_prepare
+	local boot
+	boot=$(ab_getenv bootcmd) || return 1
+	[ "$boot" = "$AB_STOCK_BOOTCMD" ] || return 1
+	ab_thor_stock_prepare || return 1
+	boot=$(ab_getenv bootcmd) || return 1
+	[ "$boot" = "$AB_STOCK_BOOTCMD" ]
 }

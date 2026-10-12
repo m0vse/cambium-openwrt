@@ -69,7 +69,7 @@ ab_miami_boot_command() {
 # miami_start/miami_load/miami_boot; re-arm it only while it still boots
 # slot $1 from this bank.
 ab_miami_guarded_command() {
-	local part offset load boot
+	local part offset load boot start fallback
 	case "$1" in
 	0) part=rootfs; offset=$AB_SLOT0_OFFSET ;;
 	1) part=rootfs_1; offset=$AB_SLOT1_OFFSET ;;
@@ -86,11 +86,13 @@ ab_miami_guarded_command() {
 	*"ubi.mtd=$part "*"bootm 0x60000000#config@mi01.6-acadia-ab;"*) ;;
 	*) echo "cambium-ab: miami_boot does not boot slot $1" >&2; return 1 ;;
 	esac
-	[ "$(ab_getenv miami_start)" = "setenv bootcount 0 && setenv image $((1 - $1)) && setenv bootcmd bootipq && setenv changing_bootcmd && setenv miami_trial entered && saveenv" ] || {
+	start=$(ab_getenv miami_start) || return 1
+	[ "$start" = "setenv bootcount 0 && setenv image $((1 - $1)) && setenv bootcmd bootipq && setenv changing_bootcmd && setenv miami_trial entered && saveenv" ] || {
 		echo 'cambium-ab: miami_start does not restore bootipq first' >&2
 		return 1
 	}
-	[ "$(ab_getenv miami_fallback)" = reset ] || return 1
+	fallback=$(ab_getenv miami_fallback) || return 1
+	[ "$fallback" = reset ] || return 1
 	echo 'if run miami_start; then run miami_load; run miami_fallback; fi'
 }
 
@@ -109,8 +111,12 @@ ab_miami_stock_prepare() {
 }
 
 ab_miami_legacy_boot() {
-	[ "$(ab_getenv bootcmd)" = "$AB_STOCK_BOOTCMD" ] || return 1
-	ab_miami_stock_prepare
+	local boot
+	boot=$(ab_getenv bootcmd) || return 1
+	[ "$boot" = "$AB_STOCK_BOOTCMD" ] || return 1
+	ab_miami_stock_prepare || return 1
+	boot=$(ab_getenv bootcmd) || return 1
+	[ "$boot" = "$AB_STOCK_BOOTCMD" ]
 }
 
 # Reachable, not just addressed: the management default gateway answers.
