@@ -84,6 +84,25 @@ Actual fallback execution has not been tested. Subsequent upgrades refuse
 to overwrite this preserved OEM pair. The environment is discovered by
 partition label (native Linux `/dev/mtd6`, not the E410's `/dev/mtd5`).
 
+**OEM boot-counter safety:** the previously tested build's saved fallback
+selects the correct OEM pair but does not clear an alternate-boot request.
+Independent inspection of packaged Sage U-Boot 1.0.13a (2026-08-24) confirms
+that `bootipq` reads the first digit of `bootcount` and switches `image` for
+8/9, then persists count 1. Its OEM `bootalt.sh` sets count 9. The corrected
+Sage package generates `setenv bootcount 0; setenv image SLOT; bootipq`
+for the E600 OEM fallback; existing installed boot variables are not
+automatically updated by a source change. No device remediation or fallback
+execution test has been performed as part of this audit. Shared installer
+destructive-write and return-to-OEM safeguards require their own review;
+old downloaded installers do not gain a fix automatically.
+
+Audit input: packaged `u-boot.stripped`, SHA-256
+`2d2274f54e47f513ad39579a0a3c49d9dd42e9a66bbbc56604fd1db996ddafab`.
+The `bootipq` descriptor selects `0x87301548`; its non-secure path calls
+`0x8730099c`. Counter parsing and the 8/9 image-toggle branch are at
+`0x87300ac4`–`0x87300b6c`. This is evidence for that packaged version,
+not verification of every deployed Sage bootloader revision.
+
 This test explicitly retained the OEM-compatible 4-bit ECC per 512-byte
 step despite the NAND chip's stated 8-bit requirement. That limitation
 remains unresolved: successful boot testing does not qualify flash endurance

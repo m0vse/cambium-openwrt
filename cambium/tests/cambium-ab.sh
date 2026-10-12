@@ -1134,7 +1134,7 @@ echo 0x800 > "$S/sys/mtd/mtd2/flags"
 check "E600 refuses read-only recovery writes" 1 in_lib ab_identity
 echo 0xc00 > "$S/sys/mtd/mtd2/flags"
 echo sage_oem_fallback=0 >> "$S/env"
-assert "E600 fallback uses OEM bootipq, not config@10" [ "$(in_lib eval 'ab_identity && ab_boot_command 0')" = 'setenv image 0; bootipq' ]
+assert "E600 fallback clears OEM alternate-boot count before bootipq" [ "$(in_lib eval 'ab_identity && ab_boot_command 0')" = 'setenv bootcount 0; setenv image 0; bootipq' ]
 assert "E600 OpenWrt uses NAND 0 and config@10" in_lib eval 'ab_identity && ab_boot_command 1 | grep -q "nand device 0.*#config@10$"'
 new_sage_ap cambiumnetworks,e600 1
 echo sage_oem_fallback=0 >> "$S/env"
