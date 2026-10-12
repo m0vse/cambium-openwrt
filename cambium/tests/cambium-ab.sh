@@ -1320,11 +1320,11 @@ new_gambit_ap
 check 'E400 4+44 MiB identity, bank 1 active' 0 in_lib eval 'ab_identity && [ "$AB_ACTIVE:$AB_TARGET:$AB_ACTIVE_MTD:$AB_TARGET_MTD" = 1:0:3:1 ]'
 check 'E400 uses NOR environment by label' 0 in_lib eval 'unset AB_ENV_CONFIG; ab_board cambiumnetworks,e400; ab_env_config && grep -q "^/dev/mtd6 " "$AB_ENV_CONFIG"'
 cmd=$(in_lib eval 'ab_board cambiumnetworks,e400; ab_guarded_command 1')
-assert 'E400 restores OEM default before changing runtime bootargs' [ "$cmd" = 'setenv bootcmd nboot 0x81000000 0 0x00000000; saveenv; setenv bootargs console=ttyS0,115200n8 ubi.mtd=rootfs1 root=/dev/ubiblock0_1 rootfstype=squashfs init=/sbin/init panic=5 mem=128M; nboot 0x83000000 0 0x03000000' ]
+assert 'E400 restores OEM default and clears counter before changing runtime bootargs' [ "$cmd" = 'setenv bootcmd nboot 0x81000000 0 0x00000000; setenv bootcount 0; saveenv; setenv bootcount 0; setenv bootargs console=ttyS0,115200n8 ubi.mtd=rootfs1 root=/dev/ubiblock0_1 rootfstype=squashfs init=/sbin/init panic=5 mem=128M; nboot 0x83000000 0 0x03000000' ]
 check 'E400 first install refuses bank 0' 1 in_lib eval 'ab_board cambiumnetworks,e400; ab_guarded_command 0'
 new_gambit_ap 0
 cmd0=$(in_lib eval 'ab_board cambiumnetworks,e400; ab_guarded_command 0')
-assert 'E400 inactive bank 0 restores OEM bank 1 before booting' [ "$cmd0" = 'setenv bootcmd nboot 0x81000000 0 0x03000000; saveenv; setenv bootargs console=ttyS0,115200n8 ubi.mtd=rootfs0 root=/dev/ubiblock0_1 rootfstype=squashfs init=/sbin/init panic=5 mem=128M; nboot 0x83000000 0 0x00000000' ]
+assert 'E400 inactive bank 0 restores OEM bank 1 and clears counter before booting' [ "$cmd0" = 'setenv bootcmd nboot 0x81000000 0 0x03000000; setenv bootcount 0; saveenv; setenv bootcount 0; setenv bootargs console=ttyS0,115200n8 ubi.mtd=rootfs0 root=/dev/ubiblock0_1 rootfstype=squashfs init=/sbin/init panic=5 mem=128M; nboot 0x83000000 0 0x00000000' ]
 healthy_sage
 check 'E400 healthy inactive-bank-0 boot rearms shared guard' 0 guard
 assert 'E400 shared guard preserves OEM bank 1 fallback' [ "$(env_get bootcmd)" = "$cmd0" ]
