@@ -544,7 +544,7 @@ assert "XE5-8 refusal gives the reason" said 'flash layout not yet captured'
 ap cheetah XV2-21X 35 1
 check "Cheetah RAM boot" 0 inst --from "$W/rel" --yes --backed-up ram
 assert "Cheetah one-shot is the validated command" [ "$(env_get bootcmd)" = \
-	'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 openwrt && bootm 0x60000000#config@mp03.3-ocelot; reset' ]
+	'setenv bootcmd bootipq; setenv changing_bootcmd; setenv image 1; setenv bootcount 0; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 openwrt && bootm 0x60000000#config@mp03.3-ocelot; reset' ]
 ap cheetah XV2-21X 35 1
 check "Cheetah XV2-21X install (validated: no --trial)" 0 inst --from "$W/rel" --yes --backed-up install
 cheetah_first_boot=$(board_name() { echo cambiumnetworks,xv2-21x; }
@@ -552,7 +552,7 @@ cheetah_first_boot=$(board_name() { echo cambiumnetworks,xv2-21x; }
 	ab_board cambiumnetworks,xv2-21x && ab_guarded_command 0)
 assert "Cheetah first boot is the module's guarded command" [ "$(env_get bootcmd)" = "$cheetah_first_boot" ]
 assert "Cheetah first boot sets bootargs for rootfs" [ "$(env_get bootcmd)" = \
-	'setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot; bootipq' ]
+	'setenv bootcmd bootipq; setenv changing_bootcmd; setenv image 1; setenv bootcount 0; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot; bootipq' ]
 assert "Cheetah install hashed the kernel and rootfs back" said 'kernel volume reads back as built'
 assert "Cheetah wrote only rootfs" [ -z "$(grep -E '(format|mkvol|rmvol|update) mtd3' "$W/calls")" ]
 ap cheetah XV2-21X 35 1; sed -i.bak '/0:TRAINING/d' "$RT/proc/mtd"
@@ -569,6 +569,33 @@ assert "nothing armed after the failure" [ "$(env_get bootcmd)" = bootipq ]
 ap cheetah XV2-21X 35 1; touch "$W/bad_format"
 check "Cheetah factory write that reads back wrong stops" 1 inst --from "$W/rel" --yes --backed-up --trial install
 assert "Cheetah bad read-back: nothing armed" [ "$(env_get bootcmd)" = bootipq ]
+
+# Pending OEM upgrade sentinels must not select the replaced bank.
+for counter in 8 9; do
+	ap cheetah XV2-21X 35 1
+	sed -i.bak "s/^bootcount=.*/bootcount=$counter/" "$W/env"
+	echo 100 > "$W/flash/mtd2.lebs"
+	check "Cheetah count $counter formatted RAM trial" 0 inst --from "$W/rel" --yes --backed-up --format-inactive ram
+	assert "Cheetah counter cleared before inactive format" sh -c 'case "$1" in *"setenv bootcount;detach mtd2;format mtd2"*) exit 0;; *) exit 1;; esac' sh "$(writes)"
+	assert "Cheetah RAM keeps surviving OEM selector" [ "$(env_get bootcount):$(env_get image)" = '0:1' ]
+	assert "Cheetah RAM preserves active OEM bank" [ "$(cat "$W/flash/mtd3/0.data")" = oem-slot-mtd3 ]
+done
+for fault in fail_bootcount stale_bootcount; do
+	ap cheetah XV2-21X 35 1
+	sed -i.bak 's/^bootcount=.*/bootcount=9/' "$W/env"
+	echo 100 > "$W/flash/mtd2.lebs"; touch "$W/$fault"
+	check "Cheetah counter $fault stops formatted RAM trial" 1 inst --from "$W/rel" --yes --backed-up --format-inactive ram
+	assert "Cheetah $fault prevents destructive writes and arming" [ -z "$(grep -E '^(detach|format|mkvol|rmvol|update|reboot)|^setenv (changing_bootcmd|bootcmd)' "$W/calls")" ]
+	assert "Cheetah $fault preserves OEM state" [ "$(env_get bootcount):$(env_get image):$(env_get bootcmd)" = '9:1:bootipq' ]
+done
+ap cheetah XV2-21X 35 1; sed -i.bak 's/^bootcount=.*/bootcount=9/' "$W/env"
+check "Cheetah counter 9 persistent install" 0 inst --from "$W/rel" --yes --backed-up install
+assert "Cheetah persistent clear precedes format" sh -c 'case "$1" in "setenv bootcount;format mtd2"*) exit 0;; *) exit 1;; esac' sh "$(writes)"
+assert "Cheetah persistent keeps OEM bank 1" [ "$(env_get bootcount):$(env_get image)" = '0:1' ]
+ap cheetah XV2-21X 35 1; sed -i.bak 's/^bootcount=.*/bootcount=9/' "$W/env"
+check "Cheetah counter 9 dry run" 0 inst --from "$W/rel" --backed-up --format-inactive ram
+assert "Cheetah dry run changes no environment or flash" nothing_written
+assert "Cheetah dry run retains pending counter" [ "$(env_get bootcount):$(env_get image)" = '9:1' ]
 
 # --- Sage -----------------------------------------------------------------------------------
 ap sage E410 10 0

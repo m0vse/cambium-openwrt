@@ -2,6 +2,13 @@
 
 XV2-21X (validated); XV2-22H, XV2-23T (RAM boot only).
 
+## Unreleased
+
+- Neutralize the captured Cheetah v2.7.5b OEM bootcount bank-switch sentinel
+  before inactive-bank writes and legacy boot rearming. Validate the surviving
+  OEM image selector, read back count zero, and save both in the trial prefix.
+  Covers RAM staging and persistent installation; not yet hardware-tested.
+
 ## 2026.09.26.0
 
 - XV2-21X A/B build and sysupgrade marked validated: installed from the
