@@ -271,10 +271,12 @@ ab_getenv() {
 
 # ab_setenv NAME [VALUE]: write one variable and read it back.
 ab_setenv() {
+	local observed
 	ab_env_config || return 1
 	if [ $# -ge 2 ]; then
 		fw_setenv -c "$AB_ENV_CONFIG" "$1" "$2" || return 1
-		[ "$(ab_getenv "$1")" = "$2" ]
+		observed=$(ab_getenv "$1") || return 1
+		[ "$observed" = "$2" ]
 	else
 		fw_setenv -c "$AB_ENV_CONFIG" "$1" || return 1
 		[ -z "$(ab_getenv "$1")" ]
