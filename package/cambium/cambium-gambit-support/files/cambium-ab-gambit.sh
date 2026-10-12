@@ -25,7 +25,9 @@ ab_gambit_boot_command() {
 	local offset
 	case "$1" in 0) offset=0x00000000 ;; 1) offset=0x03000000 ;; *) return 1 ;; esac
 	# 0x81000000 overlaps an expanded initramfs. Keep the proven safe address.
-	echo "setenv bootargs console=ttyS0,115200n8 ubi.mtd=rootfs$1 root=/dev/ubiblock0_1 rootfstype=squashfs init=/sbin/init panic=5 mem=128M; nboot 0x83000000 0 $offset"
+	# This nboot implementation replaces the bank AND bootargs at count 8/9.
+	# Clear before nboot, not only after userspace has passed its health check.
+	echo "setenv bootcount 0; setenv bootargs console=ttyS0,115200n8 ubi.mtd=rootfs$1 root=/dev/ubiblock0_1 rootfstype=squashfs init=/sbin/init panic=5 mem=128M; nboot 0x83000000 0 $offset"
 }
 
 ab_gambit_guarded_command() {
@@ -35,7 +37,7 @@ ab_gambit_guarded_command() {
 	oem=$(ab_getenv gambit_oem_slot)
 	case "$oem" in 0|1) ;; *) return 1 ;; esac
 	[ "$1" = "$((1 - oem))" ] || return 1
-	echo "setenv bootcmd $AB_STOCK_BOOTCMD; saveenv; $(ab_gambit_boot_command "$1")"
+	echo "setenv bootcmd $AB_STOCK_BOOTCMD; setenv bootcount 0; saveenv; $(ab_gambit_boot_command "$1")"
 }
 
 ab_gambit_running_slot() {
@@ -139,6 +141,9 @@ ab_gambit_write_target_inner() {
 	# Reject a mounted/attached target rather than detaching a live filesystem.
 	! ab_ubi_for_mtd "$AB_TARGET_MTD" >/dev/null || return 1
 	[ "$(head -c 4 "$AB_ROOT")" = hsqs ] || return 1
+	# A subsequent OEM nboot must not choose the bank about to be overwritten.
+	# ab_setenv verifies the persisted value; failure must precede every erase.
+	ab_gambit_reset_bootcount || return 1
 	ab_step "erase linux$AB_TARGET" flash_erase "$dev/mtd$idx" 0 0 &&
 		ab_step "write linux$AB_TARGET" nandwrite -p "$dev/mtd$idx" "$AB_KERNEL" || return 1
 	padded=$(( (AB_KERNEL_SIZE + 2047) / 2048 * 2048 ))
@@ -170,10 +175,13 @@ ab_gambit_root_healthy() {
 		END { exit !(rom && data && merged) }' "${AB_PROC_MOUNTS:-/proc/mounts}"
 }
 
-# OEM U-Boot increments this on every boot (limit eight). Clear it only after
-# the same root, networking and radio checks used to confirm other families.
-ab_gambit_healthy_boot() {
+ab_gambit_reset_bootcount() {
 	[ "$(ab_getenv bootcount)" = 0 ] || ab_setenv bootcount 0
+}
+
+# Retain the healthy-boot reset too. It alone cannot protect pre-init failures.
+ab_gambit_healthy_boot() {
+	ab_gambit_reset_bootcount
 }
 
 # Conversion's verified backup must cover the complete 48 MiB OEM bank,
