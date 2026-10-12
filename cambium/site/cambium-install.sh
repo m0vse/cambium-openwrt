@@ -132,6 +132,16 @@ setenv_checked() {
 	[ "$(getenv "$1")" = "$2" ] || die "U-Boot variable $1 did not read back after writing it"
 }
 
+# Jaguar 7.2 bootipq treats bootcount=8/9 as a bank-switch request. OEM
+# upgrades deliberately leave 9; a manual RAM boot does not consume it.
+# Clear it before modifying the other bank and again before arming, keeping
+# image on the surviving OEM bank. Other families need their own audit.
+jaguar_clear_bootcount() {
+	[ "$FAMILY" = jaguar ] || return 0
+	[ "$(getenv bootcount)" = 0 ] && return 0
+	setenv_checked bootcount 0
+}
+
 # --- release files -------------------------------------------------------------
 
 # fetch NAME: copy NAME from the source into $WORK.
@@ -218,6 +228,7 @@ require_stock_on_rootfs_1() {
 }
 
 layout_jaguar() {
+	local img expected
 	slots
 	case "$MODEL:$S0:$S1" in
 	XV2-2:03400000:03400000|XV2-2T0:06000000:06000000|XV2-2T1:06000000:06000000|\
@@ -227,6 +238,10 @@ layout_jaguar() {
 	# Bank 1 follows bank 0 directly.
 	bank_offset "$R0" 0 rootfs
 	bank_offset "$R1" $((0x$S0)) rootfs_1
+	if [ "$RUN" = "$R0" ]; then expected=0; else expected=1; fi
+	img=$(getenv image) || die "cannot read the Jaguar OEM image selector"
+	[ "$img" = "$expected" ] ||
+		die "the running Jaguar OEM bank is $expected but U-Boot image=$img: not changing anything"
 }
 # bank_offset MTD WANT NAME: the partition must start at NAND offset WANT
 # (bytes) where the kernel reports offsets.
@@ -480,17 +495,22 @@ stage_ram() {
 	bytes=$(wc -c < "$image")
 	want=$(sha256sum "$image" | cut -d' ' -f1)
 	attach "$mtd"; ubi=$UBI
-	[ -n "$(vol_of "$ubi" openwrt)" ] && step "remove the old staging volume" ubirmvol "$R/dev/$ubi" -N openwrt
+	if [ -n "$(vol_of "$ubi" openwrt)" ]; then
+		jaguar_clear_bootcount
+		step "remove the old staging volume" ubirmvol "$R/dev/$ubi" -N openwrt
+	fi
 	leb=$(cat "$R/sys/class/ubi/$ubi/eraseblock_size" 2>/dev/null)
 	free=$(cat "$R/sys/class/ubi/$ubi/avail_eraseblocks" 2>/dev/null)
 	if [ -n "$leb" ] && [ -n "$free" ] && [ "$free" -lt $(( (bytes + leb - 1) / leb )) ]; then
 		[ -n "$format_inactive" ] ||
 			die "the inactive slot (mtd$mtd) has $free free UBI eraseblocks but the RAM image needs $(( (bytes + leb - 1) / leb )): its stock firmware copy fills it. Run again with --format-inactive to erase that slot (it is backed up) and stage the image there"
+		jaguar_clear_bootcount
 		say "erasing the inactive slot mtd$mtd (--format-inactive; its backup is off the access point)"
 		step "ubidetach mtd$mtd" ubidetach -m "$mtd"
 		step "ubiformat mtd$mtd" ubiformat "$R/dev/mtd$mtd" -y
 		attach "$mtd"; ubi=$UBI
 	fi
+	jaguar_clear_bootcount
 	step "ubimkvol openwrt ($bytes bytes) on $ubi" \
 		ubimkvol "$R/dev/$ubi" -N openwrt -s "$bytes"
 	vol=$(vol_of "$ubi" openwrt)
@@ -518,6 +538,7 @@ verify_factory() {
 
 # arm BOOTCMD: arm a one-shot (changing_bootcmd first, as this U-Boot needs).
 arm() {
+	jaguar_clear_bootcount
 	if [ "$FAMILY" != sage ] && [ "$FAMILY" != gambit ]; then
 		setenv_checked changing_bootcmd 1
 	fi
@@ -614,7 +635,7 @@ cmd_ram() {
 		backup "$R/dev/mtd${t}ro"
 		dry_run_stop "stage the RAM image in $tpart (mtd$t) and boot it once"
 		stage_ram "$image" "$t"
-		arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@$off($upart)\" && ubi part $upart && ubi read 0x60000000 openwrt && ${bootargs}bootm 0x60000000#$CONFIG; reset"
+		arm "setenv bootcmd bootipq; setenv changing_bootcmd; setenv bootcount 0; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@$off($upart)\" && ubi part $upart && ubi read 0x60000000 openwrt && ${bootargs}bootm 0x60000000#$CONFIG; reset"
 		;;
 	thor)
 		[ -n "$ptest" ] && die "--persistent-test is for Jaguar"
@@ -670,6 +691,7 @@ install_jaguar() {
 	need ubiformat ubiattach ubidetach
 	backup "$R/dev/mtd${t}ro"
 	dry_run_stop "write the persistent image over $([ "$tslot" = 0 ] && echo rootfs || echo rootfs_1) (mtd$t) and boot it once"
+	jaguar_clear_bootcount
 	ubi=$(ubi_of_mtd "$t")
 	[ -n "$ubi" ] && step "ubidetach mtd$t" ubidetach -m "$t"
 	step "ubiformat mtd$t with ${image##*/}" ubiformat "$R/dev/mtd$t" -y -f "$image"
@@ -680,8 +702,8 @@ install_jaguar() {
 	verify_factory "$ubi" "$contents"
 	say "slot $tslot (mtd$t) holds kernel, rootfs, rootfs_data and cambium_device_data"
 	case "$tslot" in
-	0) arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$CONFIG; reset" ;;
-	1) arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@$BANK(fs)\" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$CONFIG; reset" ;;
+	0) arm "setenv bootcmd bootipq; setenv changing_bootcmd; setenv bootcount 0; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$CONFIG; reset" ;;
+	1) arm "setenv bootcmd bootipq; setenv changing_bootcmd; setenv bootcount 0; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@$BANK(fs)\" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$CONFIG; reset" ;;
 	esac
 	say "guarded first boot of slot $tslot armed: after a healthy start OpenWrt re-arms its boot; otherwise the next boot returns to the stock firmware."
 	say "in OpenWrt: set a root password (passwd); cat /tmp/cambium-board-data.status should say vault"
