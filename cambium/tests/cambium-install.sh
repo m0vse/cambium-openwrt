@@ -354,7 +354,7 @@ said() { grep -q -- "$1" "$W/out"; }
 nothing_written() { [ -z "$(writes)" ]; }
 
 # Validated one-shots (as on the site), with CONFIG filled in.
-jaguar_ram() { echo "setenv bootcmd bootipq; setenv changing_bootcmd; setenv bootcount 0; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$1@$2($3)\" && ubi part $3 && ubi read 0x60000000 openwrt && bootm 0x60000000#$4; reset"; }
+jaguar_ram() { echo "if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image $([ "$3" = rootfs ] && echo 1 || echo 0) && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$1@$2($3)\" && ubi part $3 && ubi read 0x60000000 openwrt && bootm 0x60000000#$4; reset; fi"; }
 # Matching OEM 7.2 Jaguar bootipq switches banks for counters 8/9.
 # This models the subsequent OEM selection, not a hardware boot test.
 jaguar_oem_next_slot() {
@@ -415,7 +415,7 @@ for run in 0 1; do
 	assert "count 9 cleared with surviving bank $run preserved" [ "$(env_get bootcount):$(env_get image):$(env_get nvram_badcount)" = "0:$run:1" ]
 	assert "next OEM boot stays on surviving bank $run" [ "$(jaguar_oem_next_slot)" = "$run" ]
 	assert "surviving OEM bank $run is untouched" [ "$(cat "$W/flash/mtd$active/0.data")" = "oem-slot-mtd$active" ]
-	assert "one-shot clears count before saving fallback" sh -c 'case "$1" in "setenv bootcmd bootipq; setenv changing_bootcmd; setenv bootcount 0; saveenv;"*) exit 0;; *) exit 1;; esac' sh "$(env_get bootcmd)"
+	assert "one-shot saves safe fallback before allowing boot/reset" sh -c 'case "$1" in "if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image $2 && setenv bootcount 0 && saveenv; then "*) exit 0;; *) exit 1;; esac' sh "$(env_get bootcmd)" "$run"
 done
 
 for fault in fail_bootcount stale_bootcount; do
@@ -448,7 +448,7 @@ assert "layout refusal wrote nothing" nothing_written
 ap jaguar XV2-2T1 31 1
 check "persistent RAM test" 0 inst --from "$W/rel" --yes --backed-up --persistent-test --trial ram
 assert "persistent RAM test attaches no bank (own bootargs)" [ "$(env_get bootcmd)" = \
-	'setenv bootcmd bootipq; setenv changing_bootcmd; setenv bootcount 0; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 openwrt && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab swiotlb=1" && bootm 0x60000000#config@cp01-c1-2; reset' ]
+	'if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image 1 && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 openwrt && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab swiotlb=1" && bootm 0x60000000#config@cp01-c1-2; reset; fi' ]
 
 ap jaguar XV2-2T0 22 1
 check "untested persistent install refused without --trial" 1 inst --from "$W/rel" --yes --backed-up install
@@ -458,13 +458,13 @@ check "XV2-2T0 install with --trial" 0 inst --from "$W/rel" --yes --backed-up --
 ap jaguar XV2-2T1 31 1
 check "Jaguar XV2-2T1 persistent install (validated, no --trial)" 0 inst --from "$W/rel" --yes --backed-up install
 assert "Jaguar first boot is the validated guarded command" [ "$(env_get bootcmd)" = \
-	'setenv bootcmd bootipq; setenv changing_bootcmd; setenv bootcount 0; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1-2; reset' ]
+	'if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image 1 && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1-2; reset; fi' ]
 assert "Jaguar install formatted only rootfs" [ "$(writes)" = "format mtd1 $p-qualcommax-ipq60xx-cambiumnetworks_jaguar-persistent-squashfs-factory.ubi;attach(plain) mtd1;setenv changing_bootcmd;setenv bootcmd;reboot;" ]
 assert "Jaguar install hashed the kernel and rootfs back" said 'kernel volume reads back as built'
 ap jaguar XV2-2 20 0 03400000
 check "XV2-2 install into slot 1 (stock on slot 0)" 0 inst --from "$W/rel" --yes --backed-up --trial install
 assert "slot-1 guarded first boot" [ "$(env_get bootcmd)" = \
-	'setenv bootcmd bootipq; setenv changing_bootcmd; setenv bootcount 0; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x3400000@0x3400000(fs)" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1; reset' ]
+	'if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image 0 && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x3400000@0x3400000(fs)" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1" && bootm 0x60000000#config@cp01-c1; reset; fi' ]
 assert "slot-1 install wrote only mtd2" [ -z "$(grep -E '(format|mkvol|update) mtd1' "$W/calls")" ]
 for run in 0 1; do
 	ap jaguar XV2-2 20 "$run" 03400000

@@ -62,5 +62,5 @@ ab_jaguar_guarded_command() {
 	1) mtdparts="$(ab_bank_hex)@$AB_SLOT1_OFFSET(fs)"; part=fs ;;
 	*) echo "cambium-ab: invalid slot $1" >&2; return 1 ;;
 	esac
-	echo "setenv bootcmd bootipq; setenv changing_bootcmd; setenv bootcount 0; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$mtdparts\" && ubi part $part && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=$(ab_bank_name "$1") root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$AB_FIT; reset"
+	echo "if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image $((1 - $1)) && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$mtdparts\" && ubi part $part && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=$(ab_bank_name "$1") root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$AB_FIT; reset; fi"
 }
