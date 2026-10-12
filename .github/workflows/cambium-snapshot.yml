@@ -159,6 +159,7 @@ jobs:
           python3 cambium/tests/gambit-mac.py
           python3 cambium/tests/gambit-leds.py
           python3 cambium/tests/gambit-bootcount.py
+          python3 cambium/tests/thor-miami-oem-bootcount.py
 
       - name: Render the changelogs
         run: |

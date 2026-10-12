@@ -328,7 +328,7 @@ ap() {
 	mkdir -p "$RT/sys/class/ubi/ubi0"; echo "$running" > "$RT/sys/class/ubi/ubi0/mtd_num"
 	(. "$W/bin/_sim"; refresh ubi0 "$running")
 	case "$fam" in
-	thor) printf '%s\n' 'bootcmd=aq_load_fw&&bootipq' 'image=1' > "$W/env" ;;
+	thor) printf '%s\n' 'bootcmd=aq_load_fw&&bootipq' 'image=1' 'bootcount=0' > "$W/env" ;;
 	*) printf '%s\n' 'bootcmd=bootipq' "image=$run" 'bootcount=0' > "$W/env" ;;
 	esac
 }
@@ -363,7 +363,7 @@ jaguar_oem_next_slot() {
 	*) env_get image ;;
 	esac
 }
-thor_one() { echo "setenv changing_bootcmd; setenv bootcmd \"aq_load_fw&&bootipq\"; saveenv; aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x0(rootfs)\"; ubi part rootfs; ubi read 0x60000000 $1; bootm 0x60000000#config@hk02; bootipq"; }
+thor_one() { echo "if setenv bootcount 0 && setenv image 1 && setenv bootcmd \"aq_load_fw&&bootipq\" && setenv changing_bootcmd && saveenv; then aq_load_fw && nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:0x6000000@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 $1 && bootm 0x60000000#config@hk02; aq_load_fw && bootipq; fi"; }
 
 # --- Jaguar ----------------------------------------------------------------------------
 # The XV2-2T1 stock firmware also lists its root UBI volume as a second
@@ -490,12 +490,13 @@ assert "Thor one-shot is the validated command" [ "$(env_get bootcmd)" = "$(thor
 assert "Thor attaches with /dev/ubi_ctrl" grep -q 'attach(ctrl) mtd1' "$W/calls"
 thor_first_boot=$(board_name() { echo cambiumnetworks,xv3-8; }
 	CAMBIUM_AB_MODULES=$top/package/cambium/cambium-thor-support/files . "$top/package/cambium/cambium-ab/files/cambium-ab.sh"
+	ab_getenv() { sed -n "s/^$1=//p" "$W/env"; }
 	ab_board cambiumnetworks,xv3-8 && ab_guarded_command 0)
 ap thor XV3-8 19 1
 check "Thor install from a stock firmware with ubiformat (validated: no --trial)" 0 inst --from "$W/rel" --yes --backed-up install
 assert "Thor first boot is the module's guarded command" [ "$(env_get bootcmd)" = "$thor_first_boot" ]
 assert "Thor first boot restores the stock default, then boots rootfs" [ "$(env_get bootcmd)" = \
-	'setenv changing_bootcmd; setenv bootcmd "aq_load_fw&&bootipq"; saveenv; aq_load_fw; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && bootm 0x60000000#config@hk02; bootipq' ]
+	"$(thor_one kernel)" ]
 assert "Thor install formatted only rootfs" [ "$(writes)" = "format mtd1 $p-qualcommax-ipq807x-cambiumnetworks_thor-persistent-squashfs-factory.ubi;attach(ctrl) mtd1;setenv changing_bootcmd;setenv bootcmd;reboot;" ]
 assert "Thor install hashed the kernel and rootfs back" said 'kernel volume reads back as built'
 # A stock firmware without ubiformat RAM-boots the installer instead.
@@ -519,11 +520,12 @@ assert "stage 2 arms the guarded first boot" [ "$(env_get bootcmd)" = "$thor_fir
 ap thor XV3-8 19 0; mkdir -p "$RT/etc" "$RT/tmp/sysinfo"; : > "$RT/etc/openwrt_release"
 echo cambiumnetworks,xv3-8 > "$RT/tmp/sysinfo/board_name"
 echo 'console=ttyMSM0 ubi.mtd=rootfs root=/dev/ubiblock0_1' > "$RT/proc/cmdline"
-printf '%s\n' 'changing_bootcmd=1' 'bootcmd=aq_load_fw; nand device 0; ubi part rootfs; bootm 0x60000000#config@hk02' > "$W/env"
+printf '%s\n' 'changing_bootcmd=1' 'bootcmd=aq_load_fw; nand device 0; ubi part rootfs; bootm 0x60000000#config@hk02' 'image=1' 'bootcount=9' > "$W/env"
 check "stock: dry run" 0 inst --no-reboot stock
 assert "stock dry run writes nothing" nothing_written
 check "stock returns the default boot to the stock firmware" 0 inst --yes --no-reboot stock
 assert "stock default bootcmd, no marker" [ "$(env_get bootcmd):$(env_get changing_bootcmd)" = 'aq_load_fw&&bootipq:' ]
+assert "Thor explicit stock return clears count and keeps OEM bank" [ "$(env_get bootcount):$(env_get image)" = '0:1' ]
 printf '%s\n' 'changing_bootcmd=1' 'bootcmd=run thor_stable0' 'thor_ab_version=1' > "$W/env"
 check "stock refused once converted" 1 inst --yes --no-reboot stock
 assert "the converted refusal is explained" said 'both firmware banks run OpenWrt'
@@ -920,8 +922,8 @@ done
 # --- Miami ----------------------------------------------------------------------------------
 # miami_one VOLUME OFFSET BOOTARGS CONFIG: the variables of the validated one-shot.
 miami_load() { echo "nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts mtdparts=nand0:0x6000000@$2(fs) && ubi part fs && setenv miami_trial ubi_ready && run miami_save && ubi read 0x60000000 $1 && setenv miami_trial fit_loaded && run miami_save && run miami_boot"; }
-miami_boot() { echo "setenv bootargs $1; bootm 0x60000000#$2; setenv bootargs \${miami_oem_bootargs}; setenv miami_trial bootm_returned; run miami_save"; }
-MIAMI_ARMED='run miami_start && run miami_load; run miami_fallback'
+miami_boot() { echo "setenv bootargs $1 && bootm 0x60000000#$2; setenv bootargs \${miami_oem_bootargs} && setenv miami_trial bootm_returned && run miami_save"; }
+MIAMI_ARMED='if run miami_start; then run miami_load; run miami_fallback; fi'
 miami_rec=$W/rel/$p-qualcommbe-ipq53xx-cambiumnetworks_miami-recovery-initramfs-uImage.itb
 ap miami X7-35X 44 0
 check "Miami dry run passes its checks" 0 inst --from "$W/rel" ram
@@ -931,7 +933,7 @@ check "Miami RAM boot (stock on rootfs)" 0 inst --from "$W/rel" --yes --backed-u
 assert "Miami RAM one-shot armed" [ "$(env_get bootcmd):$(env_get changing_bootcmd)" = "$MIAMI_ARMED:1" ]
 assert "Miami RAM load reads the staged FIT from rootfs_1" [ "$(env_get miami_load)" = "$(miami_load "openwrt $(printf '0x%x' "$(wc -c < "$miami_rec")")" 0x60c0000)" ]
 assert "Miami RAM boot uses the recovery configuration" [ "$(env_get miami_boot)" = "$(miami_boot console=ttyMSM0,115200n8 config@mi01.6-acadia)" ]
-assert "Miami stock start restores bootipq first" [ "$(env_get miami_start)" = 'setenv bootcmd bootipq; setenv changing_bootcmd; setenv miami_trial entered; saveenv' ]
+assert "Miami stock start saves counter zero and surviving OEM bank first" [ "$(env_get miami_start)" = 'setenv bootcount 0 && setenv image 0 && setenv bootcmd bootipq && setenv changing_bootcmd && setenv miami_trial entered && saveenv' ]
 assert "Miami RAM staged only in rootfs_1" [ -z "$(grep -E '(mkvol|rmvol|update) mtd3' "$W/calls")" ]
 assert "Miami stock bank untouched" [ "$(cat "$W/flash/mtd3/0.data")" = oem-slot-mtd3 ]
 
@@ -993,6 +995,28 @@ assert "the refusal says to return to the stock firmware first" said 'upgrade ru
 ap miami X7-55X 42 0
 check "X7-55X install refused (no build)" 1 inst --from "$W/rel" --yes --backed-up install
 assert "X7-55X refusal gives the reason" said 'not in the Miami family image yet'
+
+# Each audited family cancels the OEM sentinel before any inactive-bank write.
+for family in thor miami; do
+	for running in 0 1; do
+		[ "$family:$running" != thor:0 ] || continue
+		for operation in ram install; do
+			if [ "$family" = thor ]; then ap thor XV3-8 19 "$running"; else ap miami X7-35X 44 "$running"; fi
+			sed -i.bak 's/^bootcount=.*/bootcount=9/' "$W/env"
+			check "$family count9 $operation dry run" 0 inst --from "$W/rel" "$operation"
+			assert "$family dry run preserves counter and flash" nothing_written
+			check "$family count9 $operation" 0 inst --from "$W/rel" --yes --backed-up "$operation"
+			assert "$family keeps surviving OEM selector" [ "$(env_get bootcount):$(env_get image)" = "0:$running" ]
+			assert "$family clears counter before bank write" sh -c 'awk '\''/^setenv bootcount$/ { safe=1 } /^(format|mkvol|rmvol|update) / { if (!safe) exit 1; found=1 } END { if (!found) exit 1 }'\'' "$1"' sh "$W/calls"
+			for fault in fail_bootcount stale_bootcount; do
+				if [ "$family" = thor ]; then ap thor XV3-8 19 "$running"; else ap miami X7-35X 44 "$running"; fi
+				sed -i.bak 's/^bootcount=.*/bootcount=9/' "$W/env"; touch "$W/$fault"
+				check "$family $operation refuses $fault" 1 inst --from "$W/rel" --yes --backed-up "$operation"
+				assert "$family failed reset never writes or arms" [ -z "$(grep -E '^(format|mkvol|rmvol|update|reboot)|^setenv (changing_bootcmd|bootcmd)' "$W/calls")" ]
+			done
+		done
+	done
+done
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
