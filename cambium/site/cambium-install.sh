@@ -128,8 +128,10 @@ getenv() { fw_printenv -n "$1" 2>/dev/null; }
 
 # setenv_checked NAME VALUE: write one U-Boot variable and read it back.
 setenv_checked() {
+	local observed
 	step "fw_setenv $1" fw_setenv "$1" "$2"
-	[ "$(getenv "$1")" = "$2" ] || die "U-Boot variable $1 did not read back after writing it"
+	observed=$(getenv "$1") || die "cannot read U-Boot variable $1 after writing it"
+	[ "$observed" = "$2" ] || die "U-Boot variable $1 did not read back after writing it"
 }
 
 # Jaguar 7.2 bootipq treats bootcount=8/9 as a bank-switch request. OEM
@@ -137,24 +139,30 @@ setenv_checked() {
 # Clear it before modifying the other bank and again before arming, keeping
 # image on the surviving OEM bank. Other families need their own audit.
 jaguar_clear_bootcount() {
+	local count
 	[ "$FAMILY" = jaguar ] || return 0
-	[ "$(getenv bootcount)" = 0 ] && return 0
+	count=$(getenv bootcount) || die 'cannot read the Jaguar OEM bootcount'
+	[ "$count" = 0 ] && return 0
 	setenv_checked bootcount 0
 }
 
 # Captured Cheetah v2.7.5b also switches image for counters 8/9. This
 # installer supports stock on rootfs_1 only; keep that surviving OEM bank.
 cheetah_clear_bootcount() {
+	local image count after
 	[ "$FAMILY" = cheetah ] || return 0
-	[ "$(getenv image)" = 1 ] || die 'the surviving Cheetah OEM image is not 1'
-	[ "$(getenv bootcount)" = 0 ] || setenv_checked bootcount 0
-	[ "$(getenv image)" = 1 ] || die 'Cheetah OEM image changed while clearing bootcount'
+	image=$(getenv image) || die 'cannot read the Cheetah OEM image selector'
+	[ "$image" = 1 ] || die 'the surviving Cheetah OEM image is not 1'
+	count=$(getenv bootcount) || die 'cannot read the Cheetah OEM bootcount'
+	[ "$count" = 0 ] || setenv_checked bootcount 0
+	after=$(getenv image) || die 'cannot re-read the Cheetah OEM image selector'
+	[ "$after" = 1 ] || die 'Cheetah OEM image changed while clearing bootcount'
 }
 
 # Independently audited Thor/Miami bootipq consumes an 8/9 counter by
 # switching image. Verify the surviving OEM selector before any bank write.
 thor_miami_clear_bootcount() {
-	local expected image after
+	local expected image after count
 	case "$FAMILY" in
 	thor) expected=1 ;;
 	miami) [ "$RUN" = "$R0" ] && expected=0 || expected=1 ;;
@@ -162,7 +170,8 @@ thor_miami_clear_bootcount() {
 	esac
 	image=$(getenv image) || die "cannot read the $FAMILY OEM image selector"
 	[ "$image" = "$expected" ] || die "$FAMILY OEM image=$image is not surviving bank $expected"
-	[ "$(getenv bootcount)" = 0 ] || setenv_checked bootcount 0
+	count=$(getenv bootcount) || die "cannot read the $FAMILY OEM bootcount"
+	[ "$count" = 0 ] || setenv_checked bootcount 0
 	after=$(getenv image) || die "cannot re-read the $FAMILY OEM image selector"
 	[ "$after" = "$image" ] || die "$FAMILY OEM image changed while clearing bootcount"
 }
