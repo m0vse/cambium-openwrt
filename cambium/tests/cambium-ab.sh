@@ -933,7 +933,7 @@ assert "Thor slot 0 boot command (config@hk02 is rooted in rootfs)" [ "$(in_lib 
 assert "Thor slot 1 boot command (config@hk02-bank1)" [ "$(in_lib eval "ab_board $T; ab_boot_command 1")" = \
 	'aq_load_fw; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x6000000(fs)" && ubi part fs && ubi read 0x60000000 kernel && bootm 0x60000000#config@hk02-bank1' ]
 assert "Thor guarded command restores the stock default first" [ "$(in_lib eval "ab_board $T; ab_guarded_command 0")" = \
-	'setenv changing_bootcmd; setenv bootcmd "aq_load_fw&&bootipq"; saveenv; aq_load_fw; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && bootm 0x60000000#config@hk02; bootipq' ]
+	'if setenv bootcount 0 && setenv image 1 && setenv bootcmd "aq_load_fw&&bootipq" && setenv changing_bootcmd && saveenv; then aq_load_fw && nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x0(rootfs)" && ubi part rootfs && ubi read 0x60000000 kernel && bootm 0x60000000#config@hk02; aq_load_fw && bootipq; fi' ]
 
 new_ap $T; oem_before=$(bank_hash 1)
 check "Thor first boot fills the vault" 0 run_board_data

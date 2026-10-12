@@ -159,7 +159,9 @@ jobs:
           python3 cambium/tests/gambit-mac.py
           python3 cambium/tests/gambit-leds.py
           python3 cambium/tests/gambit-bootcount.py
-          python3 cambium/tests/thor-miami-oem-bootcount.py
+
+      - name: Test Thor and Miami OEM fallback safety
+        run: python3 cambium/tests/thor-miami-oem-bootcount.py
 
       - name: Test Jaguar durable-environment boot failures
         run: python3 cambium/tests/jaguar-bootcount.py
