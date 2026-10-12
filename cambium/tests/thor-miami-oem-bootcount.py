@@ -234,6 +234,47 @@ set -- --yes
                         self.assertEqual(actions, ['action:set:bootcount']
                             if fault in ('write', 'stale', 'moved') else [], (family, slot, fault))
 
+    def test_installer_helpers_reject_expected_output_with_error_status(self):
+        helpers = '\n'.join(function(name) for name in (
+            'setenv_checked', 'jaguar_clear_bootcount', 'cheetah_clear_bootcount', 'thor_miami_clear_bootcount'))
+        for family in ('jaguar', 'cheetah', 'thor', 'miami'):
+            for failure in ('already-zero', 'post-write', 'post-write-image'):
+                body = helpers + r'''
+FAMILY=$1; fault=$2; G_VALUE=9
+[ "$fault" != already-zero ] || G_VALUE=0
+RUN=2 R0=1
+die() { exit 1; }
+getenv() {
+    case "$1" in
+    image) echo 1; [ "$fault:$G_VALUE" != post-write-image:0 ];;
+    bootcount) echo "$G_VALUE"; [ "$fault" != already-zero ] && [ "$fault:$G_VALUE" != post-write:0 ];;
+    esac
+}
+fw_setenv() { G_VALUE=$2; }
+step() { shift; "$@"; }
+case "$FAMILY" in
+jaguar) jaguar_clear_bootcount;; cheetah) cheetah_clear_bootcount;; *) thor_miami_clear_bootcount;;
+esac
+'''
+                result = subprocess.run(COMMAND + ['-s', '--', family, failure], input=body,
+                                        text=True, capture_output=True)
+                if failure == 'post-write-image' and family == 'jaguar':
+                    continue  # Jaguar's family selector policy is checked separately.
+                self.assertNotEqual(result.returncode, 0, (family, failure, result))
+
+    def test_core_verified_value_write_checks_getter_status(self):
+        source = (ROOT / 'package/cambium/cambium-ab/files/cambium-ab.sh').read_text()
+        start = source.index('ab_setenv() {')
+        stop = source.index('\n}', start) + 2
+        program = source[start:stop] + r'''
+ab_env_config() { AB_ENV_CONFIG=mock; }
+fw_setenv() { return 0; }
+ab_getenv() { echo 0; return 1; }
+ab_setenv bootcount 0
+'''
+        result = subprocess.run(COMMAND + ['-s'], input=program, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+
 
 if __name__ == '__main__':
     unittest.main()
