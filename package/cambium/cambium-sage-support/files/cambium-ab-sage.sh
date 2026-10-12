@@ -68,7 +68,10 @@ ab_sage_boot_command() {
 	case "$slot" in 0|1) ;; *) echo "cambium-ab: invalid slot $slot" >&2; return 1 ;; esac
 	if [ "$AB_MODEL" = E600 ] && [ "$(ab_getenv sage_oem_fallback)" = "$slot" ]; then
 		# The OEM FIT does not contain OpenWrt's config@10.
-		echo "setenv image $slot; bootipq"
+		# Sage bootipq consumes OEM bootcount=8/9 by toggling image.
+		# Clear it immediately before OEM selection, including a fallback
+		# reached after an OpenWrt bootm returns. bootipq persists count 1.
+		echo "setenv bootcount 0; setenv image $slot; bootipq"
 		return 0
 	fi
 	format=$(ab_sage_root_format "$slot") || return 1
