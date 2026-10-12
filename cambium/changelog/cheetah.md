@@ -8,6 +8,9 @@ XV2-21X (validated); XV2-22H, XV2-23T (RAM boot only).
   before inactive-bank writes and legacy boot rearming. Validate the surviving
   OEM image selector, read back count zero, and save both in the trial prefix.
   Covers RAM staging and persistent installation; not yet hardware-tested.
+- Gate candidate/OEM execution on successful environment writes and save.
+  Apply OEM counter/selector preflight to both legacy health outcomes only;
+  converted A/B boots retain their independent slot policy.
 
 ## 2026.09.26.0
 
