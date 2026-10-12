@@ -27,9 +27,9 @@ AB_STOCK_BOOTCMD=$G_BOOT
 ab_bank_hex() { echo 0x6000000; }
 ab_getenv() {
     case "$1" in
-    image) [ "$fault" != read-image ] || return 1; echo "$G_IMAGE";;
-    bootcount) [ "$fault" != read-count ] || return 1; echo "$G_COUNT";;
-    bootcmd) echo "$G_BOOT";;
+    image) [ "$fault" != read-image ] || return 1; echo "$G_IMAGE"; [ "$fault" != read-image-valid ];;
+    bootcount) [ "$fault" != read-count ] || return 1; echo "$G_COUNT"; [ "$fault" != read-count-valid ];;
+    bootcmd) echo "$G_BOOT"; [ "$fault" != read-boot-valid ];;
     *) printenv "$1";;
     esac
 }
@@ -107,6 +107,32 @@ miami_oneshot kernel "console=ttyMSM0 ubi.mtd=$([ "$G_SLOT" = 0 ] && echo rootfs
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), f'candidate\nreset:0:{1-slot}')
 
+    def test_thor_late_failures_can_fall_back_only_after_safe_save(self):
+        body = r'''
+G_AQ=0
+aq_load_fw() {
+    G_AQ=$((G_AQ+1))
+    [ "$fault:$G_AQ" != first-aq:1 ] && [ "$fault:$G_AQ" != fallback-aq:2 ]
+}
+nand() { echo nand; [ "$fault" != nand ]; }
+ubi() { echo "$1"; [ "$fault" != "$1" ]; }
+bootm() { echo bootm; return 1; }
+cmd=$(ab_thor_guarded_command "$G_SLOT") || exit 1
+eval "$cmd"
+:
+'''
+        events = {
+            'first-aq': [], 'nand': ['nand'], 'part': ['nand', 'part'],
+            'read': ['nand', 'part', 'read'],
+            'bootm': ['nand', 'part', 'read', 'bootm'],
+            'fallback-aq': ['nand', 'part', 'read', 'bootm'],
+        }
+        for slot in (0, 1):
+            for fault, before in events.items():
+                result = self.run_case('thor', slot, fault, body)
+                expected = before + ([] if fault == 'fallback-aq' else [f'oem:0:{1-slot}'])
+                self.assertEqual(result.stdout.splitlines(), expected, (slot, fault, result.stderr))
+
     def test_miami_each_start_failure_cannot_reset_to_old_durable_nine(self):
         for slot in (0, 1):
             for fault in ('bootcount', 'image', 'bootcmd', 'changing_bootcmd', 'miami_trial', 'saveenv'):
@@ -125,7 +151,7 @@ miami_oneshot kernel "console=ttyMSM0 ubi.mtd=$([ "$G_SLOT" = 0 ] && echo rootfs
     def test_family_hooks_preserve_oem_and_check_write_readback(self):
         for family in ('thor', 'miami'):
             for slot in (0, 1):
-                for fault in ('ok', 'write', 'stale', 'moved', 'read-image', 'read-count', 'selector'):
+                for fault in ('ok', 'write', 'stale', 'moved', 'read-image', 'read-count', 'read-image-valid', 'read-count-valid', 'selector'):
                     body = r'''
 [ "$fault" != selector ] || G_IMAGE=$G_SLOT
 ab_setenv() {
@@ -148,7 +174,7 @@ echo "$rc:$G_COUNT:$G_IMAGE"
         guard = ROOT / 'package/cambium/cambium-ab/files/cambium-ab-guard'
         for family in ('thor', 'miami'):
             helpers = self.miami_helpers() if family == 'miami' else ''
-            for fault in ('ok', 'write', 'selector', 'independent'):
+            for fault in ('ok', 'write', 'selector', 'independent', 'read-boot-valid'):
                 body = f'''
 export CAMBIUM_SYSTEM_FUNCTIONS=/dev/null CAMBIUM_AB_LIB="$1" AB_GUARD_SOURCE_ONLY=1
 . "{guard}"
@@ -166,6 +192,47 @@ rc=$?; echo "rc:$rc"
 '''
                 result = self.run_case(family, 0, fault, body, helpers)
                 self.assertEqual(result.stdout.strip(), 'reboot:0:1\nrc:0' if fault == 'ok' else 'rc:1', (family, fault, result.stderr))
+
+    def test_complete_stock_consumer_orders_sanitation_before_changes(self):
+        stock = (ROOT / 'package/cambium/cambium-ab/files/cambium-ab-stock').read_text()
+        body = r'''
+export CAMBIUM_SYSTEM_FUNCTIONS=/dev/null CAMBIUM_AB_LIB="$1" AB_GUARD_INIT=guard_stop
+AB_FAMILY=$family AB_LAYOUT=banks AB_MARKER=1
+G_BOOT=guarded-trial
+ab_family() { return 0; }
+board_name() { echo mocked-board; }
+ab_board() { return 0; }
+ab_converted() { [ "$fault" = converted ]; }
+ab_hook() { command -v "ab_${AB_FAMILY}_$1" >/dev/null; }
+[ "$fault" != selector ] || G_IMAGE=$G_SLOT
+ab_setenv() {
+    echo "action:set:$1"
+    [ "$fault" != write ] || return 1
+    [ "$fault" != stale ] || return 0
+    case "$1" in bootcount) G_COUNT=$2;; bootcmd) G_BOOT=$2;; esac
+    [ "$fault" != moved ] || G_IMAGE=$G_SLOT
+}
+guard_stop() { echo action:guard-stop; }
+logger() { :; }
+set -- --yes
+[ "$fault" != dry-run ] || set --
+'''
+        for family in ('thor', 'miami'):
+            for slot in (0, 1):
+                for fault in ('ok', 'write', 'stale', 'moved', 'selector', 'converted', 'dry-run'):
+                    result = self.run_case(family, slot, fault, body + '\n' + stock)
+                    actions = [line for line in result.stdout.splitlines() if line.startswith('action:')]
+                    if fault == 'ok':
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(actions, ['action:set:bootcount', 'action:guard-stop',
+                            'action:set:bootcmd', 'action:set:changing_bootcmd'])
+                    elif fault == 'dry-run':
+                        self.assertEqual(result.returncode, 0)
+                        self.assertEqual(actions, [])
+                    else:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertEqual(actions, ['action:set:bootcount']
+                            if fault in ('write', 'stale', 'moved') else [], (family, slot, fault))
 
 
 if __name__ == '__main__':

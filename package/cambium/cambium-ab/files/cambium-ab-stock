@@ -44,7 +44,7 @@ echo "stock:   bootcmd=$AB_STOCK_BOOTCMD${image:+ (image=$image)}"
 
 ! ab_hook stock_prepare || "ab_${AB_FAMILY}_stock_prepare" ||
 	die 'cannot verify a safe OEM counter and surviving bank'
-/etc/init.d/cambium-ab-guard stop 2>/dev/null
+"${AB_GUARD_INIT:-/etc/init.d/cambium-ab-guard}" stop 2>/dev/null
 # The stock bootcmd first; only then drop the marker this U-Boot needs while
 # bootcmd differs from its default.
 ab_setenv bootcmd "$AB_STOCK_BOOTCMD" || die 'cannot write bootcmd'
