@@ -4,6 +4,12 @@ XV2-2, XV2-2T1, XE3-4 (validated); XV2-2T0, XE3-4TN (RAM boot only).
 
 ## Unreleased
 
+- Guarded RAM and persistent trial commands stop at the U-Boot prompt if
+  setting or saving the safe OEM fallback fails. They save the surviving
+  OEM bank and `bootcount=0` before any candidate boot or reset. Regression
+  tests model separate RAM and durable environments initially at counter 9;
+  this is source-level coverage, not new hardware qualification. Previously
+  published installers and saved AP commands are not updated automatically.
 - The XE3-4 RAM recovery image is validated too (no image change).
 - The XE3-4 (SKU 32) is validated for persistent install and A/B
   sysupgrade: both banks booted, switched both ways and upgraded from bank

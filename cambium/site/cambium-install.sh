@@ -669,7 +669,7 @@ cmd_ram() {
 		backup "$R/dev/mtd${t}ro"
 		dry_run_stop "stage the RAM image in $tpart (mtd$t) and boot it once"
 		stage_ram "$image" "$t"
-		arm "setenv bootcmd bootipq; setenv changing_bootcmd; setenv bootcount 0; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@$off($upart)\" && ubi part $upart && ubi read 0x60000000 openwrt && ${bootargs}bootm 0x60000000#$CONFIG; reset"
+		arm "if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image $((t == R0)) && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@$off($upart)\" && ubi part $upart && ubi read 0x60000000 openwrt && ${bootargs}bootm 0x60000000#$CONFIG; reset; fi"
 		;;
 	thor)
 		[ -n "$ptest" ] && die "--persistent-test is for Jaguar"
@@ -736,8 +736,8 @@ install_jaguar() {
 	verify_factory "$ubi" "$contents"
 	say "slot $tslot (mtd$t) holds kernel, rootfs, rootfs_data and cambium_device_data"
 	case "$tslot" in
-	0) arm "setenv bootcmd bootipq; setenv changing_bootcmd; setenv bootcount 0; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$CONFIG; reset" ;;
-	1) arm "setenv bootcmd bootipq; setenv changing_bootcmd; setenv bootcount 0; saveenv; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@$BANK(fs)\" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$CONFIG; reset" ;;
+	0) arm "if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image 1 && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$CONFIG; reset; fi" ;;
+	1) arm "if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image 0 && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:$BANK@$BANK(fs)\" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 cnss2.bdf_pci0=0xab ubi.mtd=rootfs_1 root=/dev/ubiblock0_1 rootfstype=squashfs rootwait swiotlb=1\" && bootm 0x60000000#$CONFIG; reset; fi" ;;
 	esac
 	say "guarded first boot of slot $tslot armed: after a healthy start OpenWrt re-arms its boot; otherwise the next boot returns to the stock firmware."
 	say "in OpenWrt: set a root password (passwd); cat /tmp/cambium-board-data.status should say vault"
