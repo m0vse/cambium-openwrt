@@ -666,7 +666,7 @@ cmd_ram() {
 		backup "$R/dev/mtd${R0}ro"
 		dry_run_stop "stage the RAM image in rootfs (mtd$R0) and boot it once"
 		stage_ram "$image" "$R0"
-		arm "setenv bootcmd bootipq; setenv changing_bootcmd; setenv image 1; setenv bootcount 0; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x80000(fs)\"; ubi part fs && ubi read 0x60000000 openwrt && bootm 0x60000000#$CONFIG; reset"
+		arm "if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image 1 && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:0x6000000@0x80000(fs)\" && ubi part fs && ubi read 0x60000000 openwrt && bootm 0x60000000#$CONFIG; reset; fi"
 		;;
 	miami)
 		[ -n "$ptest" ] && die "--persistent-test is for Jaguar"
@@ -739,7 +739,7 @@ install_cheetah() {
 	done
 	verify_factory "$ubi" "$contents"
 	# The cambium-ab Cheetah module's guarded boot of slot 0.
-	arm "setenv bootcmd bootipq; setenv changing_bootcmd; setenv image 1; setenv bootcount 0; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x80000(fs)\"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait\" && bootm 0x60000000#$CONFIG; bootipq"
+	arm "if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image 1 && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:0x6000000@0x80000(fs)\" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait\" && bootm 0x60000000#$CONFIG; bootipq; fi"
 	say "guarded first boot armed: after a healthy start OpenWrt re-arms its boot; otherwise the next boot returns to the stock firmware."
 }
 

@@ -54,15 +54,20 @@ ab_cheetah_guarded_command() {
 	boot=$(ab_cheetah_boot_command "$1") || return 1
 	# bootipq can toggle image for a pending OEM bootcount sentinel. Select
 	# the surviving OEM bank and neutralize that counter before saving fallback.
-	echo "setenv bootcmd bootipq; setenv changing_bootcmd; setenv image $((1 - $1)); setenv bootcount 0; saveenv; $boot; bootipq"
+	# Gate the entire candidate/fallback branch on a successful durable save.
+	# Turn this family's volatile setup sequence into a failure chain too.
+	boot=$(printf '%s\n' "$boot" | sed 's/; / \&\& /g') || return 1
+	echo "if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image $((1 - $1)) && setenv bootcount 0 && saveenv; then $boot; bootipq; fi"
 }
 
-# Called by the shared legacy guard before it re-arms a one-OEM trial.
+# Called only by the shared legacy guard before either rearming or OEM return.
 # Do not overwrite an independently changed OEM selector, and do not arm
 # anything unless the counter reset can be read back from the environment.
-ab_cheetah_healthy_boot() {
+ab_cheetah_legacy_boot() {
 	local slot image
 	slot=$(ab_running_slot) || return 1
+	case "$slot" in 0|1) ;; *) return 1 ;; esac
+	[ "$(ab_getenv bootcmd)" = "$AB_STOCK_BOOTCMD" ] || return 1
 	image=$(ab_getenv image)
 	[ "$image" = "$((1 - slot))" ] || return 1
 	ab_setenv bootcount 0 || return 1

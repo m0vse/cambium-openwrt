@@ -186,7 +186,13 @@ legacy_guard() {
 	slot=$(ab_running_slot 2>/dev/null) || return 0
 	bootcmd=$(ab_guarded_command "$slot") || return 1
 
-	if wait_healthy legacy; then
+	local health_ok=0
+	if wait_healthy legacy; then health_ok=1; fi
+	# A family's OEM-return safety check applies even when health failed.
+	# This hook must never run for converted two-OpenWrt-bank operation.
+	! ab_hook legacy_boot || "ab_${AB_FAMILY}_legacy_boot" || return 1
+
+	if [ "$health_ok" = 1 ]; then
 		[ "$(ab_getenv bootcmd)" = "$AB_STOCK_BOOTCMD" ] || {
 			log 'bootcmd changed independently; leaving it alone'
 			return 1

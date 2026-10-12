@@ -544,7 +544,7 @@ assert "XE5-8 refusal gives the reason" said 'flash layout not yet captured'
 ap cheetah XV2-21X 35 1
 check "Cheetah RAM boot" 0 inst --from "$W/rel" --yes --backed-up ram
 assert "Cheetah one-shot is the validated command" [ "$(env_get bootcmd)" = \
-	'setenv bootcmd bootipq; setenv changing_bootcmd; setenv image 1; setenv bootcount 0; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 openwrt && bootm 0x60000000#config@mp03.3-ocelot; reset' ]
+	'if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image 1 && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)" && ubi part fs && ubi read 0x60000000 openwrt && bootm 0x60000000#config@mp03.3-ocelot; reset; fi' ]
 ap cheetah XV2-21X 35 1
 check "Cheetah XV2-21X install (validated: no --trial)" 0 inst --from "$W/rel" --yes --backed-up install
 cheetah_first_boot=$(board_name() { echo cambiumnetworks,xv2-21x; }
@@ -552,7 +552,7 @@ cheetah_first_boot=$(board_name() { echo cambiumnetworks,xv2-21x; }
 	ab_board cambiumnetworks,xv2-21x && ab_guarded_command 0)
 assert "Cheetah first boot is the module's guarded command" [ "$(env_get bootcmd)" = "$cheetah_first_boot" ]
 assert "Cheetah first boot sets bootargs for rootfs" [ "$(env_get bootcmd)" = \
-	'setenv bootcmd bootipq; setenv changing_bootcmd; setenv image 1; setenv bootcount 0; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot; bootipq' ]
+	'if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image 1 && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot; bootipq; fi' ]
 assert "Cheetah install hashed the kernel and rootfs back" said 'kernel volume reads back as built'
 assert "Cheetah wrote only rootfs" [ -z "$(grep -E '(format|mkvol|rmvol|update) mtd3' "$W/calls")" ]
 ap cheetah XV2-21X 35 1; sed -i.bak '/0:TRAINING/d' "$RT/proc/mtd"

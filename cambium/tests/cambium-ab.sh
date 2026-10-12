@@ -914,10 +914,10 @@ assert "Cheetah slot 1 confirmed" [ "$(env_get cheetah_ab_confirmed):$(env_get c
 new_ap $C21; healthy_ap; mkdir -p "$S/ieee80211/phy0" "$S/ieee80211/phy1"; : > "$S/calls"
 check "Cheetah legacy guard re-arms slot 0" 0 guard
 assert "Cheetah legacy one-shot is the validated command with bootargs" [ "$(env_get bootcmd)" = \
-	'setenv bootcmd bootipq; setenv changing_bootcmd; setenv image 1; setenv bootcount 0; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot; bootipq' ]
+	'if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image 1 && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot; bootipq; fi' ]
 new_ap cambiumnetworks,xv2-22h; healthy_ap; : > "$S/calls"
 check "XV2-22H needs no radios to re-arm" 0 guard
-assert "XV2-22H legacy one-shot" grep -q 'bootm 0x60000000#config@mp03.3-cheetah; bootipq$' "$S/env"
+assert "XV2-22H legacy one-shot" grep -q 'bootm 0x60000000#config@mp03.3-cheetah; bootipq; fi$' "$S/env"
 assert "status names the Cheetah family" sh -c "sh '$ab_pkg/cambium-ab-status' | grep -qx 'family=cheetah'"
 
 # --- Thor (cambium-ab-thor.sh) -----------------------------------------------------
