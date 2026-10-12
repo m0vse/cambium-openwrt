@@ -974,7 +974,9 @@ sed -i.bak -e 's/^bootcmd=.*/bootcmd=bootipq/' -e '/^changing_bootcmd=/d' "$W/en
 printf '\320\015\376\355miami-kernel-2' > "$W/rel/$p-qualcommbe-ipq53xx-cambiumnetworks_miami-persistent-squashfs-kernel.itb"
 (cd "$W/rel" && sha256sum -- $(ls | grep -v -e SHA256SUMS -e test-only) > SHA256SUMS); cp "$W"/rel/* "$W/http/"
 : > "$W/calls"
+sed -i.bak 's/^bootcount=.*/bootcount=9/' "$W/env"
 check "Miami upgrade (reinstall keeping settings)" 0 inst --from "$W/rel" --yes --backed-up upgrade
+assert "Miami upgrade clears the pending OEM counter" [ "$(env_get bootcount):$(env_get image)" = '0:0' ]
 assert "Miami --keep-settings kept rootfs_data" [ "$(cat "$W/flash/mtd4/2.data")" = keep-these-settings ]
 assert "Miami --keep-settings wrote the new kernel" [ "$(cat "$W/flash/mtd4/0.data")" = "$(printf '\320\015\376\355miami-kernel-2')" ]
 assert "Miami --keep-settings removed only kernel and rootfs" [ "$(grep '^rmvol' "$W/calls" | tr '\n' ';')" = 'rmvol mtd4 kernel;rmvol mtd4 rootfs;' ]
@@ -998,22 +1000,26 @@ assert "X7-55X refusal gives the reason" said 'not in the Miami family image yet
 
 # Each audited family cancels the OEM sentinel before any inactive-bank write.
 for family in thor miami; do
-	for running in 0 1; do
-		[ "$family:$running" != thor:0 ] || continue
+	for counter_slot in 0 1; do
+		[ "$family:$counter_slot" != thor:0 ] || continue
 		for operation in ram install; do
-			if [ "$family" = thor ]; then ap thor XV3-8 19 "$running"; else ap miami X7-35X 44 "$running"; fi
+			if [ "$family" = thor ]; then ap thor XV3-8 19 "$counter_slot"; else ap miami X7-35X 44 "$counter_slot"; fi
 			sed -i.bak 's/^bootcount=.*/bootcount=9/' "$W/env"
 			check "$family count9 $operation dry run" 0 inst --from "$W/rel" "$operation"
 			assert "$family dry run preserves counter and flash" nothing_written
 			check "$family count9 $operation" 0 inst --from "$W/rel" --yes --backed-up "$operation"
-			assert "$family keeps surviving OEM selector" [ "$(env_get bootcount):$(env_get image)" = "0:$running" ]
+			assert "$family keeps surviving OEM selector" [ "$(env_get bootcount):$(env_get image)" = "0:$counter_slot" ]
 			assert "$family clears counter before bank write" sh -c 'awk '\''/^setenv bootcount$/ { safe=1 } /^(format|mkvol|rmvol|update) / { if (!safe) exit 1; found=1 } END { if (!found) exit 1 }'\'' "$1"' sh "$W/calls"
 			for fault in fail_bootcount stale_bootcount; do
-				if [ "$family" = thor ]; then ap thor XV3-8 19 "$running"; else ap miami X7-35X 44 "$running"; fi
+				if [ "$family" = thor ]; then ap thor XV3-8 19 "$counter_slot"; else ap miami X7-35X 44 "$counter_slot"; fi
 				sed -i.bak 's/^bootcount=.*/bootcount=9/' "$W/env"; touch "$W/$fault"
 				check "$family $operation refuses $fault" 1 inst --from "$W/rel" --yes --backed-up "$operation"
 				assert "$family failed reset never writes or arms" [ -z "$(grep -E '^(format|mkvol|rmvol|update|reboot)|^setenv (changing_bootcmd|bootcmd)' "$W/calls")" ]
 			done
+			if [ "$family" = thor ]; then ap thor XV3-8 19 "$counter_slot"; else ap miami X7-35X 44 "$counter_slot"; fi
+			sed -i.bak "s/^image=.*/image=$((1 - counter_slot))/" "$W/env"
+			check "$family $operation refuses mismatched OEM selector" 1 inst --from "$W/rel" --yes --backed-up "$operation"
+			assert "$family mismatched selector writes nothing" nothing_written
 		done
 	done
 done
