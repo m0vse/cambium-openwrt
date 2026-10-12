@@ -403,8 +403,8 @@ new_ap() {
 	touch "$S/dev/ubiblock0_1"
 	echo '/dev/ubi0_2 /overlay ubifs rw,noatime 0 0' > "$S/mounts"
 	if [ "$board" = cambiumnetworks,xv3-8 ]; then
-		# Thor's stock environment has no image variable.
-		printf '%s\n' 'bootcmd=aq_load_fw&&bootipq' 'changing_bootcmd=1' > "$S/env"
+		# Matching Thor bootipq uses image and an 8/9 upgrade sentinel too.
+		printf '%s\n' 'bootcmd=aq_load_fw&&bootipq' 'image=1' 'bootcount=0' 'changing_bootcmd=1' > "$S/env"
 	else
 		printf '%s\n' 'bootcmd=bootipq' 'image=1' 'changing_bootcmd=1' > "$S/env"
 	fi
@@ -965,7 +965,7 @@ thor_radios() {
 	fi
 }
 new_ap $T; healthy_ap; thor_radios 3; : > "$S/calls"
-check "Thor legacy guard re-arms slot 0 (no image variable)" 0 guard
+check "Thor legacy guard re-arms slot 0 with verified OEM selector" 0 guard
 assert "Thor legacy one-shot is the module's guarded command" [ "$(env_get bootcmd)" = "$(in_lib eval "ab_board $T; ab_guarded_command 0")" ]
 new_ap $T; healthy_ap; thor_radios 2; : > "$S/calls"
 check "Thor with two of its three radios is unhealthy" 0 guard
@@ -1416,14 +1416,14 @@ miami_oneshot_env() {
 	{
 		echo 'bootcmd=bootipq'
 		echo "image=$((1 - $1))"
-		echo 'miami_start=setenv bootcmd bootipq; setenv changing_bootcmd; setenv miami_trial entered; saveenv'
+		echo "miami_start=setenv bootcount 0 && setenv image $((1 - $1)) && setenv bootcmd bootipq && setenv changing_bootcmd && setenv miami_trial entered && saveenv"
 		echo "miami_load=nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts mtdparts=nand0:0x6000000@$offset(fs) && ubi part fs && setenv miami_trial ubi_ready && run miami_save && ubi read 0x60000000 kernel && setenv miami_trial fit_loaded && run miami_save && run miami_boot"
 		echo "miami_boot=setenv bootargs console=ttyMSM0,115200n8 ubi.mtd=$part root=/dev/ubiblock0_1 rootfstype=squashfs rootwait; bootm 0x60000000#config@mi01.6-acadia-$cfg; setenv bootargs \${miami_oem_bootargs}; setenv miami_trial bootm_returned; run miami_save"
 		echo 'miami_fallback=reset'
 	} > "$S/env"
 }
 miami_ap() { new_ap $M "$1"; miami_oneshot_env "$1" "${2:-}"; rm -f "$S/ping_ok"; : > "$S/calls"; }
-MIAMI_ARMED='run miami_start && run miami_load; run miami_fallback'
+MIAMI_ARMED='if run miami_start; then run miami_load; run miami_fallback; fi'
 
 for active in 0 1; do
 	miami_ap "$active"

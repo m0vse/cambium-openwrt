@@ -6,6 +6,15 @@ X7-56X (no build yet).
 
 ## Unreleased
 
+- Cancel the matching OEM bootloader's pending counter-8/9 bank switch
+  before inactive-bank staging, persistent install/update and OEM return.
+  Preserve the verified OEM selector and reject failed counter readback.
+  One-shot boot and reset require a successful safe environment save. The
+  guard accepts the matching new counter-safe producer only, and refuses
+  the old counterless prefix. Converted A/B policy is unchanged. Existing
+  downloaded installers and saved AP boot commands still need a separate
+  update; the source change does not rewrite them.
+
 - First Miami build: OpenWrt on the IPQ5332 (new `qualcommbe/ipq53xx`
   subtarget) with one recovery and one persistent image for the family.
 - X7-35X: wired Ethernet with DHCP on the LAN port, and all three radios

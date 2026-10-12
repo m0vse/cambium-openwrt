@@ -151,6 +151,22 @@ cheetah_clear_bootcount() {
 	[ "$(getenv image)" = 1 ] || die 'Cheetah OEM image changed while clearing bootcount'
 }
 
+# Independently audited Thor/Miami bootipq consumes an 8/9 counter by
+# switching image. Verify the surviving OEM selector before any bank write.
+thor_miami_clear_bootcount() {
+	local expected image after
+	case "$FAMILY" in
+	thor) expected=1 ;;
+	miami) [ "$RUN" = "$R0" ] && expected=0 || expected=1 ;;
+	*) return 0 ;;
+	esac
+	image=$(getenv image) || die "cannot read the $FAMILY OEM image selector"
+	[ "$image" = "$expected" ] || die "$FAMILY OEM image=$image is not surviving bank $expected"
+	[ "$(getenv bootcount)" = 0 ] || setenv_checked bootcount 0
+	after=$(getenv image) || die "cannot re-read the $FAMILY OEM image selector"
+	[ "$after" = "$image" ] || die "$FAMILY OEM image changed while clearing bootcount"
+}
+
 # --- release files -------------------------------------------------------------
 
 # fetch NAME: copy NAME from the source into $WORK.
@@ -266,6 +282,7 @@ layout_thor() {
 	bank_offset "$R0" 0 rootfs
 	bank_offset "$R1" 100663296 rootfs_1
 	require_stock_on_rootfs_1
+	[ "$(getenv image)" = 1 ] || die 'Thor OEM image is not surviving bank 1'
 }
 layout_cheetah() {
 	local t
@@ -312,12 +329,12 @@ miami_oneshot() {
 			[ "$(getenv "miami_oem_$n")" = "$(getenv "$n")" ] || die "the saved stock $n (miami_oem_$n) differs from the current one"
 		fi
 	done
-	setenv_checked miami_start 'setenv bootcmd bootipq; setenv changing_bootcmd; setenv miami_trial entered; saveenv'
-	setenv_checked miami_save "setenv mtdids \${miami_oem_mtdids}; setenv mtdparts \${miami_oem_mtdparts}; saveenv && setenv mtdids nand0=nand0 && setenv mtdparts $parts"
+	setenv_checked miami_start "setenv bootcount 0 && setenv image $((1 - TSLOT)) && setenv bootcmd bootipq && setenv changing_bootcmd && setenv miami_trial entered && saveenv"
+	setenv_checked miami_save "setenv mtdids \${miami_oem_mtdids} && setenv mtdparts \${miami_oem_mtdparts} && saveenv && setenv mtdids nand0=nand0 && setenv mtdparts $parts"
 	setenv_checked miami_load "nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts $parts && ubi part fs && setenv miami_trial ubi_ready && run miami_save && ubi read 0x60000000 $1 && setenv miami_trial fit_loaded && run miami_save && run miami_boot"
-	setenv_checked miami_boot "setenv bootargs $2; bootm 0x60000000#$3; setenv bootargs \${miami_oem_bootargs}; setenv miami_trial bootm_returned; run miami_save"
+	setenv_checked miami_boot "setenv bootargs $2 && bootm 0x60000000#$3; setenv bootargs \${miami_oem_bootargs} && setenv miami_trial bootm_returned && run miami_save"
 	setenv_checked miami_fallback reset
-	arm 'run miami_start && run miami_load; run miami_fallback'
+	arm 'if run miami_start; then run miami_load; run miami_fallback; fi'
 }
 # Sage: one UBI device with linux0/rootfs0 and linux1/rootfs1; I is the
 # running (stock) pair, T the other one.
@@ -507,6 +524,7 @@ stage_ram() {
 	if [ -n "$(vol_of "$ubi" openwrt)" ]; then
 		jaguar_clear_bootcount
 		cheetah_clear_bootcount
+		thor_miami_clear_bootcount
 		step "remove the old staging volume" ubirmvol "$R/dev/$ubi" -N openwrt
 	fi
 	leb=$(cat "$R/sys/class/ubi/$ubi/eraseblock_size" 2>/dev/null)
@@ -516,6 +534,7 @@ stage_ram() {
 			die "the inactive slot (mtd$mtd) has $free free UBI eraseblocks but the RAM image needs $(( (bytes + leb - 1) / leb )): its stock firmware copy fills it. Run again with --format-inactive to erase that slot (it is backed up) and stage the image there"
 		jaguar_clear_bootcount
 		cheetah_clear_bootcount
+		thor_miami_clear_bootcount
 		say "erasing the inactive slot mtd$mtd (--format-inactive; its backup is off the access point)"
 		step "ubidetach mtd$mtd" ubidetach -m "$mtd"
 		step "ubiformat mtd$mtd" ubiformat "$R/dev/mtd$mtd" -y
@@ -523,6 +542,7 @@ stage_ram() {
 	fi
 	jaguar_clear_bootcount
 	cheetah_clear_bootcount
+	thor_miami_clear_bootcount
 	step "ubimkvol openwrt ($bytes bytes) on $ubi" \
 		ubimkvol "$R/dev/$ubi" -N openwrt -s "$bytes"
 	vol=$(vol_of "$ubi" openwrt)
@@ -552,6 +572,7 @@ verify_factory() {
 arm() {
 	jaguar_clear_bootcount
 	cheetah_clear_bootcount
+	thor_miami_clear_bootcount
 	if [ "$FAMILY" != sage ] && [ "$FAMILY" != gambit ]; then
 		setenv_checked changing_bootcmd 1
 	fi
@@ -686,12 +707,12 @@ cmd_ram() {
 
 # Thor one-shot reading volume $1 of rootfs (validated with openwrt).
 thor_oneshot() {
-	echo "setenv changing_bootcmd; setenv bootcmd \"aq_load_fw&&bootipq\"; saveenv; aq_load_fw; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x0(rootfs)\"; ubi part rootfs; ubi read 0x60000000 $1; bootm 0x60000000#$CONFIG; bootipq"
+	echo "if setenv bootcount 0 && setenv image 1 && setenv bootcmd \"aq_load_fw&&bootipq\" && setenv changing_bootcmd && saveenv; then aq_load_fw && nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:0x6000000@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 $1 && bootm 0x60000000#$CONFIG; aq_load_fw && bootipq; fi"
 }
 # The cambium-ab Thor module's guarded boot of slot 0 (config@hk02 is rooted
 # in rootfs).
 thor_guarded() {
-	echo "setenv changing_bootcmd; setenv bootcmd \"aq_load_fw&&bootipq\"; saveenv; aq_load_fw; nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts \"mtdparts=nand0:0x6000000@0x0(rootfs)\" && ubi part rootfs && ubi read 0x60000000 kernel && bootm 0x60000000#$CONFIG; bootipq"
+	thor_oneshot kernel
 }
 
 install_jaguar() {
@@ -772,6 +793,7 @@ install_miami() {
 		for v in kernel rootfs rootfs_data; do
 			[ -n "$(vol_of "$ubi" "$v")" ] || die "$TPART holds no earlier OpenWrt install (no $v volume): install without --keep-settings"
 		done
+		thor_miami_clear_bootcount
 		step "ubirmvol kernel" ubirmvol "$R/dev/$ubi" -N kernel
 		step "ubirmvol rootfs" ubirmvol "$R/dev/$ubi" -N rootfs
 		v=$(vol_of "$ubi" cambium_device_data)
@@ -781,6 +803,7 @@ install_miami() {
 			say "the device-data vault is empty or resized; OpenWrt fills it from the stock firmware at its next boot"
 		fi
 	else
+		thor_miami_clear_bootcount
 		for e in "$R"/sys/class/ubi/"$ubi"_[0-9]*; do
 			[ -f "$e/name" ] || continue
 			step "ubirmvol $(cat "$e/name")" ubirmvol "$R/dev/$ubi" -N "$(cat "$e/name")"
@@ -860,6 +883,7 @@ thor_write() {
 	local image contents v
 	image=$(get_image cambiumnetworks_thor-persistent-squashfs-factory.ubi) || exit 1
 	contents=$(get_image cambiumnetworks_thor-persistent-squashfs-factory.ubi.contents) || exit 1
+	thor_miami_clear_bootcount
 	[ -n "$(ubi_of_mtd "$1")" ] && step "ubidetach mtd$1" ubidetach -m "$1"
 	step "ubiformat mtd$1 with ${image##*/}" ubiformat "$R/dev/mtd$1" -y -f "$image"
 	attach "$1"
@@ -903,6 +927,7 @@ install_thor_installer() {
 	[ $(( $(cat "$R/sys/class/mtd/mtd$r0/flags") & 0x400 )) -ne 0 ] || die "rootfs is read-only: this is not the Thor installer"
 	need ubiformat ubiattach ubidetach
 	check_stock_bootcmd
+	[ "$(getenv image)" = 1 ] || die 'Thor RAM installer has no verified surviving OEM bank 1'
 	dry_run_stop "write the persistent image over rootfs (mtd$r0) and boot it once"
 	thor_write "$r0"
 }
@@ -1078,7 +1103,20 @@ cmd_stock() {
 	[ "$(getenv "${env}_ab_version")" = 1 ] &&
 		die "both firmware banks run OpenWrt (converted to A/B): there is no stock firmware to return to"
 	getenv bootcmd > /dev/null || die "cannot read the U-Boot environment (fw_printenv failed)"
+	if [ "$env" = thor ] || [ "$env" = miami ]; then
+		running=
+		for arg in $(cat "$R/proc/cmdline"); do
+			case "$arg" in ubi.mtd=rootfs) running=0 ;; ubi.mtd=rootfs_1) running=1 ;; esac
+		done
+		[ -n "$running" ] || die 'cannot identify the running firmware bank'
+		fallback=$((1 - running))
+		[ "$(getenv image)" = "$fallback" ] || die "$env OEM image is not surviving bank $fallback"
+	fi
 	dry_run_stop "make the stock firmware the default boot"
+	if [ "$env" = thor ] || [ "$env" = miami ]; then
+		setenv_checked bootcount 0
+		[ "$(getenv image)" = "$fallback" ] || die "$env OEM image changed while clearing bootcount"
+	fi
 	# The default bootcmd first: U-Boot accepts it with or without the marker.
 	setenv_checked bootcmd "$want"
 	if [ "$env" != gambit ]; then
