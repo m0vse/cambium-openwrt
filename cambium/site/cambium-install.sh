@@ -142,6 +142,15 @@ jaguar_clear_bootcount() {
 	setenv_checked bootcount 0
 }
 
+# Captured Cheetah v2.7.5b also switches image for counters 8/9. This
+# installer supports stock on rootfs_1 only; keep that surviving OEM bank.
+cheetah_clear_bootcount() {
+	[ "$FAMILY" = cheetah ] || return 0
+	[ "$(getenv image)" = 1 ] || die 'the surviving Cheetah OEM image is not 1'
+	[ "$(getenv bootcount)" = 0 ] || setenv_checked bootcount 0
+	[ "$(getenv image)" = 1 ] || die 'Cheetah OEM image changed while clearing bootcount'
+}
+
 # --- release files -------------------------------------------------------------
 
 # fetch NAME: copy NAME from the source into $WORK.
@@ -497,6 +506,7 @@ stage_ram() {
 	attach "$mtd"; ubi=$UBI
 	if [ -n "$(vol_of "$ubi" openwrt)" ]; then
 		jaguar_clear_bootcount
+		cheetah_clear_bootcount
 		step "remove the old staging volume" ubirmvol "$R/dev/$ubi" -N openwrt
 	fi
 	leb=$(cat "$R/sys/class/ubi/$ubi/eraseblock_size" 2>/dev/null)
@@ -505,12 +515,14 @@ stage_ram() {
 		[ -n "$format_inactive" ] ||
 			die "the inactive slot (mtd$mtd) has $free free UBI eraseblocks but the RAM image needs $(( (bytes + leb - 1) / leb )): its stock firmware copy fills it. Run again with --format-inactive to erase that slot (it is backed up) and stage the image there"
 		jaguar_clear_bootcount
+		cheetah_clear_bootcount
 		say "erasing the inactive slot mtd$mtd (--format-inactive; its backup is off the access point)"
 		step "ubidetach mtd$mtd" ubidetach -m "$mtd"
 		step "ubiformat mtd$mtd" ubiformat "$R/dev/mtd$mtd" -y
 		attach "$mtd"; ubi=$UBI
 	fi
 	jaguar_clear_bootcount
+	cheetah_clear_bootcount
 	step "ubimkvol openwrt ($bytes bytes) on $ubi" \
 		ubimkvol "$R/dev/$ubi" -N openwrt -s "$bytes"
 	vol=$(vol_of "$ubi" openwrt)
@@ -539,6 +551,7 @@ verify_factory() {
 # arm BOOTCMD: arm a one-shot (changing_bootcmd first, as this U-Boot needs).
 arm() {
 	jaguar_clear_bootcount
+	cheetah_clear_bootcount
 	if [ "$FAMILY" != sage ] && [ "$FAMILY" != gambit ]; then
 		setenv_checked changing_bootcmd 1
 	fi
@@ -653,7 +666,7 @@ cmd_ram() {
 		backup "$R/dev/mtd${R0}ro"
 		dry_run_stop "stage the RAM image in rootfs (mtd$R0) and boot it once"
 		stage_ram "$image" "$R0"
-		arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x80000(fs)\"; ubi part fs && ubi read 0x60000000 openwrt && bootm 0x60000000#$CONFIG; reset"
+		arm "setenv bootcmd bootipq; setenv changing_bootcmd; setenv image 1; setenv bootcount 0; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x80000(fs)\"; ubi part fs && ubi read 0x60000000 openwrt && bootm 0x60000000#$CONFIG; reset"
 		;;
 	miami)
 		[ -n "$ptest" ] && die "--persistent-test is for Jaguar"
@@ -717,6 +730,7 @@ install_cheetah() {
 	need ubiformat ubiattach ubidetach
 	backup "$R/dev/mtd${R0}ro"
 	dry_run_stop "write the persistent image over rootfs (mtd$R0) and boot it once"
+	cheetah_clear_bootcount
 	[ -n "$(ubi_of_mtd "$R0")" ] && step "ubidetach mtd$R0" ubidetach -m "$R0"
 	step "ubiformat mtd$R0 with ${image##*/}" ubiformat "$R/dev/mtd$R0" -y -f "$image"
 	attach "$R0"; ubi=$UBI
@@ -725,7 +739,7 @@ install_cheetah() {
 	done
 	verify_factory "$ubi" "$contents"
 	# The cambium-ab Cheetah module's guarded boot of slot 0.
-	arm "setenv bootcmd bootipq; setenv changing_bootcmd; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x80000(fs)\"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait\" && bootm 0x60000000#$CONFIG; bootipq"
+	arm "setenv bootcmd bootipq; setenv changing_bootcmd; setenv image 1; setenv bootcount 0; saveenv; nand device 0; setenv mtdids nand0=nand0; setenv mtdparts \"mtdparts=nand0:0x6000000@0x80000(fs)\"; ubi part fs && ubi read 0x60000000 kernel && setenv bootargs \"console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait\" && bootm 0x60000000#$CONFIG; bootipq"
 	say "guarded first boot armed: after a healthy start OpenWrt re-arms its boot; otherwise the next boot returns to the stock firmware."
 }
 
