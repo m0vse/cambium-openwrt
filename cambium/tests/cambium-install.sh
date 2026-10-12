@@ -513,7 +513,11 @@ rm -rf "$RT/sys/class/ubi"; mkdir -p "$RT/sys/class/ubi" "$RT/etc" "$RT/sys/clas
 printf '%s\n' 'dev:    size   erasesize  name' 'mtd0: 06000000 00020000 "rootfs"' 'mtd1: 06000000 00020000 "rootfs_1"' > "$RT/proc/mtd"
 echo 'console=ttyMSM0' > "$RT/proc/cmdline"; echo 0x400 > "$RT/sys/class/mtd/mtd0/flags"; : > "$W/calls"
 printf '%s\n' 'bootcmd=aq_load_fw&&bootipq' 'image=1' > "$W/env"
+check "Thor stage 2 refuses an unreadable OEM counter" 1 inst --from "http://192.0.2.5:8000" --yes install
+assert "unreadable stage-2 counter cannot format the bank" [ -z "$(grep '^format' "$W/calls")" ]
+printf '%s\n' 'bootcount=9' >> "$W/env"; : > "$W/calls"
 check "Thor install stage 2 (in the installer)" 0 inst --from "http://192.0.2.5:8000" --yes install
+assert "Thor stage 2 clears the sentinel and preserves OEM bank 1" [ "$(env_get bootcount):$(env_get image)" = '0:1' ]
 assert "stage 2 formats rootfs with the factory image" grep -q "^format mtd0 $p-qualcommax-ipq807x-cambiumnetworks_thor-persistent-squashfs-factory.ubi" "$W/calls"
 assert "stage 2 arms the guarded first boot" [ "$(env_get bootcmd)" = "$thor_first_boot" ]
 # An installed single-bank OpenWrt returns to the stock firmware to reinstall.
