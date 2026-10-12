@@ -2,6 +2,17 @@
 
 XV3-8 (validated); XE5-8 (RAM boot only).
 
+## Unreleased
+
+- Cancel the matching OEM bootloader's pending counter-8/9 bank switch
+  before staging or replacing the inactive bank. Verify the surviving OEM
+  selector and counter readback. Guarded boots run only after saving that
+  safe fallback; failed setters/save stop without booting or resetting.
+- Check the same counter/selector before either legacy health outcome and
+  explicit return to OEM. Converted A/B operation is unchanged. These are
+  source safeguards with simulated failure tests; old downloaded installers
+  and already-saved boot commands are not rewritten by this change.
+
 ## 2026.09.27.1
 
 - The XV3-8's scanning radio is now reliably kept out of service. OpenWrt's

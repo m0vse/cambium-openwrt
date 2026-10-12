@@ -86,11 +86,31 @@ ab_miami_guarded_command() {
 	*"ubi.mtd=$part "*"bootm 0x60000000#config@mi01.6-acadia-ab;"*) ;;
 	*) echo "cambium-ab: miami_boot does not boot slot $1" >&2; return 1 ;;
 	esac
-	[ "$(ab_getenv miami_start)" = 'setenv bootcmd bootipq; setenv changing_bootcmd; setenv miami_trial entered; saveenv' ] || {
+	[ "$(ab_getenv miami_start)" = "setenv bootcount 0 && setenv image $((1 - $1)) && setenv bootcmd bootipq && setenv changing_bootcmd && setenv miami_trial entered && saveenv" ] || {
 		echo 'cambium-ab: miami_start does not restore bootipq first' >&2
 		return 1
 	}
-	echo 'run miami_start && run miami_load; run miami_fallback'
+	[ "$(ab_getenv miami_fallback)" = reset ] || return 1
+	echo 'if run miami_start; then run miami_load; run miami_fallback; fi'
+}
+
+# Miami's own matching bootipq also consumes first-digit 8/9 by switching
+# image. Never change an unexpected selector to manufacture a fallback.
+ab_miami_stock_prepare() {
+	local slot image count after
+	slot=$(ab_running_slot) || return 1
+	case "$slot" in 0|1) ;; *) return 1 ;; esac
+	image=$(ab_getenv image) || return 1
+	[ "$image" = "$((1 - slot))" ] || return 1
+	ab_setenv bootcount 0 && sync || return 1
+	count=$(ab_getenv bootcount) || return 1
+	after=$(ab_getenv image) || return 1
+	[ "$count" = 0 ] && [ "$after" = "$image" ]
+}
+
+ab_miami_legacy_boot() {
+	[ "$(ab_getenv bootcmd)" = "$AB_STOCK_BOOTCMD" ] || return 1
+	ab_miami_stock_prepare
 }
 
 # Reachable, not just addressed: the management default gateway answers.
