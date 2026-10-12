@@ -4,6 +4,11 @@ E400 (validated: recovery, installer, persistent and A/B sysupgrade); E500, E501
 
 ## Unreleased
 
+- Clear and verify the E400 OEM boot counter before destructive inactive-bank
+  writes, and clear it before guarded saves and every persistent `nboot`.
+  The captured Gambit 1.1.4d bootloader switches banks and restores OEM YAFFS
+  boot arguments at counter 8/9; healthy-userspace resets alone are too late.
+  This safeguard is regression-tested, not yet hardware-qualified.
 - Add hardware-verified E400 power and network LED GPIOs and polarities.
   Network green indicates Ethernet link/activity; network amber stays off.
   Power indicates boot/failsafe/upgrade, then the shared OpenWISP service
