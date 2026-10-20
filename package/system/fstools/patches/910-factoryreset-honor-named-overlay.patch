@@ -1,19 +1,14 @@
---- a/mount_root.c
-+++ b/mount_root.c
-@@ -116,6 +116,12 @@ static int
- done(int argc, char *argv[1])
- {
--	struct volume *v = volume_find("rootfs_data");
-+	char dataparam[BUFLEN];
-+	char *dataname = "rootfs_data";
-+	struct volume *v;
-+
-+	if (get_var_from_file("/proc/cmdline", "fstools_overlay_name", dataparam, sizeof(dataparam)))
-+		dataname = dataparam;
-+	v = volume_find(dataname);
- 
- 	if (!v)
- 		return -1;
+factoryreset: honor fstools_overlay_name
+
+mount_root already takes the overlay volume name from the kernel command
+line (fstools_overlay_name) at start and, since 207d8fe, in done.
+factoryreset still looks for rootfs_data only, so on a system whose
+overlay is another named volume (Cambium Sage: rootfs_data0/1 per A/B
+pair) `firstboot` and `jffs2reset` cannot find it.
+
+Use the same command-line parameter here.
+
+---
 --- a/factoryreset.c
 +++ b/factoryreset.c
 @@ -31,6 +31,7 @@
