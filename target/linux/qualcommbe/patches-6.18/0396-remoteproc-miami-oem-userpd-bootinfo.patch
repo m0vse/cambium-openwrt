@@ -12,13 +12,14 @@ unchanged user-PD ELF (q6_fw1.mbn), check them against the WCSS memory
 region, and write the record before the root PD image is authenticated.
 ath12k keeps ownership of the user-PD firmware and its interrupts.
 
+Rebased onto generic 830-03/830-04. Miami declares only the root firmware
+in firmware-name, so the optional auxiliary-image loop remains unused.
+
 Signed-off-by: Phil Taylor <phil@m0vse.uk>
 ---
 --- a/drivers/remoteproc/qcom_q6v5_wcss_sec.c
 +++ b/drivers/remoteproc/qcom_q6v5_wcss_sec.c
-@@ -3,6 +3,10 @@
-  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
-  */
+@@ -7,6 +7,10 @@
  #include <linux/clk.h>
 +#include <linux/elf.h>
 +#include <linux/firmware.h>
@@ -27,8 +28,10 @@ Signed-off-by: Phil Taylor <phil@m0vse.uk>
  #include <linux/firmware/qcom/qcom_scm.h>
  #include <linux/io.h>
  #include <linux/mailbox_client.h>
-@@ -36,6 +40,82 @@ struct wcss_data {
- 	bool auto_boot;
+ #include <linux/mailbox/tmelcom-qmp.h>
+ #include <linux/of_reserved_mem.h>
+@@ -51,6 +55,82 @@ struct wcss_data {
+ 	bool use_tmelcom;
  };
  
 +struct miami_upd_bootinfo {
@@ -110,14 +113,14 @@ Signed-off-by: Phil Taylor <phil@m0vse.uk>
  static int wcss_sec_start(struct rproc *rproc)
  {
  	struct wcss_sec *wcss = rproc->priv;
-@@ -123,6 +203,10 @@ static int wcss_sec_load(struct rproc *rproc, const struct firmware *fw)
- 	struct device *dev = wcss->dev;
- 	int ret;
+@@ -142,6 +222,10 @@ static int wcss_sec_load(struct rproc *rproc, const struct firmware *fw)
+ 	const struct firmware *fw_hdl;
+ 	int i, ret;
  
 +	ret = wcss_miami_bootinfo(wcss);
 +	if (ret)
 +		return ret;
 +
- 	ret = qcom_mdt_load(dev, fw, rproc->firmware, wcss->desc->pasid, wcss->mem_region,
- 			    wcss->mem_phys, wcss->mem_size, &wcss->mem_reloc);
- 	if (ret)
+ 	if (wcss->desc->use_tmelcom) {
+ 		wcss->metadata = qcom_mdt_read_metadata(fw, &wcss->metadata_len,
+ 							rproc->firmware, wcss->dev);
