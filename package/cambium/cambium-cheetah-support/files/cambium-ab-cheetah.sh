@@ -30,7 +30,12 @@ ab_cheetah_board() {
 		AB_RADIOS=2
 		;;
 	cambiumnetworks,xv2-22h) AB_MODEL=XV2-22H; AB_SKU=00000022; AB_FIT=config@mp03.3-cheetah ;;
-	cambiumnetworks,xv2-23t) AB_MODEL=XV2-23T; AB_SKU=00000024; AB_FIT=config@mp03.3-lynx ;;
+	cambiumnetworks,xv2-23t)
+		# RAM bring-up confirmed; persistent/A/B hardware qualification pending.
+		AB_MODEL=XV2-23T; AB_SKU=00000024; AB_FIT=config@mp03.3-lynx
+		AB_LAN='br-lan.1 br-lan'
+		AB_RADIOS=2
+		;;
 	*) return 1 ;;
 	esac
 }

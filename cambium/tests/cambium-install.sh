@@ -561,6 +561,10 @@ assert "Cheetah first boot sets bootargs for rootfs" [ "$(env_get bootcmd)" = \
 	'if setenv bootcmd bootipq && setenv changing_bootcmd && setenv image 1 && setenv bootcount 0 && saveenv; then nand device 0 && setenv mtdids nand0=nand0 && setenv mtdparts "mtdparts=nand0:0x6000000@0x80000(fs)" && ubi part fs && ubi read 0x60000000 kernel && setenv bootargs "console=ttyMSM0,115200n8 ubi.mtd=rootfs root=/dev/ubiblock0_1 rootfstype=squashfs rootwait" && bootm 0x60000000#config@mp03.3-ocelot; bootipq; fi' ]
 assert "Cheetah install hashed the kernel and rootfs back" said 'kernel volume reads back as built'
 assert "Cheetah wrote only rootfs" [ -z "$(grep -E '(format|mkvol|rmvol|update) mtd3' "$W/calls")" ]
+ap cheetah XV2-23T 36 1
+check "Cheetah XV2-23T persistent hardware trial" 0 inst --from "$W/rel" --yes --backed-up --trial install
+assert "XV2-23T install selects lynx and keeps OEM fallback" sh -c 'case "$1" in *"setenv image 1"*"#config@mp03.3-lynx; bootipq; fi") exit 0 ;; *) exit 1 ;; esac' sh "$(env_get bootcmd)"
+assert "XV2-23T persistent trial leaves OEM bank untouched" [ -z "$(grep -E '(format|mkvol|rmvol|update) mtd3' "$W/calls")" ]
 ap cheetah XV2-21X 35 1; sed -i.bak '/0:TRAINING/d' "$RT/proc/mtd"
 check "Cheetah without 0:TRAINING refused" 1 inst --from "$W/rel" --yes --backed-up --trial install
 assert "0:TRAINING refusal is named" said 'no 512 KiB 0:TRAINING partition'

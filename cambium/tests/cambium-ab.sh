@@ -857,6 +857,12 @@ cambiumnetworks,xv2-21x config@mp03.3-ocelot
 cambiumnetworks,xv2-22h config@mp03.3-cheetah
 cambiumnetworks,xv2-23t config@mp03.3-lynx
 EOF
+C23=cambiumnetworks,xv2-23t
+new_ap $C23
+check "XV2-23T health contract keeps qualification pending" 0 in_lib eval 'ab_board cambiumnetworks,xv2-23t && [ "$AB_QUALIFIED:$AB_RADIOS:$AB_LAN" = "0:2:br-lan.1 br-lan" ]'
+run_board_data >/dev/null 2>&1
+check "XV2-23T explicit untested A/B conversion is available" 0 sh "$ab_pkg/cambium-ab-convert" --oem-sha256 "$(oem_hash)" --allow-untested --yes
+assert "XV2-23T converted A/B state is recorded" [ "$(env_get cheetah_ab_version):$(env_get cheetah_ab_confirmed)" = '1:0' ]
 new_ap $C21; echo 0xc00 > "$S/sys/mtd/mtd6/flags"
 check "Cheetah writable 0:TRAINING refused" 1 in_lib ab_identity
 new_ap $C21; set_sku 042
@@ -885,9 +891,10 @@ assert "Cheetah slot 1 holds the running rootfs and vault" cmp -s "$S/flash/mtd1
 make_fit config@mp03.3-cheetah config@mp03.3-ocelot config@mp03.3-lynx > "$S/cheetah-fit"
 make_image "$S/cheetah.bin" "$S/cheetah-fit" "" sysupgrade-cambiumnetworks_cheetah
 check "a Jaguar image is refused on a Cheetah" 1 dispatch platform_check_image "$S/good.bin"
+for board in $C21 $C23; do
 for active in 0 1; do
 	target=$((1 - active))
-	converted_ap $C21 "$active"
+	converted_ap "$board" "$active"
 	active_before=$(bank_hash "$active")
 	check "Cheetah upgrade slot $active -> $target" 0 dispatch platform_do_upgrade "$S/cheetah.bin"
 	assert "Cheetah slot $target rootfs written" [ "$(cat "$S/flash/mtd$target/1.data")" = hsqs-new-root ]
@@ -895,6 +902,7 @@ for active in 0 1; do
 	assert "Cheetah slot $active untouched" [ "$(bank_hash "$active")" = "$active_before" ]
 	assert "Cheetah trial of slot $target armed" [ "$(env_get bootcmd)" = \
 		"setenv bootcmd run cheetah_stable$active; setenv image $active; setenv cheetah_ab_state trial-started; saveenv; run cheetah_boot$target; run cheetah_boot$active" ]
+done
 done
 
 cheetah_trial() {
