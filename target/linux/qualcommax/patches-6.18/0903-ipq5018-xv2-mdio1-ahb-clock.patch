@@ -1,11 +1,12 @@
 --- a/drivers/net/mdio/mdio-ipq4019.c
 +++ b/drivers/net/mdio/mdio-ipq4019.c
-@@ -387,6 +387,17 @@ static int ipq4019_mdio_probe(struct platform_device *pdev)
+@@ -387,6 +387,18 @@ static int ipq4019_mdio_probe(struct platform_device *pdev)
  			return -ENOMEM;
  	}
  
-+	/* Test the XV2-21X sibling gate without global clk_ignore_unused. */
-+	if (of_machine_is_compatible("cambiumnetworks,xv2-21x")) {
++	/* Retain the shared Cheetah MDIO gate without clk_ignore_unused. */
++	if (of_machine_is_compatible("cambiumnetworks,xv2-21x") ||
++	    of_machine_is_compatible("cambiumnetworks,xv2-23t")) {
 +		struct clk *mdio1_ahb_clk;
 +
 +		mdio1_ahb_clk = devm_clk_get_enabled(&pdev->dev,
