@@ -116,11 +116,7 @@ so the XE3-4 has no sysupgrade until the image can tell the two apart.
   to the new bank, so it survives `sysupgrade -n`, factory reset and the
   loss of the OEM slot.
 - **Conversion.** `cambium-ab-convert --oem-sha256 HASH --yes` replaces the
-  OEM bank with copies of the running kernel/rootfs and device-data vault.
-  The generic UBI conversion path creates a fresh `rootfs_data`; the
-  configuration overlay is not cloned.
-  Populate and test that bank through a normal settings-preserving sysupgrade
-  before relying on it as a configured fallback. It refuses unless the live OEM
+  OEM bank with a copy of the running bank. It refuses unless the live OEM
   bank matches the hash of your off-device backup, the vault (if any) is
   valid and the model is qualified (`--allow-untested` overrides). The
   running bank's stable boot command is saved before the OEM bank is erased,

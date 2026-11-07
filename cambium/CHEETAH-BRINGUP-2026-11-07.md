@@ -45,16 +45,16 @@ passes eight model/error cases. The actual delivered recovery kernel payload
 was also checked for the new 23T match, and live MDIO/networking now work.
 
 XV2-23T radio enablement/variants, ART calibration dispatch and management VLAN
-startup also have explicit model support. The remainingXV2-21X-only reset-register
+startup also have explicit model support. The remaining XV2-21X-only reset-register
 diagnostic block is not the clock consumer and was not extended blindly.
 The PHY's mandatory RX/TX clocks, netdev label rename, DHCP protocol argument,
 MAC provider and environment CRC were checked.
 
 ## Persistent installation and A/B tools
 
-The model table recognizesSKU36/lynx and the captured two 96 MiB bank layout.
+The model table recognizes SKU36/lynx and the captured two 96 MiB bank layout.
 Persistent trees leave the two firmware banks and environment writable while
-protecting calibration, bootloaders, training, NVRAM and crash logs. The23T
+protecting calibration, bootloaders, training, NVRAM and crash logs. The 23T
 health contract expects its management bridge and both radio PHYs, without
 promoting its hardware qualification flag.
 
@@ -68,13 +68,6 @@ promoting its hardware qualification flag.
   Following conversion, sysupgrade writes the inactive bank and arms a trial
   with the previously confirmed bank as fallback. OEM retention and two
   OpenWrt banks are distinct stages of this two-bank layout.
-- The current stock converter copies kernel/rootfs and the device-data vault
-  but creates a fresh `rootfs_data`; it does not clone the configuration
-  overlay. Before treating the second bank as a configured fallback,
-  populate it through a normal settings-preserving sysupgrade and verify
-  settings/identity after boot. Conversion alone does not establish settings
-  retention. OpenWiFi must additionally handle its own certificate storage
-  in its own implementation; that layout is outside this stock repository.
 - These tool paths are covered by simulations, including XV2-23T persistent
   staging, conversion and upgrades in both directions. They are not physical
   proof of XV2-23T persistent installation or A/B rollback.
@@ -91,10 +84,10 @@ every write. Do not reuse numeric indices from an OEM report.
 
 The supported generic Cheetah initial-install path runs `install --trial`
 from the OEM root shell. A separately built persistent-initramfs FIT also
-exists in stock build2026.11.07.2; its lynx tree leaves both banks and the
+exists in stock build 2026.11.07.2; its lynx tree leaves both banks and the
 environment writable while protecting ART/boot regions. This exact RAM FIT
 passed the persistent family FIT/protection checks, but has not been booted
-on23T. It can support an explicit OEM-staged one-shot writable-RAM bridge.
+on 23T. It can support an explicit OEM-staged one-shot writable-RAM bridge.
 Check staging-volume capacity because this FIT is larger than recovery.
 
 `cambium-install.sh --persistent-test` is currently implemented for Jaguar
@@ -122,7 +115,7 @@ The OEM tree describes an internal PHY plus a QCA8337 on MDIO1, reset GPIO39,
 MDC/MDIO GPIO36/37, CPU port6 and four switch PHY lanes. This is not a claim of
 four exposed jacks: the [official data sheet](https://brandcentral.cambiumnetworks.com/asset/25db5a08-4529-4a3e-a5a1-aeaeb81a3124/XV2-22H-Wi-Fi-6-Access-Point-Data-Sheet.pdf)
 lists one GE WAN and two GE LAN ports. Physical jack numbering, actual RAM/flash,
-the existing secondMAC offset and PoE polarity/sequencing remain unmeasured.
+the existing second MAC offset and PoE polarity/sequencing remain unmeasured.
 PoE controls are left undriven. XV2-22H remains an inferred, untested candidate.
 
 ## OEM shell and evidence handling
