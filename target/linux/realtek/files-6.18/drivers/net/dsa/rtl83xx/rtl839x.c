@@ -18,10 +18,6 @@
 
 #define RTL839X_PORT_ISO_CTRL(port)		(0x1400 + ((port) << 3))
 
-#define RTL839X_L2_CTRL_0			(0x3800)
-
-#define RTL839X_L2_TBL_FLUSH_CTRL		(0x3ba0)
-
 #define RTL839X_RMA_BPDU_FLD_PMSK		(0x125C)
 
 #define RTL839X_SPCL_TRAP_EAPOL_CTRL		(0x105C)
@@ -96,19 +92,6 @@ static void rtl839x_traffic_disable(struct otto_dsa_priv *priv, int source, int 
 	regmap_write_bits(priv->map, reg + 4, lower_32_bits(mask), 0);
 }
 
-static void rtl839x_set_igr_filter(struct otto_dsa_priv *priv, int port, enum igr_filter state)
-{
-	regmap_write_bits(priv->map, RTL839X_VLAN_PORT_IGR_FLTR + (((port >> 4) << 2)),
-			  GENMASK(1, 0) << ((port & 0xf) << 1),
-			  (u32)(state & 0x3) << ((port & 0xf) << 1));
-}
-
-static void rtl839x_set_egr_filter(struct otto_dsa_priv *priv, int port, enum egr_filter state)
-{
-	regmap_write_bits(priv->map, RTL839X_VLAN_PORT_EGR_FLTR + (((port >> 5) << 2)),
-			  BIT(port % 0x20), (u32)(state & 0x1) << (port % 0x20));
-}
-
 static void rtl839x_set_receive_management_action(struct otto_dsa_priv *priv,
 						int port, rma_ctrl_t type,
 						action_type_t action)
@@ -164,12 +147,10 @@ const struct rtldsa_config rtldsa_839x_cfg = {
 	.traffic_disable = rtl839x_traffic_disable,
 	.traffic_set = rtl839x_traffic_set,
 	.port_iso_ctrl = rtl839x_port_iso_ctrl,
-	.l2_ctrl_0 = RTL839X_L2_CTRL_0,
 	.l2_ctrl_1 = RTL839X_L2_CTRL_1,
 	.self_mac_trap_ctrl = RTL839X_SPCL_TRAP_SWITCH_MAC_CTRL,
 	.l2_port_aging_out = RTL839X_L2_PORT_AGING_OUT,
 	.set_ageing_time = otto_l2_839x_set_ageing_time,
-	.l2_tbl_flush_ctrl = RTL839X_L2_TBL_FLUSH_CTRL,
 	.isr_glb_src = RTL839X_ISR_GLB_SRC,
 	.isr_port_link_sts_chg = RTL839X_ISR_PORT_LINK_STS_CHG,
 	.imr_port_link_sts_chg = RTL839X_IMR_PORT_LINK_STS_CHG,
@@ -191,8 +172,8 @@ const struct rtldsa_config rtldsa_839x_cfg = {
 	.vlan_port_qinq_set = otto_vlan_839x_port_qinq_set,
 	.vlan_port_pvidmode_set = otto_vlan_839x_port_pvid_mode_set,
 	.vlan_port_pvid_set = otto_vlan_839x_port_pvid_set,
-	.set_vlan_igr_filter = rtl839x_set_igr_filter,
-	.set_vlan_egr_filter = rtl839x_set_egr_filter,
+	.vlan_set_igr_filter = otto_vlan_839x_set_igr_filter,
+	.vlan_set_egr_filter = otto_vlan_839x_set_egr_filter,
 	.enable_learning = otto_l2_839x_enable_learning,
 	.set_l2_new_sa_trap = otto_l2_839x_set_port_new_sa_trap,
 	.enable_flood = otto_l2_839x_enable_flood,
@@ -216,7 +197,7 @@ const struct rtldsa_config rtldsa_839x_cfg = {
 	.mac_max_len_ctrl = RTL839X_MAC_MAX_LEN_CTRL,
 	.max_frame = RTL839X_MAX_FRAME,
 	.l2_port_new_salrn = otto_l2_839x_port_new_salrn,
-	.get_mirror_config = rtldsa_839x_get_mirror_config,
+	.get_mirror_config = otto_mirror_839x_get_config,
 	.print_matrix = rtldsa_839x_print_matrix,
 	.read_l2_entry_using_hash = otto_l2_839x_read_entry_using_hash,
 	.write_l2_entry_using_hash = otto_l2_839x_write_entry_using_hash,
