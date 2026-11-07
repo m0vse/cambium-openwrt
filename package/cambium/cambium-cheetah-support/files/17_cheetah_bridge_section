@@ -2,7 +2,10 @@
 
 # First boot accepts untagged/PVID VLAN 1 for DHCP management. OpenWISP adds
 # tagged VLANs only through the device-specific template.
-[ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = 'cambiumnetworks,xv2-21x' ] || exit 0
+case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+cambiumnetworks,xv2-21x|cambiumnetworks,xv2-23t) ;;
+*) exit 0 ;;
+esac
 
 if [ "$(uci -q get network.device_br_lan.vlan_filtering)" = '1' ] &&
    [ "$(uci -q get network.lan.device)" = 'br-lan.1' ]; then
