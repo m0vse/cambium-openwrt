@@ -858,6 +858,13 @@ cambiumnetworks,xv2-22h config@mp03.3-cheetah
 cambiumnetworks,xv2-23t config@mp03.3-lynx
 EOF
 C23=cambiumnetworks,xv2-23t
+# XV2-23T: resolve names after MTD numbering changes across firmware builds.
+new_ap $C23
+sed -i.bak -e 's/^mtd0:/mtd9:/' -e 's/^mtd1:/mtd10:/' "$S/proc_mtd"
+mv "$S/sys/mtd/mtd0" "$S/sys/mtd/mtd9"
+mv "$S/sys/mtd/mtd1" "$S/sys/mtd/mtd10"
+echo 9 > "$S/sys/ubi/ubi0/mtd_num"
+check "XV2-23T resolves renamed MTD indices by partition labels" 0 in_lib eval 'ab_identity && [ "$AB_ACTIVE_MTD:$AB_TARGET_MTD" = "9:10" ]'
 new_ap $C23
 check "XV2-23T health contract keeps qualification pending" 0 in_lib eval 'ab_board cambiumnetworks,xv2-23t && [ "$AB_QUALIFIED:$AB_RADIOS:$AB_LAN" = "0:2:br-lan.1 br-lan" ]'
 run_board_data >/dev/null 2>&1
