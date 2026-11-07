@@ -18,6 +18,7 @@ case "$FIRMWARE" in
 		ath11k_set_macflag
 		;;
 	cambiumnetworks,xv2-21x|\
+	cambiumnetworks,xv2-22h|\
 	cambiumnetworks,xv2-23t)
 		caldata_extract "0:ART" 0x1000 0x20000
 		;;
@@ -119,6 +120,7 @@ case "$FIRMWARE" in
 		ath11k_set_macflag
 		;;
 	cambiumnetworks,xv2-21x|\
+	cambiumnetworks,xv2-22h|\
 	cambiumnetworks,xv2-23t)
 		caldata_extract "0:ART" 0x26800 0x20000
 		;;

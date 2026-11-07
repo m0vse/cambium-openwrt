@@ -71,6 +71,7 @@ cambium-thor-support/files/17_thor_bridge_section cambiumnetworks,xv3-8 lan-mult
 cambium-thor-support/files/17_thor_bridge_section cambiumnetworks,xv3-8 lan-multigig,lan lan-multigig:u*,lan:u*
 cambium-cheetah-support/files/17_cheetah_bridge_section cambiumnetworks,xv2-21x lan lan:u*
 cambium-cheetah-support/files/17_cheetah_bridge_section cambiumnetworks,xv2-23t lan lan:u*
+cambium-cheetah-support/files/17_cheetah_bridge_section cambiumnetworks,xv2-22h lan,lan1,lan2,lan3,lan4 lan:u*,lan1:u*,lan2:u*,lan3:u*,lan4:u*
 cambium-jaguar-support/files/17_jaguar_bridge_section cambiumnetworks,xv2-2 lan1 lan1:u*
 cambium-jaguar-support/files/17_jaguar_bridge_section cambiumnetworks,xv2-2t1 lan1,lan2 lan1:u*,lan2:u*
 cambium-jaguar-support/files/17_jaguar_bridge_section cambiumnetworks,xv2-2t0 lan1,lan2 lan1:u*,lan2:u*
@@ -122,6 +123,7 @@ expect "configured trunk untouched" '' "$(cmp -s "$W/uci" "$W/uci.before" || ech
 for script in cambium-thor-support/files/17_thor_bridge_section:cambiumnetworks,xv3-8 \
 	cambium-cheetah-support/files/17_cheetah_bridge_section:cambiumnetworks,xv2-21x \
 	cambium-cheetah-support/files/17_cheetah_bridge_section:cambiumnetworks,xv2-23t \
+	cambium-cheetah-support/files/17_cheetah_bridge_section:cambiumnetworks,xv2-22h \
 	cambium-jaguar-support/files/17_jaguar_bridge_section:cambiumnetworks,xv2-2t1 \
 	cambium-gambit-support/files/17_gambit_bridge_section:cambiumnetworks,e400 \
 	sage:cambiumnetworks,e410; do

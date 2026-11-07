@@ -3,7 +3,8 @@
 # First boot accepts untagged/PVID VLAN 1 for DHCP management. OpenWISP adds
 # tagged VLANs only through the device-specific template.
 case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
-cambiumnetworks,xv2-21x|cambiumnetworks,xv2-23t) ;;
+cambiumnetworks,xv2-21x|cambiumnetworks,xv2-23t) lan_ports="lan" ;;
+cambiumnetworks,xv2-22h) lan_ports="lan lan1 lan2 lan3 lan4" ;;
 *) exit 0 ;;
 esac
 
@@ -39,7 +40,7 @@ fi
 
 [ -n "$bridge_section" ] || exit 1
 [ "$(uci -q get "network.$bridge_section.name")" = 'br-lan' ] || exit 1
-[ "$(uci -q get "network.$bridge_section.ports")" = 'lan' ] || exit 1
+[ "$(uci -q get "network.$bridge_section.ports")" = "$lan_ports" ] || exit 1
 [ "$(uci -q get network.lan.proto)" = 'dhcp' ] || exit 1
 [ "$(uci -q get network.lan.device)" = 'br-lan' ] || exit 1
 [ -z "$(uci -q get network.vlan_br_lan_101.vlan)" ] || exit 1
@@ -53,7 +54,9 @@ uci set network.vlan_br_lan_1=bridge-vlan
 uci set network.vlan_br_lan_1.device='br-lan'
 uci set network.vlan_br_lan_1.vlan='1'
 uci -q delete network.vlan_br_lan_1.ports
-uci add_list network.vlan_br_lan_1.ports='lan:u*'
+for port in $lan_ports; do
+	uci add_list network.vlan_br_lan_1.ports="$port:u*"
+done
 uci set network.lan.device='br-lan.1'
 if [ "$(uci -q get network.lan6.device)" = 'br-lan' ]; then
 	uci set network.lan6.device='br-lan.1'
