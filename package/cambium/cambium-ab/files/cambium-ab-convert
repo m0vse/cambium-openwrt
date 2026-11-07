@@ -1,7 +1,11 @@
 #!/bin/sh
 # One-time Cambium A/B conversion: replace the OEM firmware in the inactive bank
-# with a copy of the running OpenWrt bank, so both banks run OpenWrt and
-# normal sysupgrade can write whichever is inactive.
+# with the running kernel/rootfs and device-data vault, so both banks run
+# OpenWrt and normal sysupgrade can write whichever is inactive. The generic
+# UBI path creates fresh rootfs_data and does not clone the configuration
+# overlay; family convert_target hooks may define a different procedure.
+# Seed it through a settings-preserving sysupgrade before relying on the
+# second bank as a configured fallback.
 #
 # Usage: cambium-ab-convert --oem-sha256 HASH [--allow-untested] --yes
 #        cambium-ab-convert --resume --yes

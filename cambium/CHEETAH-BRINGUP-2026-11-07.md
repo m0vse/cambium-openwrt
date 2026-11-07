@@ -68,6 +68,13 @@ promoting its hardware qualification flag.
   Following conversion, sysupgrade writes the inactive bank and arms a trial
   with the previously confirmed bank as fallback. OEM retention and two
   OpenWrt banks are distinct stages of this two-bank layout.
+- The current stock converter copies kernel/rootfs and the device-data vault
+  but creates a fresh `rootfs_data`; it does not clone the configuration
+  overlay. Before treating the second bank as a configured fallback,
+  populate it through a normal settings-preserving sysupgrade and verify
+  settings/identity after boot. Conversion alone does not establish settings
+  retention. OpenWiFi must additionally handle its own certificate storage
+  in its own implementation; that layout is outside this stock repository.
 - These tool paths are covered by simulations, including XV2-23T persistent
   staging, conversion and upgrades in both directions. They are not physical
   proof of XV2-23T persistent installation or A/B rollback.
