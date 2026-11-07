@@ -12,6 +12,13 @@
 	};
 };
 
-/* The captured OEM FIT does not supply this model's radio board files. */
-&wifi { status = "disabled"; };
-&wifi1 { status = "disabled"; };
+/* OEM 7.2-r1 uses b24-lynx and b60.stock, imported from the retained bank. */
+&wifi {
+	status = "okay";
+	qcom,ath11k-calibration-variant = "Cambium-XV2-23T";
+};
+
+&wifi1 {
+	status = "okay";
+	qcom,ath11k-calibration-variant = "Cambium-XV2-23T-5G";
+};

@@ -49,6 +49,7 @@ board_files() {
 		echo "lib/firmware/IPQ5018/WIFI_FW/qcn6122/bdwlan.b50-cheetah 131072 ath11k/QCN6122/hw1.0/board.bin"
 		;;
 	cambiumnetworks,xv2-23t)
+		# OEM setup_bdf_wifi6 selects b60.stock; b60-lynx is unused.
 		echo "lib/firmware/IPQ5018/WIFI_FW/bdwlan.b24-lynx 131072 ath11k/IPQ5018/hw1.0/board.bin"
 		echo "lib/firmware/IPQ5018/WIFI_FW/qcn6122/bdwlan.b60.stock 131072 ath11k/QCN6122/hw1.0/board.bin"
 		;;
