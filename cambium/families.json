@@ -453,15 +453,17 @@
           "sku": 36,
           "recovery": {
             "config": "config@mp03.3-lynx",
-            "status": "untested"
+            "status": "untested",
+            "note": "RAM bring-up confirmed on 2026-11-07: boot, DHCP/SSH, board/calibration import and passive reception on both radios; full OpenWrt validation pending"
           },
           "persistent": {
             "config": "config@mp03.3-lynx",
-            "status": "untested"
+            "status": "untested",
+            "note": "Should work from shared Cheetah support and confirmed RAM bring-up; currently untested on XV2-23T"
           },
           "sysupgrade": {
             "status": "untested",
-            "note": "A/B with automatic rollback, after conversion to two OpenWrt banks; not yet run on hardware"
+            "note": "A/B should work from shared Cheetah support; currently untested on XV2-23T; conversion to two firmware banks replaces the retained OEM bank"
           }
         }
       ]
