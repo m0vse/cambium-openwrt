@@ -28,7 +28,8 @@ SKU. Hardware status per model:
 | | | XV2-2T0, XE3-4TN | untested | untested: RAM boot only | A/B, untested |
 | | | XE3-4 | validated | validated (A/B build); 6 GHz not validated | A/B, validated; **must not** be used on an XE3-4 running upstream OpenWrt |
 | Cheetah (IPQ5018) | 7.2-r1 | XV2-21X | validated | validated (A/B build) | A/B, validated |
-| | | XV2-22H, XV2-23T | untested | untested: RAM boot only | A/B, untested |
+| | | XV2-23T | RAM bring-up confirmed; full validation pending | should work; currently untested | A/B should work; currently untested |
+| | | XV2-22H | inferred candidate; not hardware tested | untested: RAM boot only | A/B, untested |
 | Miami (Wi-Fi 7, IPQ5332) | 7.2-r1 | X7-35X | validated | validated (beside the stock firmware, kept by the boot guard) | A/B, untested; until conversion `cambium-install.sh upgrade` from the stock firmware |
 | | | X7-53X, X7-55X, X7-56X | no build yet | no build yet | no build yet |
 
@@ -184,3 +185,13 @@ X7-35X has been run; the X7-53X, X7-55X and X7-56X are not in the image.
 - Bluetooth and Zigbee (EFR32MG21 radio).
 - The X7-53X, X7-55X and X7-56X: no build yet; their hardware needs
   capturing from a unit.
+
+## Cheetah bring-up evidence, 7 November 2026
+
+XV2-23T stock RAM build2026.11.07.2 boots with DHCP/SSH, imports its own OEM board/calibration data and receives neighboring BSSs on both radios. This is enough hardware bring-up evidence to proceed to an OpenWiFi build; it is not full OpenWrt validation. Persistent stock installation and A/B should work from shared Cheetah support, but are currently untested on XV2-23T. AP/client traffic, physical LED/button checks and actual fallback testing also remain outstanding. The planned OpenWiFi acceptance will test persistent operation and both banks; permanent OEM retention is not required by the operator.
+
+The first23T trial exposed a21X-only MDIO clock guard. The corrected production guard includes23T and has a regression test exercising the actual added C block. The delivered kernel payload was checked for the new match. Model-specific radio calibration dispatch and management startup also include23T.
+
+XV2-22H configuration is inferred from its captured OEM device tree and the shared firmware's board-file selection. Its PCS/radios are enabled in source and calibration/startup cover its logical switch ports. The candidate tree compiles; physical jack mapping, memory/flash, secondMAC offset and PoE controls remain unverified. No22H hardware qualification is claimed.
+
+See [Cheetah bring-up record](CHEETAH-BRINGUP-2026-11-07.md) for evidence, limits and the OpenWiFi handoff.
