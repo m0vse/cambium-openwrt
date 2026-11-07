@@ -75,6 +75,28 @@ promoting its hardware qualification flag.
   one-shot restores OEM as the next-boot default; a manual reboot/power cycle
   returns there. Persistent boot-guard behaviour is separate.
 
+### Initial-install entry points
+
+The currently tested recovery image intentionally makes both firmware banks
+and the environment read-only. MTD numbers also change between OEM and
+OpenWrt: resolve exact partition labels and current sysfs geometry/flags for
+every write. Do not reuse numeric indices from an OEM report.
+
+The supported generic Cheetah initial-install path runs `install --trial`
+from the OEM root shell. A separately built persistent-initramfs FIT also
+exists in stock build2026.11.07.2; its lynx tree leaves both banks and the
+environment writable while protecting ART/boot regions. This exact RAM FIT
+passed the persistent family FIT/protection checks, but has not been booted
+on23T. It can support an explicit OEM-staged one-shot writable-RAM bridge.
+Check staging-volume capacity because this FIT is larger than recovery.
+
+`cambium-install.sh --persistent-test` is currently implemented for Jaguar
+only; Cheetah explicitly rejects that option. The presence of a Cheetah
+persistent-RAM artifact does not make that generic flag a supported path.
+The OpenWiFi installer owns its reviewed bridge/staging procedure. No direct
+bank-formatting operation should be attempted from the read-only recovery
+session, and no broad protection bypass is part of this stock procedure.
+
 The operator intends to move directly to OpenWiFi. The OpenWiFi family task
 owns that build and must audit its own SDK/kernel and model checks. Actual
 acceptance should establish a working persistent bank, boot each bank, test
