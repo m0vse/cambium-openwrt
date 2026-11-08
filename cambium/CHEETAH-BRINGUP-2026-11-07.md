@@ -59,9 +59,10 @@ protecting calibration, bootloaders, training, NVRAM and crash logs. The 23T
 health contract expects its management bridge and both radio PHYs, without
 promoting its hardware qualification flag.
 
-- OEM persistent installation is available through `cambium-install.sh
-  --trial ... install`; the explicit trial option permits untested persistent
-  candidates. Board/SKU, geometry, backup and image readback checks still run.
+- XV2-23T OEM persistent installation is available through
+  `cambium-install.sh ... install` without `--trial`. Installation permission
+  is independent of the pending hardware-validation status. Board/SKU,
+  geometry, backup and image readback checks still run.
 - Conversion is available through `cambium-ab-convert --allow-untested
   --oem-sha256 HASH --yes`. It requires a verified data-only backup hash of the
   specific OEM bank; an OOB-inclusive full-NAND archive is not that bank hash.
@@ -83,8 +84,9 @@ and the environment read-only. MTD numbers also change between OEM and
 OpenWrt: resolve exact partition labels and current sysfs geometry/flags for
 every write. Do not reuse numeric indices from an OEM report.
 
-The supported generic Cheetah initial-install path runs `install --trial`
-from the OEM root shell. A separately built persistent-initramfs FIT also
+The supported generic Cheetah initial-install path runs `install`
+from the OEM root shell; XV2-23T does not require `--trial`, while the
+inferred XV2-22H candidate still does. A separately built persistent-initramfs FIT also
 exists in stock build 2026.11.07.2; its lynx tree leaves both banks and the
 environment writable while protecting ART/boot regions. This exact RAM FIT
 passed the persistent family FIT/protection checks, but has not been booted

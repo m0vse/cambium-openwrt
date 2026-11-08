@@ -1,5 +1,5 @@
 {
-  "_comment": "Source of truth for Cambium families, models, board SKUs and FIT configurations. Used by build.sh (per-release manifest and FIT cross-check), select-config.sh and the project site. status values: validated, untested, not-built, no-build, refused (built, but must not be installed on this model). Only validated models may use the persistent or installer image; select-config.sh gives untested models the recovery (RAM) image only.",
+  "_comment": "Source of truth for Cambium families, models, board SKUs and FIT configurations. Used by build.sh (per-release manifest and FIT cross-check), select-config.sh and the project site. status values: validated, untested, not-built, no-build, refused (built, but must not be installed on this model). Persistent or installer images normally require validation or an explicit hardware trial; requires_trial=false permits an image without the trial override while retaining its hardware validation status.",
   "families": [
     {
       "family": "gambit",
@@ -459,6 +459,7 @@
           "persistent": {
             "config": "config@mp03.3-lynx",
             "status": "untested",
+            "requires_trial": false,
             "note": "High confidence: persistent installation is expected to work from shared Cheetah support and confirmed RAM bring-up; direct XV2-23T hardware validation pending"
           },
           "sysupgrade": {
