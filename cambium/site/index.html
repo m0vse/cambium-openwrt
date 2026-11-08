@@ -128,10 +128,13 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
   cannot, upgrade by reinstalling the persistent image.</p>
   <div class="note danger"><strong>Untested models: RAM boot only.</strong>
   Models in a family do not always share a flash layout, so on any model
-  not marked <em>validated</em> use only the recovery (RAM) image, then
+  not marked <em>validated</em> start with the recovery (RAM) image unless
+  persistent installation is explicitly enabled, then
   <a href="#report">send a hardware report</a>. The persistent image,
-  installer and sysupgrade are for validated models only;
-  <code>select-config.sh</code> refuses them on the others. Each report
+  installer and sysupgrade normally require validation or an explicit trial.
+  XV2-23T persistent installation is enabled without <code>--trial</code>
+  based on the shared Cheetah support and confirmed RAM bring-up; direct
+  hardware validation is pending. Each report
   moves a model closer to validation.</div>
   <div class="table-scroll">
   <table>
@@ -249,9 +252,10 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .88r
     <li><strong>RAM-boot the recovery image</strong> through a
     self-restoring one-shot boot command. The stock firmware slot is not
     touched; the next reboot or power cycle returns to it.</li>
-    <li><strong>Untested model? Stop here</strong> and
-    <a href="#report">send a hardware report</a> from the booted recovery
-    image. Everything after this step is for validated models only.</li>
+    <li><strong>Model pending validation?</strong>
+    <a href="#report">Send a hardware report</a> from the booted recovery
+    image. Persistent installation requires validation, an explicit trial,
+    or an enabled model entry such as XV2-23T.</li>
     <li><strong>Install the persistent image</strong> into the inactive slot,
     boot it once, check it, then make it the default.</li>
     <li><strong>Optionally, convert to two OpenWrt banks</strong> (Thor, Jaguar,
@@ -677,9 +681,9 @@ ssh root@AP_IP fw_printenv bootcmd  # run jaguar_stableN for the old slot</pre>
   A/B booting will work, based on the shared Cheetah support and confirmed
   RAM bring-up; direct XV2-23T hardware validation remains pending. AP/client traffic,
   physical LED/button checks and actual rollback also remain untested.
-  XV2-22H is an inferred candidate without hardware validation. Persistent
-  trials on these models need <code>--trial</code>; only trial a unit you can
-  recover. See the <a href="https://github.com/m0vse/cambium-openwrt/blob/main/cambium/CHEETAH-BRINGUP-2026-11-07.md">Cheetah bring-up record</a>
+  XV2-23T persistent installation does not require <code>--trial</code>.
+  XV2-22H remains an inferred candidate and requires <code>--trial</code>
+  for persistent installation; only trial a unit you can recover. See the <a href="https://github.com/m0vse/cambium-openwrt/blob/main/cambium/CHEETAH-BRINGUP-2026-11-07.md">Cheetah bring-up record</a>
   for the observations and remaining checks.
   Cheetah's banks are 96&nbsp;MiB, <code>rootfs</code> at NAND
   <code>0x80000</code> and <code>rootfs_1</code> at <code>0x6080000</code>;
@@ -700,7 +704,7 @@ sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes ram</pre>
   OpenWrt re-arms its boot after each healthy start (on the XV2-21X that
   includes both radios), and an unhealthy start returns to the stock
   firmware:</p>
-<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 install              # check run; add --trial on the XV2-22H and XV2-23T
+<pre>sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 install              # check run; add --trial on the XV2-22H
 sh /tmp/cambium-install.sh --from http://COMPUTER_IP:8000 --yes install</pre>
   <p>In OpenWrt, set a root password and check the device-data vault, the
   guard and the radios:</p>
@@ -983,9 +987,9 @@ reboot</pre>
     <code>fw_setenv</code> is part of the process; rewriting the partitions
     is not.</li>
     <li>Keep a verified backup of every unit before writing anything.</li>
-    <li>On a model that is not validated, use only the recovery (RAM) image
-    and <a href="#report">send a report</a>; never install the persistent
-    image on it.</li>
+    <li>On a model pending validation, start with the recovery (RAM) image
+    and <a href="#report">send a report</a>. Persistent installation needs
+    an explicit trial unless the model is enabled, as XV2-23T is.</li>
     <li>Treat calibration and manufacturing data as unique to each unit; never
     copy them between access points.</li>
     <li>Keep the stock firmware slot intact until OpenWrt has proven itself on

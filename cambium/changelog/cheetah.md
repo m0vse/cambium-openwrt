@@ -5,6 +5,9 @@ XV2-22H (inferred candidate; not hardware tested).
 
 ## Unreleased
 
+- Enable XV2-23T persistent installation without `--trial`, independently of
+  its pending hardware validation. The generated model selector retains the
+  qualification status and normal layout, backup and readback checks.
 - Neutralize the captured Cheetah v2.7.5b OEM bootcount bank-switch sentinel
   before inactive-bank writes and legacy boot rearming. Validate the surviving
   OEM image selector, read back count zero, and save both in the trial prefix.

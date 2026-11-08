@@ -547,6 +547,9 @@ check "XE5-8 install refused (not built)" 1 inst --from "$W/rel" --yes --backed-
 assert "XE5-8 refusal gives the reason" said 'flash layout not yet captured'
 
 # --- Cheetah -------------------------------------------------------------------------------
+ap cheetah XV2-22H 34 1
+check "XV2-22H still requires an explicit hardware trial" 1 inst --from "$W/rel" --yes --backed-up install
+assert "XV2-22H refused install writes nothing" nothing_written
 ap cheetah XV2-21X 35 1
 check "Cheetah RAM boot" 0 inst --from "$W/rel" --yes --backed-up ram
 assert "Cheetah one-shot is the validated command" [ "$(env_get bootcmd)" = \
@@ -562,9 +565,10 @@ assert "Cheetah first boot sets bootargs for rootfs" [ "$(env_get bootcmd)" = \
 assert "Cheetah install hashed the kernel and rootfs back" said 'kernel volume reads back as built'
 assert "Cheetah wrote only rootfs" [ -z "$(grep -E '(format|mkvol|rmvol|update) mtd3' "$W/calls")" ]
 ap cheetah XV2-23T 36 1
-check "Cheetah XV2-23T persistent hardware trial" 0 inst --from "$W/rel" --yes --backed-up --trial install
+check "XV2-23T permission does not claim hardware validation" 0 sh -c 'eval "$(sh "$1" persistent)" && [ "$STATUS" = untested ]' sh "$W/rel/select-config.sh"
+check "Cheetah XV2-23T persistent install without --trial" 0 inst --from "$W/rel" --yes --backed-up install
 assert "XV2-23T install selects lynx and keeps OEM fallback" sh -c 'case "$1" in *"setenv image 1"*"#config@mp03.3-lynx; bootipq; fi") exit 0 ;; *) exit 1 ;; esac' sh "$(env_get bootcmd)"
-assert "XV2-23T persistent trial leaves OEM bank untouched" [ -z "$(grep -E '(format|mkvol|rmvol|update) mtd3' "$W/calls")" ]
+assert "XV2-23T persistent install leaves OEM bank untouched" [ -z "$(grep -E '(format|mkvol|rmvol|update) mtd3' "$W/calls")" ]
 ap cheetah XV2-21X 35 1; sed -i.bak '/0:TRAINING/d' "$RT/proc/mtd"
 check "Cheetah without 0:TRAINING refused" 1 inst --from "$W/rel" --yes --backed-up --trial install
 assert "0:TRAINING refusal is named" said 'no 512 KiB 0:TRAINING partition'
