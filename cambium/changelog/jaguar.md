@@ -2,7 +2,7 @@
 
 XV2-2, XV2-2T1, XE3-4 (validated); XV2-2T0, XE3-4TN (RAM boot only).
 
-## Unreleased
+## 2026.10.12.0
 
 - Guarded RAM and persistent trial commands stop at the U-Boot prompt if
   setting or saving the safe OEM fallback fails. They save the surviving
@@ -10,7 +10,13 @@ XV2-2, XV2-2T1, XE3-4 (validated); XV2-2T0, XE3-4TN (RAM boot only).
   tests model separate RAM and durable environments initially at counter 9;
   this is source-level coverage, not new hardware qualification. Previously
   published installers and saved AP commands are not updated automatically.
+
+## 2026.10.06.0
+
 - The XE3-4 RAM recovery image is validated too (no image change).
+
+## 2026.10.01.0
+
 - The XE3-4 (SKU 32) is validated for persistent install and A/B
   sysupgrade: both banks booted, switched both ways and upgraded from bank
   1 to bank 0, with the device-data vault, Ethernet, DHCP and VLAN 1
@@ -18,9 +24,11 @@ XV2-2, XV2-2T1, XE3-4 (validated); XV2-2T0, XE3-4TN (RAM boot only).
   two OEM Wi-Fi board files are copied into the vault, and the family
   sysupgrade image now accepts it. The third radio works on 5 GHz; 6 GHz is
   not validated. No other Jaguar model gains hardware validation.
+
 - **Warning:** upstream OpenWrt's XE3-4 image uses the same board name, so
   this sysupgrade image MUST NOT be used to upgrade an XE3-4 running
   upstream OpenWrt.
+
 - `profiles.json` lists every supported board after a local rebuild of the
   same commit; the build no longer keeps a stale copy.
 
