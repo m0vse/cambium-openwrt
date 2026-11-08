@@ -459,11 +459,11 @@
           "persistent": {
             "config": "config@mp03.3-lynx",
             "status": "untested",
-            "note": "Should work from shared Cheetah support and confirmed RAM bring-up; currently untested on XV2-23T"
+            "note": "High confidence: persistent installation is expected to work from shared Cheetah support and confirmed RAM bring-up; direct XV2-23T hardware validation pending"
           },
           "sysupgrade": {
             "status": "untested",
-            "note": "A/B should work from shared Cheetah support; currently untested on XV2-23T; conversion to two firmware banks replaces the retained OEM bank"
+            "note": "High confidence: A/B booting is expected to work from shared Cheetah support and confirmed RAM bring-up; direct XV2-23T hardware validation pending; conversion to two firmware banks replaces the retained OEM bank"
           }
         }
       ]

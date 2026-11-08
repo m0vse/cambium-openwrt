@@ -2,8 +2,9 @@
 
 ## XV2-23T status
 
-**Persistent installation and A/B should work, but are currently untested on
-XV2-23T.** Shared Cheetah support and the observed RAM bring-up provide enough
+**Persistent installation and A/B booting are expected to work with high
+confidence; direct XV2-23T hardware validation is pending.** Shared Cheetah
+support and the observed RAM bring-up provide enough
 evidence to proceed to an OpenWiFi build. This does not establish full stock
 OpenWrt validation. Qualification flags and persistent/sysupgrade metadata
 remain untested.

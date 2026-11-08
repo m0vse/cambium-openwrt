@@ -1,6 +1,6 @@
 # Cheetah changelog
 
-XV2-21X (validated); XV2-23T (RAM bring-up confirmed; persistent/A/B untested);
+XV2-21X (validated); XV2-23T (RAM bring-up confirmed; persistent/A/B expected to work with high confidence; hardware validation pending);
 XV2-22H (inferred candidate; not hardware tested).
 
 ## Unreleased
@@ -19,8 +19,9 @@ XV2-22H (inferred candidate; not hardware tested).
   routing/DNS, unit-specific board/calibration import and passive reception
   on both Wi-Fi 6 radios. Full radio/AP operation remains unvalidated.
 - Extend the MDIO sibling-clock guard, radio/calibration dispatch and
-  management VLAN startup to XV2-23T. Persistent installation and A/B should
-  work from shared Cheetah support, but remain untested on this hardware.
+  management VLAN startup to XV2-23T. Persistent installation and A/B booting
+  are expected to work with high confidence from shared Cheetah support;
+  direct hardware validation remains pending.
 - Infer XV2-22H PCS/radio/calibration and management startup from captured OEM
   evidence. Physical ports, memory/flash and PoE remain unverified.
 
