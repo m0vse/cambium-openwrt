@@ -30,6 +30,8 @@ def main():
                 var = flavour
                 if entry.get("config"):
                     lines.append(f"\t\t{var}_config={entry['config']} {var}_status={entry['status']}")
+                    if entry.get("requires_trial") is False:
+                        lines.append(f"\t\t{var}_requires_trial=0")
                 else:
                     note = entry.get("note") or ("no OpenWrt build for this family yet"
                                                  if entry["status"] == "no-build" else "not built")
@@ -46,7 +48,8 @@ def main():
 #   eval "$(sh select-config.sh recovery)" && echo "$CONFIG"
 # Exits non-zero, printing nothing on stdout, for an unknown SKU, an image
 # that is not built for this model, or a persistent or installer image for a
-# model that is not yet validated (those get the recovery image only).
+# model that requires validation/trial approval. A model entry can explicitly
+# permit installation without a trial while retaining its validation status.
 
 flavour=${1:-}
 case "$flavour" in
@@ -73,7 +76,7 @@ case "$sku" in
 	*) echo "Unknown board SKU $sku: not a known Cambium model, do not install" >&2; exit 1 ;;
 esac
 
-eval "config=\\${${flavour}_config:-} status=\\${${flavour}_status:-} note=\\${${flavour}_note:-}"
+eval "config=\\${${flavour}_config:-} status=\\${${flavour}_status:-} note=\\${${flavour}_note:-} requires_trial=\\${${flavour}_requires_trial:-1}"
 if [ -z "$status" ]; then
 	echo "$model (SKU $sku, $family): no $flavour image for this family" >&2
 	exit 1
@@ -82,12 +85,14 @@ if [ -z "$config" ]; then
 	echo "$model (SKU $sku, $family): no $flavour image: $note" >&2
 	exit 1
 fi
-# Until a model is validated only its recovery (RAM) image may be used; the
-# report from that boot is what validation starts from.
+# Validation and permission to install are separate: a reviewed model entry
+# can permit installation while hardware validation remains pending.
 if [ "$status" != validated ]; then
 	if [ "$flavour" = recovery ]; then
 		echo "Warning: $model has not been validated. RAM boot only; in the booted image run" >&2
 		echo "cambium-report.sh and attach the report to an issue." >&2
+	elif [ "$requires_trial" = 0 ]; then
+		echo "Note: $model $flavour installation is enabled; hardware validation is pending." >&2
 	elif [ "${CAMBIUM_HARDWARE_TRIAL:-}" = 1 ]; then
 		echo "Warning: $model $flavour image is $status; CAMBIUM_HARDWARE_TRIAL=1 overrides" >&2
 		echo "the RAM-only rule for a hardware trial on a unit you can recover." >&2

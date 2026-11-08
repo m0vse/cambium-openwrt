@@ -175,7 +175,10 @@ board SKUs, FIT configurations and hardware status. From it:
   each release and on the site. On the stock firmware it maps the board SKU
   to the FIT configuration for a recovery, installer or persistent image,
   and refuses unknown SKUs, images not built for the model, and any
-  persistent or installer image for a model that is not validated.
+  persistent or installer image requiring validation unless a hardware trial
+  is requested. An explicit `requires_trial: false` image entry permits
+  installation without claiming hardware validation; XV2-23T persistent
+  installation uses this permission.
 
 `site/cambium-serve.py` (also a release asset) serves the release files to
 the access point and receives the backups the installer uploads, since the
@@ -187,7 +190,9 @@ checksum checks, backups and read-back; `tests/cambium-install.sh`
 simulates each family and checks the U-Boot commands against the validated
 ones.
 
-Untested models are RAM boot only. `site/cambium-report.sh`, also a release
+Models pending validation normally use recovery RAM images or an explicit
+hardware trial; XV2-23T persistent installation is enabled without `--trial`.
+`site/cambium-report.sh`, also a release
 asset, collects a read-only hardware report on the stock firmware or in the
 booted recovery image for a *Cambium hardware report* issue
 (`.github/ISSUE_TEMPLATE/cambium-hardware-report.yml`);
