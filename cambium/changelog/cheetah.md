@@ -1,6 +1,7 @@
 # Cheetah changelog
 
-XV2-21X (validated); XV2-22H, XV2-23T (RAM boot only).
+XV2-21X (validated); XV2-23T (RAM bring-up confirmed; persistent/A/B untested);
+XV2-22H (inferred candidate; not hardware tested).
 
 ## Unreleased
 
@@ -11,6 +12,17 @@ XV2-21X (validated); XV2-22H, XV2-23T (RAM boot only).
 - Gate candidate/OEM execution on successful environment writes and save.
   Apply OEM counter/selector preflight to both legacy health outcomes only;
   converted A/B boots retain their independent slot policy.
+
+## 2026.11.07.0
+
+- XV2-23T RAM bring-up confirmed with build 2026.11.07.2: DHCP/SSH,
+  routing/DNS, unit-specific board/calibration import and passive reception
+  on both Wi-Fi 6 radios. Full radio/AP operation remains unvalidated.
+- Extend the MDIO sibling-clock guard, radio/calibration dispatch and
+  management VLAN startup to XV2-23T. Persistent installation and A/B should
+  work from shared Cheetah support, but remain untested on this hardware.
+- Infer XV2-22H PCS/radio/calibration and management startup from captured OEM
+  evidence. Physical ports, memory/flash and PoE remain unverified.
 
 ## 2026.09.26.0
 
