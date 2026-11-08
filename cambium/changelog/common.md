@@ -2,19 +2,24 @@
 
 Changes that apply to every family.
 
-## Unreleased
+## 2026.10.07.0
 
 - `cambium-ab-stock --yes` makes the stock firmware the default boot again
   from OpenWrt before conversion, and `cambium-ab-status` reports what
   U-Boot boots next (`boot=openwrt-guarded`, `stock` or `other`) until
   then. The installer's `stock` command still works as before.
+
 - The Miami family is built in snapshots and releases.
-- Snapshots are built weekly, on Monday evening at 19:17 UTC, instead of
-  daily; run the snapshot workflow by hand for an extra one. The rebase onto
-  upstream OpenWrt runs with it, so `main` is rewritten weekly too.
+
 - The build takes upstream's prebuilt LLVM eBPF toolchain from
   `qualcommbe/ipq95xx` when its own subtarget has none (a subtarget upstream
   does not build), instead of stopping when that download is missing.
+
+## 2026.10.06.0
+
+- Snapshots are built weekly, on Monday evening at 19:17 UTC, instead of
+  daily; run the snapshot workflow by hand for an extra one. The rebase onto
+  upstream OpenWrt runs with it, so `main` is rewritten weekly too.
 
 ## 2026.09.28.1
 

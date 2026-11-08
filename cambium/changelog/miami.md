@@ -4,7 +4,7 @@ X7-35X (validated: RAM boot and persistent install beside the stock
 firmware; A/B conversion and sysupgrade not yet tested); X7-53X, X7-55X,
 X7-56X (no build yet).
 
-## Unreleased
+## 2026.10.12.0
 
 - Cancel the matching OEM bootloader's pending counter-8/9 bank switch
   before inactive-bank staging, persistent install/update and OEM return.
@@ -15,21 +15,32 @@ X7-56X (no build yet).
   downloaded installers and saved AP boot commands still need a separate
   update; the source change does not rewrite them.
 
-- First Miami build: OpenWrt on the IPQ5332 (new `qualcommbe/ipq53xx`
-  subtarget) with one recovery and one persistent image for the family.
-- X7-35X: wired Ethernet with DHCP on the LAN port, and all three radios
-  (2.4 GHz on the IPQ5332, 5 and 6 GHz on the QCN9224). Their firmware,
-  board files and regulatory database are staged at boot from the unit's
-  own stock firmware, then from the bank's device-data vault; the
-  5/6 GHz board file follows the configured Wi-Fi country.
+## 2026.10.07.2
+
+- Status LED: amber while booting, green when running, blue while
+  OpenWISP manages the AP.
+
+- 5/6 GHz uses ath12k's default memory profile (16 SSIDs, 256 clients per
+  radio) instead of the forced 512 MiB one, with an automatic fallback if
+  its firmware crashes and a `mem_profile` option to choose it.
+
+- Not yet: Bluetooth/Zigbee. (The X7-35X has a single 2.5 GbE port.)
+
+## 2026.10.07.1
+
 - `cambium-install.sh` RAM-boots, installs into whichever bank the stock
   firmware is not running from, and `upgrade` reinstalls keeping the
   settings (interim, until A/B sysupgrade is tested on Miami); the
   boot guard keeps OpenWrt the boot after each healthy start, and
   `cambium-ab-stock --yes` makes the stock firmware the default again.
-- Status LED: amber while booting, green when running, blue while
-  OpenWISP manages the AP.
-- 5/6 GHz uses ath12k's default memory profile (16 SSIDs, 256 clients per
-  radio) instead of the forced 512 MiB one, with an automatic fallback if
-  its firmware crashes and a `mem_profile` option to choose it.
-- Not yet: Bluetooth/Zigbee. (The X7-35X has a single 2.5 GbE port.)
+
+## 2026.10.07.0
+
+- First Miami build: OpenWrt on the IPQ5332 (new `qualcommbe/ipq53xx`
+  subtarget) with one recovery and one persistent image for the family.
+
+- X7-35X: wired Ethernet with DHCP on the LAN port, and all three radios
+  (2.4 GHz on the IPQ5332, 5 and 6 GHz on the QCN9224). Their firmware,
+  board files and regulatory database are staged at boot from the unit's
+  own stock firmware, then from the bank's device-data vault; the
+  5/6 GHz board file follows the configured Wi-Fi country.

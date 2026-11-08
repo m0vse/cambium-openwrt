@@ -8,13 +8,6 @@ XV2-22H (inferred candidate; not hardware tested).
 - Enable XV2-23T persistent installation without `--trial`, independently of
   its pending hardware validation. The generated model selector retains the
   qualification status and normal layout, backup and readback checks.
-- Neutralize the captured Cheetah v2.7.5b OEM bootcount bank-switch sentinel
-  before inactive-bank writes and legacy boot rearming. Validate the surviving
-  OEM image selector, read back count zero, and save both in the trial prefix.
-  Covers RAM staging and persistent installation; not yet hardware-tested.
-- Gate candidate/OEM execution on successful environment writes and save.
-  Apply OEM counter/selector preflight to both legacy health outcomes only;
-  converted A/B boots retain their independent slot policy.
 
 ## 2026.11.07.0
 
@@ -27,6 +20,17 @@ XV2-22H (inferred candidate; not hardware tested).
   direct hardware validation remains pending.
 - Infer XV2-22H PCS/radio/calibration and management startup from captured OEM
   evidence. Physical ports, memory/flash and PoE remain unverified.
+
+## 2026.10.12.0
+
+- Neutralize the captured Cheetah v2.7.5b OEM bootcount bank-switch sentinel
+  before inactive-bank writes and legacy boot rearming. Validate the surviving
+  OEM image selector, read back count zero, and save both in the trial prefix.
+  Covers RAM staging and persistent installation; not yet hardware-tested.
+
+- Gate candidate/OEM execution on successful environment writes and save.
+  Apply OEM counter/selector preflight to both legacy health outcomes only;
+  converted A/B boots retain their independent slot policy.
 
 ## 2026.09.26.0
 
